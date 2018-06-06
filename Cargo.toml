@@ -1,0 +1,7 @@
+[package]
+name = "ixy"
+version = "0.1.0"
+authors = ["Simon Ellmann <simon.ellmann@tum.de>"]
+
+[dependencies]
+libc = "0.2"
