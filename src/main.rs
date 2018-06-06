@@ -9,12 +9,21 @@ extern crate libc;
 #[allow(non_camel_case_types)]
 #[allow(non_upper_case_globals)]
 mod constants;
-
-use std::fs;
-use std::ptr;
-use std::os::unix::prelude::AsRawFd;
 use constants::*;
 
+use std::env;
+
+use std::fs;
+use std::fs::File;
+
+use std::error::Error;
+
+use std::io::prelude::*;
+use std::io::ErrorKind;
+
+use std::ptr;
+use std::process;
+use std::os::unix::prelude::AsRawFd;
 use std::thread;
 use std::time::Duration;
 
@@ -24,20 +33,25 @@ struct ixgbe_device {
 
 
 fn main() {
-    // TODO
-    unbind_driver();
+    //let pci_addr = "0000:03:00.0";
 
-    //let path = format!("{}", "README.md");
-    let path = format!("/sys/bus/pci/devices/{}/resource0", "0000:03:00.1");
+    let mut args = env::args();
+    args.next();
 
-    let addr = pci_map(&path);
+    let pci_addr = match args.next() {
+        Some(arg) => arg,
+        None => {
+            eprintln!("Problem parsing arguments: {}", "too few arguments");
+            process::exit(1);
+        },
+    };
+
+    unbind_driver(&pci_addr).expect("driver could not be unbinded");
+
+    let resource = format!("/sys/bus/pci/devices/{}/resource0", pci_addr);
+
+    let addr = pci_map(&resource).unwrap();
     let ixgbe = ixgbe_device { addr };
-
-    /*for i in 0..255 {
-        unsafe {
-            println!("{:x}", read_reg32(ixgbe.addr, i*4));
-        }
-    }*/
 
     print!("Link speed: ");
     get_link_speed(&ixgbe);
@@ -46,37 +60,31 @@ fn main() {
     //get_link_speed(&ixgbe);
 }
 
-/* should return OK or ERR ?! */
-fn pci_map(path: &str) -> usize {
-    let f = fs::OpenOptions::new()
+fn pci_map(path: &str) -> Result<usize, Box<Error>> {
+    let file = fs::OpenOptions::new()
         .read(true)
         .write(true)
-        .open(path)
-        .expect("Unable to open file");
-    let size = fs::metadata(path).expect("A").len();
+        .open(path)?;
+    let size = fs::metadata(path)?.len();
 
     println!("File size: {} B", size);
 
-    let addr = unsafe {
-        let data = libc::mmap(
-            ptr::null_mut(),
-            size as usize,
-            libc::PROT_READ | libc::PROT_WRITE,
-            libc::MAP_SHARED,
-            f.as_raw_fd(),
-            0,
-        ) as *mut u8;
+    let data = unsafe { libc::mmap(
+        ptr::null_mut(),
+        size as usize,
+        libc::PROT_READ | libc::PROT_WRITE,
+        libc::MAP_SHARED,
+        file.as_raw_fd(),
+        0,
+    ) as *mut u8 };
 
-        if data.is_null() {
-            panic!("Could not access data from memory mapped file")
-        };
+    println!("Address: {:x}", data as usize);
 
-        println!("Address: {:x}", data as usize);
-
-        data as usize
-    };
-
-    addr
+    if data.is_null() {
+        Err(Box::new(std::io::Error::new(ErrorKind::Other, "pci mapping failed")))
+    } else {
+        Ok(data as usize)
+    }
 }
 
 fn reset_and_init(ixgbe: &ixgbe_device) {
@@ -105,7 +113,7 @@ fn reset_and_init(ixgbe: &ixgbe_device) {
         println!("Initializing link");
 
         // section 4.6.4 - initialize link (auto negotiation)
-        init_link(dev);
+        init_link(ixgbe);
     }
 }
 
@@ -161,10 +169,26 @@ unsafe fn wait_set_reg32(data: usize, register: u32, value: u32) {
     }
 }
 
-/* TODO
+/*
  * echo -n "0000:02:00.1" > /sys/bus/pci/drivers/igb_uio/unbind
  * echo -n "0000:03:00.1" > /sys/bus/pci/drivers/ixgbe/unbind
  */
-fn unbind_driver() {
+fn unbind_driver(pci_addr: &str) -> Result<(), Box<Error>> {
+    let path = format!("/sys/bus/pci/devices/{}/driver/unbind", pci_addr);
 
+    let mut file = fs::OpenOptions::new()
+        .read(false)
+        .write(true)
+        .open(path);
+
+    match file {
+        Ok(mut f) => {
+            match write!(f, "{}", pci_addr) {
+                Err(e) => Err(Box::new(e)),
+                _ => Ok(()),
+            }
+        },
+        Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(Box::new(e)),
+    }
 }
