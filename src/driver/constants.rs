@@ -297,13 +297,55 @@ pub const IXGBE_FCCFG: u32		= 0x03D00;
 pub const IXGBE_TFCS: u32		= 0x0CE00;
 
 /* Receive DMA Registers */
-/*const fn IXGBE_RDBAL(_i: u32) -> u32 { (((_i) < 64) ? (0x01000 + ((_i: u32) * 0x40)) : (0x0D000 + (((_i: u32) - 64) * 0x40))) }
-pub const fn IXGBE_RDBAH(_i: u32) -> u32 { (((_i) < 64) ? (0x01004 + ((_i: u32) * 0x40)) : (0x0D004 + (((_i: u32) - 64) * 0x40))) }
-pub const fn IXGBE_RDLEN(_i: u32) -> u32 { (((_i) < 64) ? (0x01008 + ((_i: u32) * 0x40)) : (0x0D008 + (((_i: u32) - 64) * 0x40))) }
-pub const fn IXGBE_RDH(_i: u32) -> u32 { (((_i) < 64) ? (0x01010 + ((_i: u32) * 0x40)) : (0x0D010 + (((_i: u32) - 64) * 0x40))) }
-pub const fn IXGBE_RDT(_i: u32) -> u32 { (((_i) < 64) ? (0x01018 + ((_i: u32) * 0x40)) : (0x0D018 + (((_i: u32) - 64) * 0x40))) }
-pub const fn IXGBE_RXDCTL(_i: u32) -> u32 { (((_i) < 64) ? (0x01028 + ((_i: u32) * 0x40)) : (0x0D028 + (((_i: u32) - 64) * 0x40))) }
-pub const fn IXGBE_RSCCTL(_i: u32) -> u32 { (((_i) < 64) ? (0x0102C + ((_i: u32) * 0x40)) : (0x0D02C + (((_i: u32) - 64) * 0x40))) */
+pub fn IXGBE_RDBAL(_i: u32) -> u32 {
+    if _i < 64 {
+        0x01000 + (_i * 0x40)
+    } else {
+        0x0D000 + ((_i - 64) * 0x40)
+    }
+}
+pub fn IXGBE_RDBAH(_i: u32) -> u32 {
+    if _i < 64 {
+        0x01004 + (_i * 0x40)
+    } else {
+        0x0D004 + ((_i - 64) * 0x40)
+    }
+}
+pub fn IXGBE_RDLEN(_i: u32) -> u32 {
+    if _i < 64 {
+        0x01008 + (_i * 0x40)
+    } else {
+        0x0D008 + ((_i - 64) * 0x40)
+    }
+}
+pub fn IXGBE_RDH(_i: u32) -> u32 {
+    if _i < 64 {
+        0x01010 + (_i * 0x40)
+    } else {
+        0x0D010 + ((_i - 64) * 0x40)
+    }
+}
+pub fn IXGBE_RDT(_i: u32) -> u32 {
+    if _i < 64 {
+        0x01018 + (_i * 0x40)
+    } else {
+        0x0D018 + ((_i - 64) * 0x40)
+    }
+}
+pub fn IXGBE_RXDCTL(_i: u32) -> u32 {
+    if _i < 64 {
+        0x01028 + (_i * 0x40)
+    } else {
+        0x0D028 + ((_i - 64) * 0x40)
+    }
+}
+pub fn IXGBE_RSCCTL(_i: u32) -> u32 {
+    if _i < 64 {
+        0x0102C + (_i * 0x40)
+    } else {
+        0x0D02C + ((_i - 64) * 0x40)
+    }
+}
 pub const IXGBE_RSCDBU: u32	= 0x03028;
 pub const IXGBE_RDDCC: u32	= 0x02F20;
 pub const IXGBE_RXMEMWRAP: u32	= 0x03190;
@@ -314,14 +356,30 @@ pub const IXGBE_STARCTRL: u32	= 0x03024;
  * 16-64 : 0x01014 + n*0x40;
  * 64-127: 0x0D014 + (n-64)*0x40;
  */
-/*const fn IXGBE_SRRCTL(_i: u32) -> u32 { (((_i) <= 15) ? (0x02100 + ((_i: u32) * 4)) : (((_i: u32) < 64) ? (0x01014 + ((_i: u32) * 0x40)) : (0x0D014 + (((_i: u32) - 64) * 0x40)))) */
+pub fn IXGBE_SRRCTL(_i: u32) -> u32 {
+    if _i <= 15 {
+        return 0x02100 + (_i * 4);
+    } else if _i < 64 {
+        return 0x01014 + (_i * 0x40);
+    } else {
+        return 0x0D014 + ((_i - 64) * 0x40);
+    }
+}
 /*
  * Rx DCA Control Register:
  * 00-15 : 0x02200 + n*4;
  * 16-64 : 0x0100C + n*0x40;
  * 64-127: 0x0D00C + (n-64)*0x40;
  */
-/*const fn IXGBE_DCA_RXCTRL(_i: u32) -> u32 { (((_i) <= 15) ? (0x02200 + ((_i: u32) * 4)) : (((_i: u32) < 64) ? (0x0100C + ((_i: u32) * 0x40)) : (0x0D00C + (((_i: u32) - 64) * 0x40))))*/
+pub fn IXGBE_DCA_RXCTRL(_i: u32) -> u32 {
+    if _i <= 15 {
+        0x02200 + (_i * 4)
+    } else if _i < 64 {
+        0x0100C + (_i * 0x40)
+    } else {
+        0x0D00C + ((_i - 64) * 0x40)
+    }
+}
 pub const IXGBE_RDRXCTL: u32		= 0x02F00;
 /* 8 of these 0x03C00 - 0x03C1C */
 pub const fn IXGBE_RXPBSIZE(_i: u32)	-> u32 { (0x03C00 + (_i * 4)) }
@@ -3118,6 +3176,7 @@ pub struct ixgbe_hic_phy_activity_resp {
 }
 
 /* Transmit Descriptor - Legacy */
+#[repr(C)]
 pub union ixgbe_legacy_tx_desc_lower {
     data: u32,
     /* flags */
@@ -3126,11 +3185,15 @@ pub union ixgbe_legacy_tx_desc_lower {
     cmd: u8, /* Descriptor control */
     /* end flags */
 }
+
+#[repr(C)]
 pub struct ixgbe_legacy_tx_desc_upper_fields {
     status: u8, /* Descriptor status */
     css: u8, /* Checksum start */
     vlan: u16,
 }
+
+#[repr(C)]
 pub union ixgbe_legacy_tx_desc_upper {
     data: u32,
     fields: ixgbe_legacy_tx_desc_upper_fields,
@@ -3144,22 +3207,28 @@ pub struct ixgbe_legacy_tx_desc {
 }
 
 /* Transmit Descriptor - Advanced */
+#[repr(C)]
 pub struct ixgbe_adv_tx_desc_read {
     buffer_addr: u64, /* Address of descriptor's data buf */
     cmd_type_len: u32,
     olinfo_status: u32,
 }
+
+#[repr(C)]
 pub struct ixgbe_adv_tx_desc_wb {
     rsvd: u64, /* Reserved */
     nxtseq_seed: u32,
     status: u32,
 }
+
+#[repr(C)]
 pub union ixgbe_adv_tx_desc {
     read: ixgbe_adv_tx_desc_read,
     wb: ixgbe_adv_tx_desc_wb,
 }
 
 /* Receive Descriptor - Legacy */
+#[repr(C)]
 pub struct ixgbe_legacy_rx_desc {
     buffer_addr: u64, /* Address of the descriptor's data buffer */
     length: u16, /* Length of data DMAed into data buffer */
@@ -3169,38 +3238,64 @@ pub struct ixgbe_legacy_rx_desc {
     vlan: u16,
 }
 
-///* Receive Descriptor - Advanced */
-//union ixgbe_adv_rx_desc {
-//struct {
-//u64 pkt_addr; /* Packet buffer address */
-//u64 hdr_addr; /* Header buffer address */
-//} read;
-//struct {
-//struct {
-//union {
-//u32 data;
-//struct {
-//u16 pkt_info; /* RSS, Pkt type */
-//u16 hdr_info; /* Splithdr, hdrlen */
-//} hs_rss;
-//} lo_dword;
-//union {
-//u32 rss; /* RSS Hash */
-//struct {
-//u16 ip_id; /* IP id */
-//u16 csum; /* Packet Checksum */
-//} csum_ip;
-//} hi_dword;
-//} lower;
-//struct {
-//u32 status_error; /* ext status/error */
-//u16 length; /* Packet length */
-//u16 vlan; /* VLAN tag */
-//} upper;
-//} wb;  /* writeback */
-//};
+#[repr(C)]
+pub struct ixgbe_adv_rx_desc_read {
+    pub pkt_addr: u64, /* Packet buffer address */
+    pub hdr_addr: u64, /* Header buffer address */
+}
+
+/* Receive Descriptor - Advanced */
+#[repr(C)]
+pub struct ixgbe_adv_rx_desc_wb_lower_lo_dword_hs_rss {
+    pub pkt_info: u16, /* RSS, Pkt type */
+    pub hdr_info: u16, /* Splithdr, hdrlen */
+}
+
+#[repr(C)]
+pub union ixgbe_adv_rx_desc_wb_lower_lo_dword {
+    pub data: u32,
+    pub hs_rss: ixgbe_adv_rx_desc_wb_lower_lo_dword_hs_rss,
+}
+
+#[repr(C)]
+pub struct ixgbe_adv_rx_desc_wb_lower_hi_dword_csum_ip {
+    pub ip_id: u16, /* IP id */
+    pub csum: u16, /* Packet Checksum */
+}
+
+#[repr(C)]
+pub union ixgbe_adv_rx_desc_wb_lower_hi_dword {
+    pub rss: u32, /* RSS Hash */
+    pub csum_ip: ixgbe_adv_rx_desc_wb_lower_hi_dword_csum_ip,
+}
+
+#[repr(C)]
+pub struct ixgbe_adv_rx_desc_wb_lower {
+    pub lo_dword: ixgbe_adv_rx_desc_wb_lower_lo_dword,
+    pub hi_dword: ixgbe_adv_rx_desc_wb_lower_hi_dword,
+}
+
+#[repr(C)]
+pub struct ixgbe_adv_rx_desc_wb_upper {
+    pub status_error: u32, /* ext status/error */
+    pub length: u16, /* Packet length */
+    pub vlan: u16, /* VLAN tag */
+}
+
+#[repr(C)]
+pub struct ixgbe_adv_rx_desc_wb {
+    pub lower: ixgbe_adv_rx_desc_wb_lower,
+    pub upper: ixgbe_adv_rx_desc_wb_upper,
+}
+
+#[repr(C)]
+pub union ixgbe_adv_rx_desc {
+    pub read: ixgbe_adv_rx_desc_read,
+    pub wb: ixgbe_adv_rx_desc_wb,  /* writeback */
+}
 
 /* Context descriptors */
+#[repr(C)]
 pub struct ixgbe_adv_tx_context_desc {
     vlan_macip_lens: u32,
     seqnum_seed: u32,
