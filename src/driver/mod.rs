@@ -5,13 +5,13 @@ extern crate libc;
 #[allow(non_camel_case_types)]
 #[allow(non_upper_case_globals)]
 mod constants;
+
 mod ixgbe;
 mod memory;
 mod pci;
 
-use self::constants::*;
 use self::ixgbe::*;
-use self::pci::*;
+use self::memory::*;
 
 use std::error::Error;
 use std::mem;
@@ -40,8 +40,8 @@ pub struct DeviceStats {
 pub trait IxyDriver {
     fn init(pci_addr: &str, num_rx_queues: u32, num_tx_queues: u32) -> Result<Self, Box<Error>> where Self: Sized;
     fn driver_name(&self) -> &str;
-    fn rx_batch(&mut self, queue_id: u32, num_bufs: u32) -> Vec<*const usize>;
-    fn tx_batch(&mut self, queue_id: u32, num_bufs: u32) -> Vec<*const usize>;
+    fn rx_batch(&mut self, queue_id: u32, num_bufs: u32) -> Vec<Packet>;
+    fn tx_batch(&mut self, queue_id: u32, packets: Vec<Packet>) -> u32;
     fn read_stats(&self, stats: &mut DeviceStats);
     fn reset_stats(&self);
     fn set_promisc(&self, enabled: bool);
@@ -49,12 +49,12 @@ pub trait IxyDriver {
 }
 
 impl IxyDevice {
-    pub fn rx_batch(&mut self, queue_id: u32, num_bufs: u32) -> Vec<*const usize> {
-        self.driver.rx_batch(queue_id, num_bufs)
+    pub fn rx_batch(&mut self, queue_id: u32, num_packets: u32) -> Vec<Packet> {
+        self.driver.rx_batch(queue_id, num_packets)
     }
 
-    pub fn tx_batch(&mut self, queue_id: u32, num_bufs: u32) -> Vec<*const usize> {
-        self.driver.tx_batch(queue_id, num_bufs)
+    pub fn tx_batch(&mut self, queue_id: u32, packets: Vec<Packet>) -> u32 {
+        self.driver.tx_batch(queue_id, packets)
     }
 
     pub fn read_stats(&self, stats: &mut DeviceStats) {
@@ -74,11 +74,7 @@ impl IxyDevice {
     }
 }
 
-
 pub fn ixy_init(pci_addr: &str, rx_queues: u32, tx_queues: u32) -> Result<IxyDevice, Box<Error>> {
-    // TODO: check if it is our desired network card
-    // TODO: virtio driver?
-
     let driver: IxgbeDevice  = IxyDriver::init(pci_addr, rx_queues, tx_queues).unwrap();
 
     let ixy = IxyDevice {

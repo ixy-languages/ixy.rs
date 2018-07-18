@@ -6,34 +6,32 @@ use std::io::Write;
 use std::os::unix::prelude::AsRawFd;
 use std::ptr;
 
-pub fn pci_map(path: &str) -> Result<usize, Box<Error>> {
+pub fn pci_map(path: &str) -> Result<(*mut u8, usize), Box<Error>> {
     let file = fs::OpenOptions::new()
         .read(true)
         .write(true)
         .open(path)?;
-    let size = fs::metadata(path)?.len();
+    let len = fs::metadata(path)?.len() as usize;
 
     let ptr = unsafe {
         libc::mmap(
             ptr::null_mut(),
-            size as usize,
+            len,
             libc::PROT_READ | libc::PROT_WRITE,
             libc::MAP_SHARED,
             file.as_raw_fd(),
             0,
-        ) as *const u32
+        ) as *mut u8
     };
 
-    if ptr.is_null() || (ptr as isize) < 0 {
+    if ptr.is_null() || (ptr as isize) < 0 || len == 0 {
         Err(Box::new(std::io::Error::new(ErrorKind::Other, "pci mapping failed")))
     } else {
-        Ok(ptr as usize)
+        Ok((ptr, len))
     }
 }
 
-// echo -n "0000:03:00.1" > /sys/bus/pci/drivers/ixgbe/unbind
 pub fn unbind_driver(pci_addr: &str) -> Result<(), Box<Error>> {
-    // TODO: path length should not be greater then maximum allowed path length (everywhere!)
     let path = format!("/sys/bus/pci/devices/{}/driver/unbind", pci_addr);
 
     match fs::OpenOptions::new().write(true).open(path) {

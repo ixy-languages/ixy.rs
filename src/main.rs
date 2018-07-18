@@ -32,23 +32,15 @@ fn main() {
 
     let batch_size = 32;
 
+    println!("waiting for packets");
+
     loop {
         let packets = dev.rx_batch(0, batch_size);
 
-        for packet in packets{
-            println!("Packet address: {}", packet as usize);
+        if packets.len() > 0 {
+            println!("Packets received: {}", packets.len());
+            let sent = dev.tx_batch(0, packets);
+            println!("Packets sent: {}", sent);
         }
     }
-
-
-    //let resource = format!("/sys/bus/pci/devices/{}/resource0", pci_addr);
-    //let pci_addr = pci_map(&resource).unwrap();
-    // TODO: ixgbe_init with amount of rx- and tx-queues
-    //let ixgbe = driver::ixgbe_init( &pci_addr, 15, 15);
-    //unsafe { println!("Link speed: {} Mbit/s", get_link_speed(&ixgbe)) };
-    //get_link_speed(&ixgbe);
 }
-
-/*pub fn receive(dev: &IxyDevice, queue_id: u32) {
-    //let received =
-}*/
