@@ -6,36 +6,59 @@ It supports Intel 82599 10GbE NICs (`ixgbe` family).
 
 ## Features
 
-* tbd
+* less than 2000 lines of Rust code for the driver and two example applications
+* simple API to use, see this README
+* super fast, can saturate a 10 Gbit/s connection with 60 byte packets on a single cpu core
 
 ## Build instructions
 
-```
-make
-make install
-```
-
-You will need `tbd`. Install using:
+You will need a nightly version of Rust and its package manager `cargo`.
+Install using:
 
 ```
-tbd
+curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain nightly
+source $HOME/.cargo/env
+```
+
+Build the binaries:
+
+```
+cd ixy.rs
+cargo build --all-targets
+```
+
+Ixy.rs uses hugepages so you have to enable them:
+
+```
+sudo ./setup-hugetlbfs.sh
 ```
 
 ## Usage
 
-tbd
+There are two demo applications included in the ixy.rs crate.
+You can run the packet generator with
+
+```
+sudo cargo run --release --example generator <pci bus id>
+```
+
+and the forwarder with
+
+```
+sudo cargo run --release --example forwarder <pci bus id1> <pci bus id2>
+```
 
 ### API
 
-`lib/ixy.rs` defines ixy.rs's public API.
+`src/lib.rs` defines ixy.rs's public API.
 
 ### Example
 
-`example/some_example.rs` is some example.
+`examples` contains all demo applications included in this crate.
 
 ## Internals
 
-`lib/ixy.rs` contains the core logic.
+`src/ixgbe.rs` contains the core logic.
 
 ## License
 
