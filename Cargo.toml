@@ -5,3 +5,4 @@ authors = ["Simon Ellmann <simon.ellmann@tum.de>"]
 
 [dependencies]
 libc = "0.2"
+byteorder = "1.2.4"
