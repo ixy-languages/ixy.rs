@@ -11,7 +11,6 @@ use ixy::memory::Packet;
 
 const BATCH_SIZE: usize = 32;
 
-// cargo run --example forwarder 0000:05:00.0 0000:05:00.1
 pub fn main() {
     let mut args = env::args();
     args.next();
@@ -35,10 +34,10 @@ pub fn main() {
     let mut dev1 = ixy_init(&pci_addr_1, 1, 1).unwrap();
     let mut dev2 = ixy_init(&pci_addr_2, 1, 1).unwrap();
 
-    let mut dev1_stats = DeviceStats::new();
-    let mut dev1_stats_old = DeviceStats::new();
-    let mut dev2_stats = DeviceStats::new();
-    let mut dev2_stats_old = DeviceStats::new();
+    let mut dev1_stats = Default::default();
+    let mut dev1_stats_old = Default::default();
+    let mut dev2_stats = Default::default();
+    let mut dev2_stats_old = Default::default();
 
     dev1.reset_stats();
     dev2.reset_stats();
@@ -63,12 +62,12 @@ pub fn main() {
             if nanos > 1_000_000_000 {
                 dev1.read_stats(&mut dev1_stats);
                 dev1_stats.print_stats_diff(&dev1, &dev1_stats_old, nanos);
-                dev1_stats_old.set_to_stats(&dev1_stats);
+                dev1_stats_old = dev1_stats;
 
                 if dev1 != dev2 {
                     dev2.read_stats(&mut dev2_stats);
                     dev2_stats.print_stats_diff(&dev2, &dev2_stats_old, nanos);
-                    dev2_stats_old.set_to_stats(&dev2_stats);
+                    dev2_stats_old = dev2_stats;
                 }
 
                 time = Instant::now();

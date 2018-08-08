@@ -31,7 +31,10 @@ pub fn unbind_driver(pci_addr: &str) -> Result<(), Box<Error>> {
     let path = format!("/sys/bus/pci/devices/{}/driver/unbind", pci_addr);
 
     match fs::OpenOptions::new().write(true).open(path) {
-        Ok(mut f) => Ok(write!(f, "{}", pci_addr)?),
+        Ok(mut f) => {
+            write!(f, "{}", pci_addr)?;
+            Ok(())
+        },
         Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(Box::new(e)),
     }
@@ -90,4 +93,14 @@ pub fn pci_open_resource(pci_addr: &str, resource: &str) -> Result<File, Box<Err
     let path = format!("/sys/bus/pci/devices/{}/{}", pci_addr, resource);
 
     Ok(File::open(path)?)
+}
+
+pub fn read_io16(file: &mut File, offset: usize) -> Result<u16, Box<Error>> {
+    file.seek(SeekFrom::Start(offset as u64))?;
+    Ok(file.read_u16::<NativeEndian>()?)
+}
+
+pub fn read_io32(file: &mut File, offset: usize) -> Result<u32, Box<Error>> {
+    file.seek(SeekFrom::Start(offset as u64))?;
+    Ok(file.read_u32::<NativeEndian>()?)
 }

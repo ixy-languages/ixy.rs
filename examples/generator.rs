@@ -5,20 +5,18 @@ use std::env;
 
 use std::process;
 use std::time::Instant;
-use std::rc::Rc;
-use std::cell::RefCell;
 
 use ixy::*;
 use ixy::memory::{Packetpool, Packet, alloc_pkt_batch};
 
 // number of packets sent simultaneously by our driver
 const BATCH_SIZE: usize = 32;
-// number of packets in our memorypool
+// number of packets in our packetpool
 const NUM_PACKETS: usize = 2048;
 
 const PACKET_SIZE: usize = 60;
 
-// cargo run --example generator 0000:05:00.0
+
 pub fn main() {
     let mut args = env::args();
     args.next();
@@ -54,8 +52,7 @@ pub fn main() {
 
     let pool = Packetpool::allocate(NUM_PACKETS, 0).unwrap();
 
-    // pre-fill all packet buffer in the memory pool with data and return them to
-    // the memory pool
+    // pre-fill all packet buffer in the pool with data and return them to the packet pool
     {
         let mut buffer: Vec<Packet> = Vec::with_capacity(NUM_PACKETS);
 
@@ -68,8 +65,8 @@ pub fn main() {
         }
     }
 
-    let mut dev_stats = DeviceStats::new();
-    let mut dev_stats_old = DeviceStats::new();
+    let mut dev_stats = Default::default();
+    let mut dev_stats_old = Default::default();
 
     dev.reset_stats();
 
@@ -103,7 +100,7 @@ pub fn main() {
             if nanos > 1_000_000_000 {
                 dev.read_stats(&mut dev_stats);
                 dev_stats.print_stats_diff(&dev, &dev_stats_old, nanos);
-                dev_stats_old.set_to_stats(&dev_stats);
+                dev_stats_old = dev_stats;
 
                 time = Instant::now();
             }

@@ -38,7 +38,7 @@ impl DmaMemory {
         };
 
         if require_contigous && size > HUGE_PAGE_SIZE {
-            return Err(Box::new(std::io::Error::new(ErrorKind::Other, "could not map physically contigous memory")))
+            return Err(Box::new(std::io::Error::new(ErrorKind::Other, "could not map physically contigous memory")));
         }
 
         let id = HUGEPAGE_ID.fetch_add(1, Ordering::SeqCst);
@@ -59,17 +59,15 @@ impl DmaMemory {
 
                 if ptr.is_null() || (ptr as isize) < 0 {
                     Err(Box::new(std::io::Error::new(ErrorKind::Other, "memory mapping failed")))
-                } else {
-                    if unsafe { libc::mlock(ptr as *mut libc::c_void, size) } == 0 {
-                        let memory = DmaMemory {
-                            virt: ptr,
-                            phys: virt_to_phys(ptr)?,
-                        };
+                } else if unsafe { libc::mlock(ptr as *mut libc::c_void, size) } == 0 {
+                    let memory = DmaMemory {
+                        virt: ptr,
+                        phys: virt_to_phys(ptr)?,
+                    };
 
-                        Ok(memory)
-                    } else {
-                        Err(Box::new(std::io::Error::new(ErrorKind::Other, "memory locking failed")))
-                    }
+                    Ok(memory)
+                } else {
+                    Err(Box::new(std::io::Error::new(ErrorKind::Other, "memory locking failed")))
                 }
             }
             Err(ref e) if e.kind() == std::io::ErrorKind::NotFound =>
@@ -142,9 +140,9 @@ impl Packetpool {
         let mut phys_addresses = Vec::with_capacity(entries as usize);
 
         for i in 0..entries {
-            phys_addresses.push( unsafe {
+            phys_addresses.push(unsafe {
                 virt_to_phys(dma.virt.offset((i as usize * entry_size) as isize))?
-            } );
+            });
         }
 
         let pool = Packetpool {
@@ -163,10 +161,10 @@ impl Packetpool {
         let pool = Rc::new(RefCell::new(pool));
 
         for i in 0..entries {
-            let addr_virt = unsafe {dma.virt.offset((i * entry_size) as isize) };
+            let addr_virt = unsafe { dma.virt.offset((i * entry_size) as isize) };
             let addr_phys = virt_to_phys(addr_virt)?;
             let len = 0;
-            let p = unsafe {Packet::new(addr_virt, addr_phys, len, &pool) };
+            let p = unsafe { Packet::new(addr_virt, addr_phys, len, &pool) };
             pool.borrow_mut().free_stack.push(p);
         }
 
@@ -208,12 +206,12 @@ pub fn alloc_pkt_batch(pool: &Rc<RefCell<Packetpool>>, buffer: &mut Vec<Packet>,
 
 pub fn alloc_pkt(pool: &Rc<RefCell<Packetpool>>, size: usize) -> Option<Packet> {
     if size > pool.borrow().entry_size {
-        return None
+        return None;
     }
 
     if let Some(mut p) = pool.borrow_mut().alloc_pkt() {
         unsafe { p.set_size(size) };
-        return Some(p)
+        return Some(p);
     }
 
     None
@@ -237,5 +235,5 @@ pub fn virt_to_phys(addr: *mut u8) -> Result<*mut u8, Box<Error>> {
 
     let phys = unsafe { std::mem::transmute::<[u8; mem::size_of::<usize>()], usize>(buffer) };
 
-    Ok(((phys & 0x7fffffffffffff) * pagesize + addr % pagesize) as *mut u8)
+    Ok(((phys & 0x007f_ffff_ffff_ffff) * pagesize + addr % pagesize) as *mut u8)
 }
