@@ -11,8 +11,11 @@ use std::cell::RefCell;
 use ixy::*;
 use ixy::memory::{Mempool, Packet, alloc_packet_batch};
 
-const BATCH_SIZE: usize = 32;
+// number of packets sent simultaneously by our driver
+const BATCH_SIZE: usize = 64;
+// number of packets in our memorypool
 const NUM_PACKETS: usize = 2048;
+
 const PACKET_SIZE: usize = 60;
 
 // cargo run --example generator 0000:05:00.0 0000:05:00.1
@@ -55,6 +58,8 @@ pub fn main() {
         )
     );
 
+    // pre-fill all packet buffer in the memory pool with data and return them to
+    // the memory pool
     {
         let mut buffer: Vec<Packet> = Vec::with_capacity(NUM_PACKETS);
 
@@ -81,8 +86,10 @@ pub fn main() {
     let mut counter = 0;
 
     loop {
+        // re-fill our packet queue with new packets to send out
         alloc_packet_batch(&mempool, &mut buffer, BATCH_SIZE, PACKET_SIZE);
 
+        // update sequence number and checksum of all packets
         for p in buffer.iter_mut() {
             p[PACKET_SIZE-4] = seq_num;
             let checksum = calc_ip_checksum(p);
@@ -93,8 +100,10 @@ pub fn main() {
 
         dev.tx_batch(0, &mut buffer);
 
+        // don't poll the time unnecessarily
         if counter & 0xfff == 0 {
             let nanos = time.elapsed().as_nanos() as u64;
+            // every second
             if nanos > 1_000_000_000 {
                 dev.read_stats(&mut dev_stats);
                 dev_stats.print_stats_diff(&dev, &dev_stats_old, nanos);
@@ -107,7 +116,7 @@ pub fn main() {
         counter += 1;
     }
 }
-
+// calculate IP/TCP/UDP checksum
 fn calc_ip_checksum(packet: &mut Packet) -> u16 {
     let mut checksum = 0;
     for i in 0..packet.len()/2 {

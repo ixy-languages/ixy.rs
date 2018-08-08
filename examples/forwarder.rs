@@ -56,8 +56,10 @@ pub fn main() {
         forward(&mut buffer, &mut dev1, 0, &mut dev2, 0);
         forward(&mut buffer, &mut dev2, 0, &mut dev1, 0);
 
+        // don't poll the time unnecessarily
         if counter & 0xfff == 0 {
             let nanos = time.elapsed().as_nanos() as u64;
+            // every second
             if nanos > 1_000_000_000 {
                 dev1.read_stats(&mut dev1_stats);
                 dev1_stats.print_stats_diff(&dev1, &dev1_stats_old, nanos);
@@ -81,10 +83,14 @@ fn forward(buffer: &mut Vec<Packet>, rx_dev: &mut IxyDevice, rx_queue: u32, tx_d
     let num_rx = rx_dev.rx_batch(rx_queue, buffer, BATCH_SIZE);
 
     if num_rx > 0 {
+        // touch all packets for a realistic workload
         for p in buffer.iter_mut() {
             p[48] += 1;
         }
 
         tx_dev.tx_batch(tx_queue, buffer);
+
+        // drop packets if they haven't been sent out
+        buffer.drain(..);
     }
 }
