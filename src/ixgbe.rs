@@ -1,7 +1,10 @@
+use std;
 use std::thread;
 use std::time::Duration;
+use std::time::Instant;
 use std::ptr;
 use std::error::Error;
+use std::io::ErrorKind;
 
 use constants::*;
 use pci::*;
@@ -17,6 +20,8 @@ use IxyDriver;
 use MAX_QUEUES;
 use DeviceStats;
 use libc;
+
+use log::*;
 
 const DRIVER_NAME: &str = "ixy-ixgbe";
 
@@ -58,7 +63,8 @@ struct IxgbeTxQueue {
     tx_index: u32,
 }
 
-fn reset_and_init(ixgbe: &mut IxgbeDevice) {
+fn reset_and_init(ixgbe: &mut IxgbeDevice, pci_addr: &str) -> Result<(), Box<Error>> {
+    info!("resetting device {}", pci_addr);
     // section 4.6.3.1 - disable all interrupts
     ixgbe.set_reg32(IXGBE_EIMC, 0x7FFFFFFF);
 
@@ -70,7 +76,7 @@ fn reset_and_init(ixgbe: &mut IxgbeDevice) {
     // section 4.6.3.1 - disable interrupts again after reset
     ixgbe.set_reg32(IXGBE_EIMC, 0x7FFFFFFF);
 
-    println!("initializing device");
+    info!("initializing device {}", pci_addr);
 
     // section 4.6.3 - wait for EEPROM auto read completion
     ixgbe.wait_set_reg32(IXGBE_EEC, IXGBE_EEC_ARD);
@@ -78,54 +84,41 @@ fn reset_and_init(ixgbe: &mut IxgbeDevice) {
     // section 4.6.3 - wait for dma initialization done
     ixgbe.wait_set_reg32(IXGBE_RDRXCTL, IXGBE_RDRXCTL_DMAIDONE);
 
-    println!("initializing link");
+    // skip last step from 4.6.3 - we don't want interrups
 
     // section 4.6.4 - initialize link (auto negotiation)
     init_link(ixgbe);
 
-    println!("resetting stats");
-
-    // section 4.6.5 - reset registers
+    // section 4.6.5 - statistical counters
+    // reset-on-read registers, just read them once
     ixgbe.reset_stats();
 
-    println!("initializing rx");
-
-    println!("before rx");
-
     // section 4.6.7 - init rx
-    init_rx(ixgbe);
-
-    println!("after rx");
-
-    println!("initializing tx");
+    init_rx(ixgbe)?;
 
     // section 4.6.8 - init tx
-    init_tx(ixgbe);
-
-    println!("starting rx queues");
+    init_tx(ixgbe)?;
 
     for i in 0..ixgbe.num_rx_queues {
-        start_rx_queue(ixgbe, i);
+        start_rx_queue(ixgbe, i)?;
     }
-
-    println!("starting tx queues");
 
     for i in 0..ixgbe.num_tx_queues {
-        start_tx_queue(ixgbe, i);
+        start_tx_queue(ixgbe, i)?;
     }
 
-    println!("starting promisc mode");
-
+    // enable promisc mode by default to make testing easier
     ixgbe.set_promisc(true);
 
-    println!("waiting for link");
-
+    // wait some time for the link to come up
     wait_for_link(ixgbe);
+
+    Ok(())
 }
 
 // sections 4.6.7
-fn init_rx(ixgbe: &mut IxgbeDevice) {
-    // disable rx while re-configuring
+fn init_rx(ixgbe: &mut IxgbeDevice) -> Result<(), Box<Error>> {
+    // disable rx while re-configuring it
     ixgbe.clear_flags32(IXGBE_RXCTRL, IXGBE_RXCTRL_RXEN);
 
     // section 4.6.11.3.4 - allocate all queues and traffic to PB0
@@ -141,29 +134,33 @@ fn init_rx(ixgbe: &mut IxgbeDevice) {
     // accept broadcast packets
     ixgbe.set_flags32(IXGBE_FCTRL, IXGBE_FCTRL_BAM);
 
-    // configure queues
+    // configure queues, same for all queues
     for i in 0..ixgbe.num_rx_queues {
+        debug!("initializing rx queue {}", i);
+        // enable advanced rx descriptors
         ixgbe.set_reg32(IXGBE_SRRCTL(i as u32), (ixgbe.get_reg32(IXGBE_SRRCTL(i as u32)) & !IXGBE_SRRCTL_DESCTYPE_MASK) | IXGBE_SRRCTL_DESCTYPE_ADV_ONEBUF);
-
+        // let nic drop packets if no rx descriptor is available instead of buffering them
         ixgbe.set_flags32(IXGBE_SRRCTL(i as u32), IXGBE_SRRCTL_DROP_EN);
 
         // section 7.1.9 - setup descriptor ring
         let ring_size_bytes = (NUM_RX_QUEUE_ENTRIES) as usize * mem::size_of::<ixgbe_adv_rx_desc>();
 
-        // TODO check result of allocate_dma_memory
-        let dma = DmaMemory::allocate(ring_size_bytes).unwrap();
+        let dma = DmaMemory::allocate(ring_size_bytes, true)?;
 
+        // initialize to 0xff to prevent rogue memory accesses on premature dma activation
         unsafe { memset(dma.virt, ring_size_bytes, 0xff); }
 
         ixgbe.set_reg32(IXGBE_RDBAL(i as u32), (dma.phys as u64 & 0xffffffff) as u32);
         ixgbe.set_reg32(IXGBE_RDBAH(i as u32), (dma.phys as u64 >> 32) as u32);
         ixgbe.set_reg32(IXGBE_RDLEN(i as u32), ring_size_bytes as u32);
 
-        println!("rx ring {} phys addr: {:p}", i, dma.phys);
-        println!("rx ring {} virt addr: {:p}", i, dma.virt);
+        debug!("rx ring {} phys addr: {:p}", i, dma.phys);
+        debug!("rx ring {} virt addr: {:p}", i, dma.virt);
 
+        // set ring to empty at start
         ixgbe.set_reg32(IXGBE_RDH(i as u32), 0);
         ixgbe.set_reg32(IXGBE_RDT(i as u32), 0);
+
 
         let mempool_size = if NUM_RX_QUEUE_ENTRIES + NUM_TX_QUEUE_ENTRIES < 4096 {
             4096
@@ -188,23 +185,26 @@ fn init_rx(ixgbe: &mut IxgbeDevice) {
         ixgbe.rx_queues.push(rx_queue);
     }
 
-    // last sentence of section 4.6.7
+    // last sentence of section 4.6.7 - set some magic bits
     ixgbe.set_flags32(IXGBE_CTRL_EXT, IXGBE_CTRL_EXT_NS_DIS);
 
+    // probably a broken feature, this flag is initialized with 1 but has to be set to 0
     for i in 0..ixgbe.num_rx_queues {
         ixgbe.clear_flags32(IXGBE_DCA_RXCTRL(i as u32), 1 << 12);
     }
 
     // start rx
     ixgbe.set_flags32(IXGBE_RXCTRL, IXGBE_RXCTRL_RXEN);
+
+    Ok(())
 }
 
 // section 4.6.8
-fn init_tx(ixgbe: &mut IxgbeDevice) {
-    // crc offload
+fn init_tx(ixgbe: &mut IxgbeDevice) -> Result<(), Box<Error>> {
+    // crc offload and small packet padding
     ixgbe.set_flags32(IXGBE_HLREG0, IXGBE_HLREG0_TXCRCEN | IXGBE_HLREG0_TXPADEN);
 
-    // section 4.6.11.3.4
+    // section 4.6.11.3.4 - set default buffer size allocations
     ixgbe.set_reg32(IXGBE_TXPBSIZE(0), IXGBE_TXPBSIZE_40KB);
     for i in 1..8 {
         ixgbe.set_reg32(IXGBE_TXPBSIZE(i), 0);
@@ -216,19 +216,26 @@ fn init_tx(ixgbe: &mut IxgbeDevice) {
 
     // configure queues
     for i in 0..ixgbe.num_tx_queues {
-        // setup descriptor ring, see section 7.1.9
+        debug!("initializing tx queue {}", i);
+        // section 7.1.9 - setup descriptor ring
         let ring_size_bytes = NUM_TX_QUEUE_ENTRIES as usize * mem::size_of::<ixgbe_adv_tx_desc>();
 
-        // TODO check result of allocate_dma_memory
-        let dma = DmaMemory::allocate(ring_size_bytes).unwrap();
+        let dma = DmaMemory::allocate(ring_size_bytes, true)?;
         unsafe { memset(dma.virt, ring_size_bytes, 0xff); }
 
         ixgbe.set_reg32(IXGBE_TDBAL(i as u32), (dma.phys as u64 & 0xffffffff) as u32);
         ixgbe.set_reg32(IXGBE_TDBAH(i as u32), (dma.phys as u64 >> 32) as u32);
         ixgbe.set_reg32(IXGBE_TDLEN(i as u32), ring_size_bytes as u32);
 
-        let mut txdctl = ixgbe.get_reg32(IXGBE_TXDCTL(i as u32));
+        debug!("tx ring {} phys addr: {:p}", i, dma.phys);
+        debug!("tx ring {} virt addr: {:p}", i, dma.virt);
 
+        // descriptor writeback magic values, important to get good performance and low PCIe overhead
+        // see 7.2.3.4.1 and 7.2.3.5 for an explanation of these values and how to find good ones
+        // we just use the defaults from DPDK here, but this is a potentially interesting point for optimizations
+        let mut txdctl = ixgbe.get_reg32(IXGBE_TXDCTL(i as u32));
+        // there are no defines for this in constants.rs for some reason
+        // pthresh: 6:0, hthresh: 14:8, wthresh: 22:16
         txdctl &= !(0x3F | (0x3F << 8) | (0x3F << 16));
         txdctl |= 36 | (8 << 8) | (4 << 16);
 
@@ -247,14 +254,17 @@ fn init_tx(ixgbe: &mut IxgbeDevice) {
 
     // final step: enable DMA
     ixgbe.set_reg32(IXGBE_DMATXCTL, IXGBE_DMATXCTL_TE);
+
+    Ok(())
 }
 
-fn start_rx_queue(ixgbe: &mut IxgbeDevice, queue_id: u16) {
+fn start_rx_queue(ixgbe: &mut IxgbeDevice, queue_id: u16) -> Result<(), Box<Error>> {
+    debug!("starting rx queue {}", queue_id);
     {
         let queue = &mut ixgbe.rx_queues[queue_id as usize];
 
         if queue.num_entries & (queue.num_entries - 1) != 0 {
-            panic!("number of queue entries must be a power of 2");
+            return Err(Box::new(std::io::Error::new(ErrorKind::Other, "number of queue entries must be a power of 2")))
         }
 
         for i in 0..queue.num_entries {
@@ -276,12 +286,14 @@ fn start_rx_queue(ixgbe: &mut IxgbeDevice, queue_id: u16) {
                 ptr::write_volatile(&mut (*queue.descriptors.offset(i as isize)).read.hdr_addr as *mut u64, 0);
             }
 
+            // we need to remember which descriptor entry belongs to which mempool entry
             queue.mempool_entries.push(buf);
         }
     }
 
     let queue = &ixgbe.rx_queues[queue_id as usize];
 
+    // enable queue and wait if necessary
     ixgbe.set_flags32(IXGBE_RXDCTL(queue_id as u32), IXGBE_RXDCTL_ENABLE);
     ixgbe.wait_set_reg32(IXGBE_RXDCTL(queue_id as u32), IXGBE_RXDCTL_ENABLE);
 
@@ -290,14 +302,17 @@ fn start_rx_queue(ixgbe: &mut IxgbeDevice, queue_id: u16) {
 
     // was set to 0 before in the init function
     ixgbe.set_reg32(IXGBE_RDT(queue_id as u32), queue.num_entries - 1);
+
+    Ok(())
 }
 
-fn start_tx_queue(ixgbe: &mut IxgbeDevice, queue_id: u16) {
+fn start_tx_queue(ixgbe: &mut IxgbeDevice, queue_id: u16) -> Result<(), Box<Error>> {
+    debug!("starting tx queue {}", queue_id);
     {
         let queue = &mut ixgbe.tx_queues[queue_id as usize];
 
         if queue.num_entries & (queue.num_entries - 1) != 0 {
-            println!("number of queue entries must be a power of 2");
+            return Err(Box::new(std::io::Error::new(ErrorKind::Other, "number of queue entries must be a power of 2")))
         }
     }
 
@@ -308,6 +323,8 @@ fn start_tx_queue(ixgbe: &mut IxgbeDevice, queue_id: u16) {
     // enable queue and wait if necessary
     ixgbe.set_flags32(IXGBE_TXDCTL(queue_id as u32), IXGBE_TXDCTL_ENABLE);
     ixgbe.wait_set_reg32(IXGBE_TXDCTL(queue_id as u32), IXGBE_TXDCTL_ENABLE);
+
+    Ok(())
 }
 
 fn ixgbe_rx_batch(ixgbe: &mut IxgbeDevice, queue_id: u32, buffer: &mut Vec<Packet>, num_packets: usize) -> usize {
@@ -414,6 +431,7 @@ fn ixgbe_tx_batch(ixgbe: &mut IxgbeDevice, queue_id: u32, packets: &mut Vec<Pack
 
         queue.clean_index = clean_index;
 
+        // TODO only take as many packets from the vector as are sent out
         for packet in packets.drain(..) {
             let next_index = wrap_ring(cur_index, queue.num_entries);
 
@@ -447,22 +465,25 @@ fn ixgbe_tx_batch(ixgbe: &mut IxgbeDevice, queue_id: u32, packets: &mut Vec<Pack
 impl IxyDriver for IxgbeDevice {
     fn init(pci_addr: &str, num_rx_queues: u16, num_tx_queues: u16) -> Result<IxgbeDevice, Box<Error>> {
         if unsafe { libc::getuid() } != 0 {
-            println!("not running as root, this will probably fail");
+            warn!("not running as root, this will probably fail");
         }
 
-        if num_rx_queues > MAX_QUEUES || num_tx_queues > MAX_QUEUES {
-            panic!("too many queues");
+        if num_rx_queues > MAX_QUEUES {
+            return Err(Box::new(std::io::Error::new(ErrorKind::Other, format!("cannot configure {} rx queues: limit is {}", num_rx_queues, MAX_QUEUES))))
+        }
+
+        if num_tx_queues > MAX_QUEUES {
+            return Err(Box::new(std::io::Error::new(ErrorKind::Other, format!("cannot configure {} tx queues: limit is {}", num_tx_queues, MAX_QUEUES))))
         }
 
         println!("pci mapping device");
 
         let (addr, len) = pci_map_resource(pci_addr)?;
-
         let rx_queues = Vec::with_capacity(num_rx_queues as usize);
         let tx_queues = Vec::with_capacity(num_tx_queues as usize);
         let mut dev = IxgbeDevice { addr, len, num_rx_queues, num_tx_queues, rx_queues, tx_queues };
 
-        reset_and_init(&mut dev);
+        reset_and_init(&mut dev, pci_addr)?;
 
         Ok(dev)
     }
@@ -502,10 +523,10 @@ impl IxyDriver for IxgbeDevice {
 
     fn set_promisc(&self, enabled: bool) {
         if enabled {
-            println!("enabling promisc mode");
+            info!("enabling promisc mode");
             self.set_flags32(IXGBE_FCTRL, IXGBE_FCTRL_MPE | IXGBE_FCTRL_UPE);
         } else {
-            println!("disabling promisc mode");
+            info!("disabling promisc mode");
             self.clear_flags32(IXGBE_FCTRL, IXGBE_FCTRL_MPE | IXGBE_FCTRL_UPE);
         }
     }
@@ -583,19 +604,21 @@ impl Drop for IxgbeDevice {
 
 // see section 4.6.4
 fn init_link(ixgbe: &IxgbeDevice) {
+    // link auto-configuration register should already be set correctly, we're resetting it anyway
     ixgbe.set_reg32(IXGBE_AUTOC, (ixgbe.get_reg32(IXGBE_AUTOC) & !IXGBE_AUTOC_LMS_MASK) | IXGBE_AUTOC_LMS_10G_SERIAL);
     ixgbe.set_reg32(IXGBE_AUTOC, (ixgbe.get_reg32(IXGBE_AUTOC) & !IXGBE_AUTOC_10G_PMA_PMD_MASK) | IXGBE_AUTOC_10G_XAUI);
     // negotiate link
     ixgbe.set_flags32(IXGBE_AUTOC, IXGBE_AUTOC_AN_RESTART);
+    // datasheet wants us to wait for the link here, but we can continue and wait afterwards
 }
 
 fn wait_for_link(ixgbe: &IxgbeDevice) {
-    let mut max_wait = 10000;
-    let poll_interval = 10;
-    let speed = ixgbe.get_link_speed();
-    while speed == 0 && max_wait > 0 {
-        thread::sleep(Duration::from_millis(poll_interval));
-        max_wait -= poll_interval;
+    info!("waiting for link");
+    let time = Instant::now();
+    let mut speed = ixgbe.get_link_speed();
+    while speed == 0 && time.elapsed().as_secs() > 10 {
+        thread::sleep(Duration::from_millis(100));
+        speed = ixgbe.get_link_speed();
     }
-    println!("Link speed is {} Mbit/s", ixgbe.get_link_speed());
+    info!("link speed is {} Mbit/s", ixgbe.get_link_speed());
 }

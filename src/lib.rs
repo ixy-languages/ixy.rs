@@ -3,6 +3,7 @@
 
 extern crate libc;
 extern crate byteorder;
+extern crate log;
 
 #[allow(dead_code)]
 #[allow(non_snake_case)]
@@ -11,14 +12,15 @@ extern crate byteorder;
 mod constants;
 
 mod ixgbe;
-pub mod memory;
 mod pci;
+pub mod memory;
 
 use self::ixgbe::*;
 use self::memory::*;
 use self::pci::*;
 
 use std::error::Error;
+use std::io::ErrorKind;
 use std::io::Seek;
 use std::io::SeekFrom;
 
@@ -78,6 +80,7 @@ impl DeviceStats {
         let mbits = diff_mbit(self.rx_bytes, stats_old.rx_bytes, self.rx_pkts, stats_old.rx_pkts, nanos);
         let mpps = diff_mpps(self.rx_pkts, stats_old.rx_pkts, nanos);
         println!("[{}] RX: {:.2} Mbit/s {:.2} Mpps", pci_addr, mbits, mpps);
+
         let mbits = diff_mbit(self.tx_bytes, stats_old.tx_bytes, self.tx_pkts, stats_old.tx_pkts, nanos);
         let mpps = diff_mpps(self.tx_pkts, stats_old.tx_pkts, nanos);
         println!("[{}] TX: {:.2} Mbit/s {:.2} Mpps", pci_addr, mbits, mpps);
@@ -130,26 +133,34 @@ impl std::cmp::PartialEq for IxyDevice {
 }
 
 pub fn ixy_init(pci_addr: &str, rx_queues: u16, tx_queues: u16) -> Result<IxyDevice, Box<Error>> {
-    {
-        let mut config_file = pci_open_resource(pci_addr, "config")?;
+    // TODO add read_io function to pci
+    let mut config_file = pci_open_resource(pci_addr, "config")?;
 
-        config_file.seek(SeekFrom::Start(8))?;
-        let class_id = config_file.read_u32::<NativeEndian>()? >> 24;
+    config_file.seek(SeekFrom::Start(8))?;
+    let class_id = config_file.read_u32::<NativeEndian>()? >> 24;
 
-        if class_id != 2 {
-            panic!("Device {} is not a network card!", pci_addr);
-        }
+    if class_id != 2 {
+        return Err(Box::new(std::io::Error::new(ErrorKind::Other, format!("Device {} is not a network card", pci_addr))));
     }
 
-    let driver: IxgbeDevice  = IxyDriver::init(pci_addr, rx_queues, tx_queues).unwrap();
+    // TODO check vendor_id and device_id
+    let vendor_id = 0;
+    let device_id = 0;
 
-    let ixy = IxyDevice {
-        pci_addr: pci_addr.to_string(),
-        driver_name: driver.get_driver_name().to_string(),
-        num_rx_queues: rx_queues,
-        num_tx_queues: tx_queues,
-        driver: Box::new(driver),
-    };
+    if vendor_id == 0x1af4 && device_id >= 0x1000 {
+        Err(Box::new(std::io::Error::new(ErrorKind::Other, "Virtio driver is not implemented yet")))
+    } else {
+        // let's give it a try with ixgbe
+        let driver: IxgbeDevice = IxyDriver::init(pci_addr, rx_queues, tx_queues).unwrap();
 
-    Ok(ixy)
+        let ixy = IxyDevice {
+            pci_addr: pci_addr.to_string(),
+            driver_name: driver.get_driver_name().to_string(),
+            num_rx_queues: rx_queues,
+            num_tx_queues: tx_queues,
+            driver: Box::new(driver),
+        };
+
+        Ok(ixy)
+    }
 }

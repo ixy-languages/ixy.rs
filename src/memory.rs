@@ -20,7 +20,7 @@ use libc;
 use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
 
 const HUGE_PAGE_BITS: u32 = 21;
-const HUGE_PAGE_SIZE: u32 = 1 << HUGE_PAGE_BITS;
+const HUGE_PAGE_SIZE: usize = 1 << HUGE_PAGE_BITS;
 
 static HUGEPAGE_ID: AtomicUsize = ATOMIC_USIZE_INIT;
 
@@ -30,7 +30,17 @@ pub struct DmaMemory {
 }
 
 impl DmaMemory {
-    pub fn allocate(size: usize) -> Result<(DmaMemory), Box<Error>> {
+    pub fn allocate(size: usize, require_contigous: bool) -> Result<(DmaMemory), Box<Error>> {
+        let size = if size % HUGE_PAGE_SIZE != 0 {
+            ((size >> HUGE_PAGE_BITS) + 1) << HUGE_PAGE_BITS
+        } else {
+            size
+        };
+
+        if require_contigous && size > HUGE_PAGE_SIZE {
+            return Err(Box::new(std::io::Error::new(ErrorKind::Other, "could not map physically contigous memory")))
+        }
+
         let id = HUGEPAGE_ID.fetch_add(1, Ordering::SeqCst);
         let path = format!("/mnt/huge/ixy-{}-{}", process::id(), id);
 
@@ -51,10 +61,9 @@ impl DmaMemory {
                     Err(Box::new(std::io::Error::new(ErrorKind::Other, "memory mapping failed")))
                 } else {
                     if unsafe { libc::mlock(ptr as *mut libc::c_void, size) } == 0 {
-                        // TODO check physical address
                         let memory = DmaMemory {
                             virt: ptr,
-                            phys: virt_to_phys(ptr).unwrap(),
+                            phys: virt_to_phys(ptr)?,
                         };
 
                         Ok(memory)
@@ -128,14 +137,14 @@ impl Mempool {
             x => x,
         };
 
-        let dma = DmaMemory::allocate(entries as usize * entry_size).unwrap();
+        let dma = DmaMemory::allocate(entries as usize * entry_size, false).unwrap();
 
         let mut phys_addresses = Vec::with_capacity(entries as usize);
 
         for i in 0..entries {
             phys_addresses.push( unsafe {
-                virt_to_phys(dma.virt.offset((i as usize * entry_size) as isize))
-            }? );
+                virt_to_phys(dma.virt.offset((i as usize * entry_size) as isize))?
+            } );
         }
 
         let mut mempool = Mempool {
@@ -148,7 +157,7 @@ impl Mempool {
 
         unsafe { memset(mempool.base_addr, mempool.num_entries as usize * mempool.entry_size, 0x00) }
 
-        if HUGE_PAGE_SIZE % entry_size as u32 != 0 {
+        if HUGE_PAGE_SIZE % entry_size != 0 {
             panic!("entry size must be a divisor of the page size");
         }
 
@@ -192,9 +201,9 @@ pub fn alloc_packet_batch(mempool: &Rc<RefCell<Mempool>>, buffer: &mut Vec<Packe
         buffer.push(p);
 
         allocated += 1;
-        if allocated == num_packets {
+        if allocated >= num_packets {
             break;
-        } else {}
+        }
     }
 
     allocated
@@ -227,24 +236,13 @@ pub fn virt_to_phys(addr: *mut u8) -> Result<*mut u8, Box<Error>> {
     let addr = addr as usize;
     let pagesize = unsafe { libc::sysconf(libc::_SC_PAGE_SIZE) } as usize;
 
-    //println!("pagesize: {}", pagesize);
-    //println!("addr: {:x}", addr);
-
     let mut file = fs::OpenOptions::new().read(true).open("/proc/self/pagemap")?;
     file.seek(SeekFrom::Start((addr / pagesize * mem::size_of::<usize>()) as u64))?;
-
-    //println!("sizeof(usize): {}", mem::size_of::<usize>());
-    //println!("seekposition: {:x}", (addr / pagesize * mem::size_of::<usize>()) as u64);
 
     let mut buffer = [0; mem::size_of::<usize>()];
     file.read_exact(&mut buffer)?;
 
-    //println!("buffer: {:?}", buffer);
-
     let phys = unsafe { std::mem::transmute::<[u8; mem::size_of::<usize>()], usize>(buffer) };
-
-    //println!("phy: {:x}", phys);
-    //println!("result: {:p}", ((phys & 0x7fffffffffffff) * pagesize + addr % pagesize) as *mut u8);
 
     Ok(((phys & 0x7fffffffffffff) * pagesize + addr % pagesize) as *mut u8)
 }
