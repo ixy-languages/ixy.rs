@@ -83,8 +83,7 @@ pub struct Packet {
     addr_virt: *mut u8,
     addr_phys: *mut u8,
     len: usize,
-    mempool: Rc<RefCell<Mempool>>,
-    mempool_entry: u32,
+    pool: Rc<RefCell<Packetpool>>,
 }
 
 impl Deref for Packet {
@@ -103,15 +102,17 @@ impl DerefMut for Packet {
 
 impl Drop for Packet {
     fn drop(&mut self) {
-        self.mempool.borrow_mut().pkt_buf_free(self.mempool_entry);
+        let p = unsafe { Packet::new(self.addr_virt, self.addr_phys, 0, &self.pool) };
+        self.pool.borrow_mut().free_pkt(p);
     }
 }
 
 impl Packet {
-    pub(crate) unsafe fn new(addr_virt: *mut u8, addr_phys: *mut u8, len: usize,
-                             mempool: &Rc<RefCell<Mempool>>, mempool_entry: u32) -> Packet {
-        Packet { addr_virt, addr_phys, len, mempool: mempool.clone(), mempool_entry }
+    pub(crate) unsafe fn new(addr_virt: *mut u8, addr_phys: *mut u8, len: usize, pool: &Rc<RefCell<Packetpool>>) -> Packet {
+        Packet { addr_virt, addr_phys, len, pool: pool.clone() }
     }
+
+    pub unsafe fn set_size(&mut self, len: usize) { self.len = len }
 
     pub fn get_virt_addr(&self) -> *mut u8 {
         self.addr_virt
@@ -122,16 +123,15 @@ impl Packet {
     }
 }
 
-pub struct Mempool {
+pub struct Packetpool {
     base_addr: *mut u8,
-    num_entries: u32,
+    num_entries: usize,
     entry_size: usize,
-    free_stack: Vec<u32>,
-    phys_addresses: Vec<*mut u8>,
+    free_stack: Vec<Packet>,
 }
 
-impl Mempool {
-    pub fn allocate(entries: u32, size: usize) -> Result<Mempool, Box<Error>> {
+impl Packetpool {
+    pub fn allocate(entries: usize, size: usize) -> Result<Rc<RefCell<Packetpool>>, Box<Error>> {
         let entry_size = match size {
             0 => 2048,
             x => x,
@@ -147,33 +147,30 @@ impl Mempool {
             } );
         }
 
-        let mut mempool = Mempool {
+        let pool = Packetpool {
+            base_addr: dma.virt,
             num_entries: entries,
             entry_size,
-            base_addr: dma.virt,
-            free_stack: Vec::with_capacity(entries as usize),
-            phys_addresses,
+            free_stack: Vec::with_capacity(entries),
         };
 
-        unsafe { memset(mempool.base_addr, mempool.num_entries as usize * mempool.entry_size, 0x00) }
+        unsafe { memset(pool.base_addr, pool.num_entries * pool.entry_size, 0x00) }
 
         if HUGE_PAGE_SIZE % entry_size != 0 {
             panic!("entry size must be a divisor of the page size");
         }
 
+        let pool = Rc::new(RefCell::new(pool));
+
         for i in 0..entries {
-            mempool.free_stack.push(i);
+            let addr_virt = unsafe {dma.virt.offset((i * entry_size) as isize) };
+            let addr_phys = virt_to_phys(addr_virt)?;
+            let len = 0;
+            let p = unsafe {Packet::new(addr_virt, addr_phys, len, &pool) };
+            pool.borrow_mut().free_stack.push(p);
         }
 
-        Ok(mempool)
-    }
-
-    pub fn get_virt_addr(&self, offset: usize) -> *mut u8 {
-        (self.base_addr as usize + (offset * self.entry_size) as usize) as *mut u8
-    }
-
-    pub fn get_phys_addr(&self, offset: usize) -> *mut u8 {
-        self.phys_addresses[offset]
+        Ok(pool)
     }
 
     pub fn dump(&self) {
@@ -185,19 +182,19 @@ impl Mempool {
         }
     }
 
-    pub fn pkt_buf_alloc(&mut self) -> Option<u32> {
+    pub fn alloc_pkt(&mut self) -> Option<Packet> {
         self.free_stack.pop()
     }
 
-    pub fn pkt_buf_free(&mut self, entry: u32) {
-        self.free_stack.push(entry);
+    pub fn free_pkt(&mut self, p: Packet) {
+        self.free_stack.push(p);
     }
 }
 
-pub fn alloc_packet_batch(mempool: &Rc<RefCell<Mempool>>, buffer: &mut Vec<Packet>, num_packets: usize, packet_size: usize) -> usize {
+pub fn alloc_pkt_batch(pool: &Rc<RefCell<Packetpool>>, buffer: &mut Vec<Packet>, num_packets: usize, packet_size: usize) -> usize {
     let mut allocated = 0;
 
-    while let Some(p) = alloc_packet(mempool, packet_size) {
+    while let Some(p) = alloc_pkt(pool, packet_size) {
         buffer.push(p);
 
         allocated += 1;
@@ -209,21 +206,17 @@ pub fn alloc_packet_batch(mempool: &Rc<RefCell<Mempool>>, buffer: &mut Vec<Packe
     allocated
 }
 
-pub fn alloc_packet(mempool: &Rc<RefCell<Mempool>>, size: usize) -> Option<Packet> {
-    if size > mempool.borrow().entry_size {
+pub fn alloc_pkt(pool: &Rc<RefCell<Packetpool>>, size: usize) -> Option<Packet> {
+    if size > pool.borrow().entry_size {
         return None
     }
 
-    let buf = match mempool.borrow_mut().pkt_buf_alloc() {
-        Some(buf) => buf,
-        None => return None,
-    };
+    if let Some(mut p) = pool.borrow_mut().alloc_pkt() {
+        unsafe { p.set_size(size) };
+        return Some(p)
+    }
 
-    let addr_virt = mempool.borrow().get_virt_addr(buf as usize);
-    let addr_phys = mempool.borrow().get_phys_addr(buf as usize);
-    let len = size;
-
-    Some(unsafe { Packet::new(addr_virt, addr_phys, len, mempool, buf) })
+    None
 }
 
 pub unsafe fn memset(addr: *mut u8, len: usize, value: u8) {

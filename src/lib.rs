@@ -3,7 +3,7 @@
 
 extern crate libc;
 extern crate byteorder;
-extern crate log;
+#[macro_use] extern crate log;
 
 #[allow(dead_code)]
 #[allow(non_snake_case)]

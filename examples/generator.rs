@@ -9,16 +9,16 @@ use std::rc::Rc;
 use std::cell::RefCell;
 
 use ixy::*;
-use ixy::memory::{Mempool, Packet, alloc_packet_batch};
+use ixy::memory::{Packetpool, Packet, alloc_pkt_batch};
 
 // number of packets sent simultaneously by our driver
-const BATCH_SIZE: usize = 64;
+const BATCH_SIZE: usize = 32;
 // number of packets in our memorypool
 const NUM_PACKETS: usize = 2048;
 
 const PACKET_SIZE: usize = 60;
 
-// cargo run --example generator 0000:05:00.0 0000:05:00.1
+// cargo run --example generator 0000:05:00.0
 pub fn main() {
     let mut args = env::args();
     args.next();
@@ -52,18 +52,14 @@ pub fn main() {
         // rest of the payload is zero-filled because mempools guarantee empty bufs
     ];
 
-    let mempool = Rc::new(
-        RefCell::new(
-            Mempool::allocate(NUM_PACKETS as u32, 0).unwrap()
-        )
-    );
+    let pool = Packetpool::allocate(NUM_PACKETS, 0).unwrap();
 
     // pre-fill all packet buffer in the memory pool with data and return them to
     // the memory pool
     {
         let mut buffer: Vec<Packet> = Vec::with_capacity(NUM_PACKETS);
 
-        alloc_packet_batch(&mempool, &mut buffer, NUM_PACKETS, PACKET_SIZE);
+        alloc_pkt_batch(&pool, &mut buffer, NUM_PACKETS, PACKET_SIZE);
 
         for p in buffer.iter_mut() {
             for (i, data) in pkt_data.iter().enumerate() {
@@ -87,7 +83,7 @@ pub fn main() {
 
     loop {
         // re-fill our packet queue with new packets to send out
-        alloc_packet_batch(&mempool, &mut buffer, BATCH_SIZE, PACKET_SIZE);
+        alloc_pkt_batch(&pool, &mut buffer, BATCH_SIZE, PACKET_SIZE);
 
         // update sequence number and checksum of all packets
         for p in buffer.iter_mut() {
