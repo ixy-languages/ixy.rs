@@ -34,6 +34,7 @@ const fn wrap_ring(index: usize, ring_size: usize) -> usize {
 
 
 pub struct IxgbeDevice {
+    pci_addr: String,
     addr: *mut u8,
     len: usize,
     num_rx_queues: u16,
@@ -407,7 +408,11 @@ fn ixgbe_tx_batch(ixgbe: &mut IxgbeDevice, queue_id: u32, packets: &mut Vec<Pack
 
             if (status & IXGBE_ADVTXD_STAT_DD) != 0 {
                 for _ in 0..cleanable {
-                    queue.queue.pop_front();
+                    //queue.queue.pop_front();
+                    if let Some(p) = queue.queue.pop_front() {
+                        let mut pool = p.get_pool().clone();
+                        pool.borrow_mut().free_pkt(p);
+                    }
                 }
                 clean_index = wrap_ring(cleanup_to, queue.num_descriptors);
             } else {
@@ -462,12 +467,10 @@ impl IxyDriver for IxgbeDevice {
             return Err(Box::new(std::io::Error::new(ErrorKind::Other, format!("cannot configure {} tx queues: limit is {}", num_tx_queues, MAX_QUEUES))));
         }
 
-        println!("pci mapping device");
-
         let (addr, len) = pci_map_resource(pci_addr)?;
         let rx_queues = Vec::with_capacity(num_rx_queues as usize);
         let tx_queues = Vec::with_capacity(num_tx_queues as usize);
-        let mut dev = IxgbeDevice { addr, len, num_rx_queues, num_tx_queues, rx_queues, tx_queues };
+        let mut dev = IxgbeDevice { pci_addr: pci_addr.to_string(), addr, len, num_rx_queues, num_tx_queues, rx_queues, tx_queues };
 
         reset_and_init(&mut dev, pci_addr)?;
 
@@ -476,6 +479,10 @@ impl IxyDriver for IxgbeDevice {
 
     fn get_driver_name(&self) -> &str {
         DRIVER_NAME
+    }
+
+    fn get_pci_addr(&self) -> &str {
+        &self.pci_addr
     }
 
     fn rx_batch(&mut self, queue_id: u32, buffer: &mut Vec<Packet>, num_packets: usize) -> usize {
@@ -518,6 +525,12 @@ impl IxyDriver for IxgbeDevice {
             IXGBE_LINKS_SPEED_10G_82599 => 10000,
             _ => 0,
         }
+    }
+}
+
+impl std::cmp::PartialEq for IxgbeDevice {
+    fn eq(&self, other: &'_ IxgbeDevice) -> bool {
+        self.pci_addr == other.get_pci_addr()
     }
 }
 
@@ -579,12 +592,6 @@ impl IxgbeDevice {
     }
 }
 
-impl Drop for IxgbeDevice {
-    fn drop(&mut self) {
-        // TODO
-    }
-}
-
 // see section 4.6.4
 fn init_link(ixgbe: &IxgbeDevice) {
     // link auto-configuration register should already be set correctly, we're resetting it anyway
@@ -599,7 +606,7 @@ fn wait_for_link(ixgbe: &IxgbeDevice) {
     info!("waiting for link");
     let time = Instant::now();
     let mut speed = ixgbe.get_link_speed();
-    while speed == 0 && time.elapsed().as_secs() > 10 {
+    while speed == 0 && time.elapsed().as_secs() < 10 {
         thread::sleep(Duration::from_millis(100));
         speed = ixgbe.get_link_speed();
     }

@@ -62,6 +62,9 @@ pub fn main() {
             for (i, data) in pkt_data.iter().enumerate() {
                 p[i] = *data;
             }
+            let checksum = calc_ip_checksum(p, 14, 20);
+            p[24] = (checksum >> 8) as u8;
+            p[25] = (checksum & 0xff) as u8;
         }
     }
 
@@ -85,9 +88,6 @@ pub fn main() {
         // update sequence number and checksum of all packets
         for p in buffer.iter_mut() {
             p[PACKET_SIZE-4] = seq_num;
-            let checksum = calc_ip_checksum(p);
-            p[24] = (checksum >> 8) as u8;
-            p[25] = (checksum & 0xff) as u8;
             seq_num += 1;
         }
 
@@ -109,11 +109,12 @@ pub fn main() {
         counter += 1;
     }
 }
+
 // calculate IP/TCP/UDP checksum
-fn calc_ip_checksum(packet: &mut Packet) -> u16 {
+fn calc_ip_checksum(packet: &mut Packet, offset: usize, len: usize) -> u16 {
     let mut checksum = 0;
-    for i in 0..packet.len()/2 {
-        checksum += ((packet[i] as u32) << 8) + packet[i+1] as u32;
+    for i in 0..len/2 {
+        checksum += ((u32::from(packet[i + offset])) << 8) + u32::from(packet[i + offset + 1]);
         if checksum > 0xffff {
             checksum = (checksum & 0xfff) + 1;
         }

@@ -78,7 +78,7 @@ pub fn main() {
     }
 }
 
-fn forward(buffer: &mut Vec<Packet>, rx_dev: &mut IxyDevice, rx_queue: u32, tx_dev: &mut IxyDevice, tx_queue: u32) {
+fn forward(buffer: &mut Vec<Packet>, rx_dev: &mut impl IxyDriver, rx_queue: u32, tx_dev: &mut impl IxyDriver, tx_queue: u32) {
     let num_rx = rx_dev.rx_batch(rx_queue, buffer, BATCH_SIZE);
 
     if num_rx > 0 {

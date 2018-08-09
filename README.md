@@ -27,7 +27,7 @@ cd ixy.rs
 cargo build --all-targets
 ```
 
-Ixy.rs uses hugepages so you have to enable them:
+Ixy.rs uses hugepages so you'll have to enable them:
 
 ```
 sudo ./setup-hugetlbfs.sh
@@ -39,13 +39,13 @@ There are two demo applications included in the ixy.rs crate.
 You can run the packet generator with
 
 ```
-sudo cargo run --release --example generator <pci bus id>
+sudo cargo run --release --example generator 0000:AA:BB.C 
 ```
 
 and the forwarder with
 
 ```
-sudo cargo run --release --example forwarder <pci bus id1> <pci bus id2>
+sudo cargo run --release --example forwarder 0000:AA:BB.C 0000:AA:BB.D
 ```
 
 ### API

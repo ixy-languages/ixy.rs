@@ -698,8 +698,7 @@ pub struct ixgbe_dmac_config {
 
 /*
  * DMA Coalescing threshold Rx PB TC[n] value in Kilobyte by link speed.
- * DMACRXT = 10Gbps = 10,000 bits / usec                               = 1250 bytes / usec 70 * 1250 ==
- * 87500 bytes [85KB]
+ * DMACRXT = 10Gbps = 10,000 bits / usec = 1250 bytes / usec 70 * 1250 == 87500 bytes [85KB]
  */
 pub const IXGBE_DMACRXT_10G: u32                                       = 0x55;
 pub const IXGBE_DMACRXT_1G: u32                                        = 0x09;

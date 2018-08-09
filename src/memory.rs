@@ -100,7 +100,7 @@ impl DerefMut for Packet {
 
 impl Drop for Packet {
     fn drop(&mut self) {
-        let p = unsafe { Packet::new(self.addr_virt, self.addr_phys, 0, &self.pool) };
+        let p = unsafe { Packet::new(self.addr_virt, self.addr_phys, self.len, &self.pool) };
         self.pool.borrow_mut().free_pkt(p);
     }
 }
@@ -119,6 +119,8 @@ impl Packet {
     pub fn get_phys_addr(&self) -> *mut u8 {
         self.addr_phys
     }
+
+    pub fn get_pool(&self) -> &Rc<RefCell<Packetpool>> { &self.pool }
 }
 
 pub struct Packetpool {

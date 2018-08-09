@@ -26,12 +26,15 @@ use std::io::ErrorKind;
 const MAX_QUEUES: u16 = 64;
 
 /// Used for implementing an ixy device driver like ixgbe or virtio.
-pub trait IxyDriver {
+pub trait IxyDriver: std::cmp::PartialEq {
     /// Initializes an intel 82599 network card.
     fn init(pci_addr: &str, num_rx_queues: u16, num_tx_queues: u16) -> Result<Self, Box<Error>> where Self: Sized;
 
     /// Returns the driver's name.
     fn get_driver_name(&self) -> &str;
+
+    /// Returns the network card's pci address.
+    fn get_pci_addr(&self) -> &str;
 
     /// Pushes up to `num_packets` `Packet`s onto `buffer` depending on the amount of
     /// received packets by the network card.
@@ -104,7 +107,7 @@ pub struct DeviceStats {
 
 impl DeviceStats {
     ///  Prints the stats differences between `stats_old` and `self`.
-    pub fn print_stats_diff(&self, dev: &IxyDevice, stats_old: &DeviceStats, nanos: u64) {
+    pub fn print_stats_diff(&self, dev: &impl IxyDriver, stats_old: &DeviceStats, nanos: u64) {
         let pci_addr = dev.get_pci_addr();
         let mbits = diff_mbit(self.rx_bytes, stats_old.rx_bytes, self.rx_pkts, stats_old.rx_pkts, nanos);
         let mpps = diff_mpps(self.rx_pkts, stats_old.rx_pkts, nanos);
@@ -125,50 +128,10 @@ fn diff_mpps(pkts_new: u64, pkts_old: u64, nanos: u64) -> f64 {
     (pkts_new - pkts_old) as f64 / 1_000_000.0 / (nanos as f64 / 1_000_000_000.0)
 }
 
-pub struct IxyDevice {
-    pci_addr: String,
-    driver_name: String,
-    num_rx_queues: u16,
-    num_tx_queues: u16,
-    driver: Box<IxyDriver>,
-}
-
-impl IxyDevice {
-    pub fn rx_batch(&mut self, queue_id: u32, buffer: &mut Vec<Packet>, num_packets: usize) -> usize {
-        self.driver.rx_batch(queue_id, buffer, num_packets)
-    }
-
-    pub fn tx_batch(&mut self, queue_id: u32, buffer: &mut Vec<Packet>) -> usize {
-        self.driver.tx_batch(queue_id, buffer)
-    }
-
-    pub fn read_stats(&self, stats: &mut DeviceStats) {
-        self.driver.read_stats(stats)
-    }
-
-    pub fn reset_stats(&self) {
-        self.driver.reset_stats();
-    }
-
-    pub fn get_link_speed(&self) -> u16 {
-        self.driver.get_link_speed()
-    }
-
-    pub fn get_pci_addr(&self) -> &str {
-        &self.pci_addr
-    }
-}
-
-impl std::cmp::PartialEq for IxyDevice {
-    fn eq(&self, other: &'_ IxyDevice) -> bool {
-        self.pci_addr == other.pci_addr
-    }
-}
-
 /// Initializes the network card at `pci_addr`.
 ///
 /// `rx_queues` and `tx_queues` specify the amount of queues that will be initialized and used.
-pub fn ixy_init(pci_addr: &str, rx_queues: u16, tx_queues: u16) -> Result<IxyDevice, Box<Error>> {
+pub fn ixy_init(pci_addr: &str, rx_queues: u16, tx_queues: u16) -> Result<impl IxyDriver, Box<Error>> {
     let mut config_file = pci_open_resource(pci_addr, "config")?;
 
     let vendor_id = read_io16(&mut config_file, 0)?;
@@ -184,15 +147,6 @@ pub fn ixy_init(pci_addr: &str, rx_queues: u16, tx_queues: u16) -> Result<IxyDev
     } else {
         // let's give it a try with ixgbe
         let driver: IxgbeDevice = IxyDriver::init(pci_addr, rx_queues, tx_queues)?;
-
-        let ixy = IxyDevice {
-            pci_addr: pci_addr.to_string(),
-            driver_name: driver.get_driver_name().to_string(),
-            num_rx_queues: rx_queues,
-            num_tx_queues: tx_queues,
-            driver: Box::new(driver),
-        };
-
-        Ok(ixy)
+        Ok(driver)
     }
 }

@@ -62,7 +62,6 @@ pub fn pci_map_resource(pci_addr: &str) -> Result<(*mut u8, usize), Box<Error>> 
     let path = format!("/sys/bus/pci/devices/{}/resource0", pci_addr);
 
     unbind_driver(pci_addr)?;
-    println!("after unbind");
     enable_dma(pci_addr)?;
 
     let file = fs::OpenOptions::new()
