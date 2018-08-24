@@ -23,13 +23,13 @@ source $HOME/.cargo/env
 Ixy.rs uses hugepages. To enable them run:
 
 ```
+cd ixy.rs
 sudo ./setup-hugetlbfs.sh
 ```
 
 You can then either build the binaries and run them manually (as explained below) or use `cargo` to build and run them at once (see **Usage**).
 
 ```
-cd ixy.rs
 cargo build --all-targets
 ```
 
