@@ -1,23 +1,18 @@
-use std;
-use std::fs;
-use std::error::Error;
-
-use std::io::prelude::*;
-use std::io::ErrorKind;
-use std::io::SeekFrom;
-
-use std::process;
-use std::os::unix::prelude::AsRawFd;
-use std::mem;
-use std::{ptr, slice};
-
-use std::ops::{Deref, DerefMut};
-
-use std::rc::Rc;
 use std::cell::RefCell;
-use libc;
-
+use std::collections::VecDeque;
+use std::error::Error;
+use std::fs;
+use std::io;
+use std::io::{Seek, Read};
+use std::mem;
+use std::ops::{Deref, DerefMut};
+use std::os::unix::prelude::AsRawFd;
+use std::process;
+use std::{ptr, slice};
+use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
+
+use libc;
 
 const HUGE_PAGE_BITS: u32 = 21;
 const HUGE_PAGE_SIZE: usize = 1 << HUGE_PAGE_BITS;
@@ -30,7 +25,8 @@ pub struct DmaMemory {
 }
 
 impl DmaMemory {
-    pub fn allocate(size: usize, require_contigous: bool) -> Result<(DmaMemory), Box<Error>> {
+    /// Allocates dma memory on a huge page.
+    pub fn allocate(size: usize, require_contigous: bool) -> Result<DmaMemory, Box<Error>> {
         let size = if size % HUGE_PAGE_SIZE != 0 {
             ((size >> HUGE_PAGE_BITS) + 1) << HUGE_PAGE_BITS
         } else {
@@ -38,7 +34,7 @@ impl DmaMemory {
         };
 
         if require_contigous && size > HUGE_PAGE_SIZE {
-            return Err(Box::new(std::io::Error::new(ErrorKind::Other, "could not map physically contigous memory")));
+            return Err("could not map physically contigous memory".into());
         }
 
         let id = HUGEPAGE_ID.fetch_add(1, Ordering::SeqCst);
@@ -58,7 +54,7 @@ impl DmaMemory {
                 };
 
                 if ptr.is_null() || (ptr as isize) < 0 {
-                    Err(Box::new(std::io::Error::new(ErrorKind::Other, "memory mapping failed")))
+                    Err("memory mapping failed".into())
                 } else if unsafe { libc::mlock(ptr as *mut libc::c_void, size) } == 0 {
                     let memory = DmaMemory {
                         virt: ptr,
@@ -67,11 +63,11 @@ impl DmaMemory {
 
                     Ok(memory)
                 } else {
-                    Err(Box::new(std::io::Error::new(ErrorKind::Other, "memory locking failed")))
+                    Err("memory locking failed".into())
                 }
             }
-            Err(ref e) if e.kind() == std::io::ErrorKind::NotFound =>
-                Err(Box::new(std::io::Error::new(ErrorKind::NotFound, "did you forget to enable hugepages?"))),
+            Err(ref e) if e.kind() == io::ErrorKind::NotFound =>
+                Err(Box::new(io::Error::new(io::ErrorKind::NotFound, "did you forget to enable hugepages?"))),
             Err(e) => Err(Box::new(e)),
         }
     }
@@ -131,6 +127,7 @@ pub struct Packetpool {
 }
 
 impl Packetpool {
+    /// Allocates a new `Packetpool`.
     pub fn allocate(entries: usize, size: usize) -> Result<Rc<RefCell<Packetpool>>, Box<Error>> {
         let entry_size = match size {
             0 => 2048,
@@ -191,11 +188,12 @@ impl Packetpool {
     }
 }
 
-pub fn alloc_pkt_batch(pool: &Rc<RefCell<Packetpool>>, buffer: &mut Vec<Packet>, num_packets: usize, packet_size: usize) -> usize {
+/// Returns `num_packets` free packets from the `pool` with size `packet_size`.
+pub fn alloc_pkt_batch(pool: &Rc<RefCell<Packetpool>>, buffer: &mut VecDeque<Packet>, num_packets: usize, packet_size: usize) -> usize {
     let mut allocated = 0;
 
     while let Some(p) = alloc_pkt(pool, packet_size) {
-        buffer.push(p);
+        buffer.push_back(p);
 
         allocated += 1;
         if allocated >= num_packets {
@@ -206,6 +204,7 @@ pub fn alloc_pkt_batch(pool: &Rc<RefCell<Packetpool>>, buffer: &mut Vec<Packet>,
     allocated
 }
 
+/// Returns a free packet from the `pool`.
 pub fn alloc_pkt(pool: &Rc<RefCell<Packetpool>>, size: usize) -> Option<Packet> {
     if size > pool.borrow().entry_size {
         return None;
@@ -219,23 +218,25 @@ pub fn alloc_pkt(pool: &Rc<RefCell<Packetpool>>, size: usize) -> Option<Packet> 
     None
 }
 
+/// Initializes `len` bytes at `addr` with `value`.
 pub unsafe fn memset(addr: *mut u8, len: usize, value: u8) {
     for i in 0..len {
         ptr::write_volatile(addr.offset(i as isize) as *mut u8, value);
     }
 }
 
+/// Translates a virtual address to its physical counterpart.
 pub fn virt_to_phys(addr: *mut u8) -> Result<*mut u8, Box<Error>> {
     let addr = addr as usize;
     let pagesize = unsafe { libc::sysconf(libc::_SC_PAGE_SIZE) } as usize;
 
     let mut file = fs::OpenOptions::new().read(true).open("/proc/self/pagemap")?;
-    file.seek(SeekFrom::Start((addr / pagesize * mem::size_of::<usize>()) as u64))?;
+    file.seek(io::SeekFrom::Start((addr / pagesize * mem::size_of::<usize>()) as u64))?;
 
     let mut buffer = [0; mem::size_of::<usize>()];
     file.read_exact(&mut buffer)?;
 
-    let phys = unsafe { std::mem::transmute::<[u8; mem::size_of::<usize>()], usize>(buffer) };
+    let phys = unsafe { mem::transmute::<[u8; mem::size_of::<usize>()], usize>(buffer) };
 
     Ok(((phys & 0x007f_ffff_ffff_ffff) * pagesize + addr % pagesize) as *mut u8)
 }

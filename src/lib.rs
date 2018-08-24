@@ -1,3 +1,9 @@
+//! # Ixy.rs
+//!
+//! ixy.rs is a Rust rewrite of the ixy userspace network driver.
+//! It is designed to be readable, idiomatic Rust code.
+//! It supports Intel 82599 10GbE NICs (ixgbe family).
+
 #![feature(const_fn)]
 #![feature(untagged_unions)]
 
@@ -20,13 +26,13 @@ use self::ixgbe::*;
 use self::memory::*;
 use self::pci::*;
 
+use std::collections::VecDeque;
 use std::error::Error;
-use std::io::ErrorKind;
 
 const MAX_QUEUES: u16 = 64;
 
 /// Used for implementing an ixy device driver like ixgbe or virtio.
-pub trait IxyDriver: std::cmp::PartialEq {
+pub trait IxyDriver {
     /// Initializes an intel 82599 network card.
     fn init(pci_addr: &str, num_rx_queues: u16, num_tx_queues: u16) -> Result<Self, Box<Error>> where Self: Sized;
 
@@ -41,32 +47,42 @@ pub trait IxyDriver: std::cmp::PartialEq {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```rust,no_run
+    /// use ixy::*;
+    /// use ixy::memory::Packet;
+    /// use std::collections::VecDeque;
+    ///
     /// let mut dev = ixy_init("0000:01:00.0", 1, 1).unwrap();
-    /// let mut buf: Vec<Packet> = Vec::new();
+    /// let mut buf: VecDeque<Packet> = VecDeque::new();
     ///
     /// dev.rx_batch(0, &mut buf, 32);
     /// ```
-    fn rx_batch(&mut self, queue_id: u32, buffer: &mut Vec<Packet>, num_packets: usize) -> usize;
+    fn rx_batch(&mut self, queue_id: u32, buffer: &mut VecDeque<Packet>, num_packets: usize) -> usize;
 
     /// Takes `Packet`s out of `buffer` until `buffer` is empty or the network card's tx
     /// queue is full.
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```rust,no_run
+    /// use ixy::*;
+    /// use ixy::memory::Packet;
+    /// use std::collections::VecDeque;
+    ///
     /// let mut dev = ixy_init("0000:01:00.0", 1, 1).unwrap();
-    /// let mut buf: Vec<Packet> = Vec::new();
+    /// let mut buf: VecDeque<Packet> = VecDeque::new();
     ///
     /// assert_eq!(dev.tx_batch(0, &mut buf), 0);
     /// ```
-    fn tx_batch(&mut self, queue_id: u32, buffer: &mut Vec<Packet>) -> usize;
+    fn tx_batch(&mut self, queue_id: u32, buffer: &mut VecDeque<Packet>) -> usize;
 
     /// Reads the network card's stats registers into `stats`.
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```rust,no_run
+    /// use ixy::*;
+    ///
     /// let mut dev = ixy_init("0000:01:00.0", 1, 1).unwrap();
     /// let mut stats: DeviceStats = Default::default();
     ///
@@ -78,7 +94,9 @@ pub trait IxyDriver: std::cmp::PartialEq {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```rust,no_run
+    /// use ixy::*;
+    ///
     /// let mut dev = ixy_init("0000:01:00.0", 1, 1).unwrap();
     /// dev.reset_stats();
     /// ```
@@ -88,7 +106,9 @@ pub trait IxyDriver: std::cmp::PartialEq {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```rust,no_run
+    /// use ixy::*;
+    ///
     /// let mut dev = ixy_init("0000:01:00.0", 1, 1).unwrap();
     ///
     /// println!("Link speed is {} Mbit/s", dev.get_link_speed());
@@ -109,41 +129,43 @@ impl DeviceStats {
     ///  Prints the stats differences between `stats_old` and `self`.
     pub fn print_stats_diff(&self, dev: &impl IxyDriver, stats_old: &DeviceStats, nanos: u64) {
         let pci_addr = dev.get_pci_addr();
-        let mbits = diff_mbit(self.rx_bytes, stats_old.rx_bytes, self.rx_pkts, stats_old.rx_pkts, nanos);
-        let mpps = diff_mpps(self.rx_pkts, stats_old.rx_pkts, nanos);
+        let mbits = self.diff_mbit(self.rx_bytes, stats_old.rx_bytes, self.rx_pkts, stats_old.rx_pkts, nanos);
+        let mpps = self.diff_mpps(self.rx_pkts, stats_old.rx_pkts, nanos);
         println!("[{}] RX: {:.2} Mbit/s {:.2} Mpps", pci_addr, mbits, mpps);
 
-        let mbits = diff_mbit(self.tx_bytes, stats_old.tx_bytes, self.tx_pkts, stats_old.tx_pkts, nanos);
-        let mpps = diff_mpps(self.tx_pkts, stats_old.tx_pkts, nanos);
+        let mbits = self.diff_mbit(self.tx_bytes, stats_old.tx_bytes, self.tx_pkts, stats_old.tx_pkts, nanos);
+        let mpps = self.diff_mpps(self.tx_pkts, stats_old.tx_pkts, nanos);
         println!("[{}] TX: {:.2} Mbit/s {:.2} Mpps", pci_addr, mbits, mpps);
     }
-}
 
-fn diff_mbit(bytes_new: u64, bytes_old: u64, pkts_new: u64, pkts_old: u64, nanos: u64) -> f64 {
-    (((bytes_new - bytes_old) as f64 / 1_000_000.0 / (nanos as f64 / 1_000_000_000.0)) * f64::from(8)
-        + diff_mpps(pkts_new, pkts_old, nanos) * f64::from(20) * f64::from(8))
-}
+    /// Returns Mbit/s between two points in time.
+    fn diff_mbit(&self, bytes_new: u64, bytes_old: u64, pkts_new: u64, pkts_old: u64, nanos: u64) -> f64 {
+        (((bytes_new - bytes_old) as f64 / 1_000_000.0 / (nanos as f64 / 1_000_000_000.0)) * f64::from(8)
+            + self.diff_mpps(pkts_new, pkts_old, nanos) * f64::from(20) * f64::from(8))
+    }
 
-fn diff_mpps(pkts_new: u64, pkts_old: u64, nanos: u64) -> f64 {
-    (pkts_new - pkts_old) as f64 / 1_000_000.0 / (nanos as f64 / 1_000_000_000.0)
+    /// Returns Mpps between two points in time.
+    fn diff_mpps(&self, pkts_new: u64, pkts_old: u64, nanos: u64) -> f64 {
+        (pkts_new - pkts_old) as f64 / 1_000_000.0 / (nanos as f64 / 1_000_000_000.0)
+    }
 }
 
 /// Initializes the network card at `pci_addr`.
 ///
-/// `rx_queues` and `tx_queues` specify the amount of queues that will be initialized and used.
+/// `rx_queues` and `tx_queues` specify the number of queues that will be initialized and used.
 pub fn ixy_init(pci_addr: &str, rx_queues: u16, tx_queues: u16) -> Result<impl IxyDriver, Box<Error>> {
-    let mut config_file = pci_open_resource(pci_addr, "config")?;
+    let mut config_file = pci_open_resource(pci_addr, "config").expect("wrong pci address");
 
     let vendor_id = read_io16(&mut config_file, 0)?;
     let device_id = read_io16(&mut config_file, 2)?;
     let class_id = read_io32(&mut config_file, 8)? >> 24;
 
     if class_id != 2 {
-        return Err(Box::new(std::io::Error::new(ErrorKind::Other, format!("device {} is not a network card", pci_addr))));
+        return Err(format!("device {} is not a network card", pci_addr).into());
     }
 
     if vendor_id == 0x1af4 && device_id >= 0x1000 {
-        Err(Box::new(std::io::Error::new(ErrorKind::Other, "virtio driver is not implemented yet")))
+        unimplemented!("virtio driver is not implemented yet");
     } else {
         // let's give it a try with ixgbe
         let driver: IxgbeDevice = IxyDriver::init(pci_addr, rx_queues, tx_queues)?;

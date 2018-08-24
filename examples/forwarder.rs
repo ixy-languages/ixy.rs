@@ -2,6 +2,7 @@
 
 extern crate ixy;
 
+use std::collections::VecDeque;
 use std::env;
 use std::process;
 use std::time::Instant;
@@ -47,7 +48,7 @@ pub fn main() {
     dev2.read_stats(&mut dev2_stats);
     dev2.read_stats(&mut dev2_stats_old);
 
-    let mut buffer: Vec<Packet> = Vec::with_capacity(BATCH_SIZE);
+    let mut buffer: VecDeque<Packet> = VecDeque::with_capacity(BATCH_SIZE);
     let mut time = Instant::now();
     let mut counter = 0;
 
@@ -64,11 +65,9 @@ pub fn main() {
                 dev1_stats.print_stats_diff(&dev1, &dev1_stats_old, nanos);
                 dev1_stats_old = dev1_stats;
 
-                if dev1 != dev2 {
-                    dev2.read_stats(&mut dev2_stats);
-                    dev2_stats.print_stats_diff(&dev2, &dev2_stats_old, nanos);
-                    dev2_stats_old = dev2_stats;
-                }
+                dev2.read_stats(&mut dev2_stats);
+                dev2_stats.print_stats_diff(&dev2, &dev2_stats_old, nanos);
+                dev2_stats_old = dev2_stats;
 
                 time = Instant::now();
             }
@@ -78,7 +77,7 @@ pub fn main() {
     }
 }
 
-fn forward(buffer: &mut Vec<Packet>, rx_dev: &mut impl IxyDriver, rx_queue: u32, tx_dev: &mut impl IxyDriver, tx_queue: u32) {
+fn forward(buffer: &mut VecDeque<Packet>, rx_dev: &mut impl IxyDriver, rx_queue: u32, tx_dev: &mut impl IxyDriver, tx_queue: u32) {
     let num_rx = rx_dev.rx_batch(rx_queue, buffer, BATCH_SIZE);
 
     if num_rx > 0 {

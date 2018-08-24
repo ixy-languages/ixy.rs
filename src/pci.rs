@@ -1,32 +1,16 @@
-use std;
+use std::error::Error;
 use std::fs;
 use std::fs::File;
-use std::error::Error;
-use std::io::ErrorKind;
-use std::io::Write;
-use std::io::Seek;
-use std::io::SeekFrom;
-
-use byteorder::ReadBytesExt;
-use byteorder::WriteBytesExt;
-use byteorder::NativeEndian;
-
+use std::io;
+use std::io::{Write, Seek, SeekFrom};
 use std::os::unix::prelude::AsRawFd;
 use std::ptr;
 
+use byteorder::{ReadBytesExt, WriteBytesExt, NativeEndian};
+
 use libc;
 
-/// Unbinds the driver
-///
-/// # Examples
-///
-/// ```
-/// use ixy::pci;
-///
-/// let result = pci::unbind_driver("abc");
-///
-/// assert!(result.is_ok());
-/// ```
+/// Unbinds all drivers from the device at `pci_addr`.
 pub fn unbind_driver(pci_addr: &str) -> Result<(), Box<Error>> {
     let path = format!("/sys/bus/pci/devices/{}/driver/unbind", pci_addr);
 
@@ -35,11 +19,12 @@ pub fn unbind_driver(pci_addr: &str) -> Result<(), Box<Error>> {
             write!(f, "{}", pci_addr)?;
             Ok(())
         },
-        Err(ref e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(ref e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(Box::new(e)),
     }
 }
 
+/// Enables direct memory access for the device at `pci_addr`.
 pub fn enable_dma(pci_addr: &str) -> Result<(), Box<Error>> {
     let path = format!("/sys/bus/pci/devices/{}/config", pci_addr);
     let mut file = fs::OpenOptions::new()
@@ -58,6 +43,7 @@ pub fn enable_dma(pci_addr: &str) -> Result<(), Box<Error>> {
     Ok(())
 }
 
+/// Mmaps a pci resource and returns a pointer to the mapped memory.
 pub fn pci_map_resource(pci_addr: &str) -> Result<(*mut u8, usize), Box<Error>> {
     let path = format!("/sys/bus/pci/devices/{}/resource0", pci_addr);
 
@@ -82,23 +68,26 @@ pub fn pci_map_resource(pci_addr: &str) -> Result<(*mut u8, usize), Box<Error>> 
     };
 
     if ptr.is_null() || (ptr as isize) < 0 || len == 0 {
-        Err(Box::new(std::io::Error::new(ErrorKind::Other, "pci mapping failed")))
+        Err("pci mapping failed".into())
     } else {
         Ok((ptr, len))
     }
 }
 
+/// Opens a pci resource file at the given address.
 pub fn pci_open_resource(pci_addr: &str, resource: &str) -> Result<File, Box<Error>> {
     let path = format!("/sys/bus/pci/devices/{}/{}", pci_addr, resource);
 
     Ok(File::open(path)?)
 }
 
+/// Reads and returns an u16 at `offset` in `file`.
 pub fn read_io16(file: &mut File, offset: usize) -> Result<u16, Box<Error>> {
     file.seek(SeekFrom::Start(offset as u64))?;
     Ok(file.read_u16::<NativeEndian>()?)
 }
 
+/// Reads and returns an u32 at `offset` in `file`.
 pub fn read_io32(file: &mut File, offset: usize) -> Result<u32, Box<Error>> {
     file.seek(SeekFrom::Start(offset as u64))?;
     Ok(file.read_u32::<NativeEndian>()?)

@@ -1,8 +1,9 @@
 #![feature(duration_as_u128)]
 
 extern crate ixy;
-use std::env;
 
+use std::collections::VecDeque;
+use std::env;
 use std::process;
 use std::time::Instant;
 
@@ -13,7 +14,7 @@ use ixy::memory::{Packetpool, Packet, alloc_pkt_batch};
 const BATCH_SIZE: usize = 32;
 // number of packets in our packetpool
 const NUM_PACKETS: usize = 2048;
-
+// size of our packets
 const PACKET_SIZE: usize = 60;
 
 
@@ -54,7 +55,7 @@ pub fn main() {
 
     // pre-fill all packet buffer in the pool with data and return them to the packet pool
     {
-        let mut buffer: Vec<Packet> = Vec::with_capacity(NUM_PACKETS);
+        let mut buffer: VecDeque<Packet> = VecDeque::with_capacity(NUM_PACKETS);
 
         alloc_pkt_batch(&pool, &mut buffer, NUM_PACKETS, PACKET_SIZE);
 
@@ -76,7 +77,7 @@ pub fn main() {
     dev.read_stats(&mut dev_stats);
     dev.read_stats(&mut dev_stats_old);
 
-    let mut buffer: Vec<Packet> = Vec::with_capacity(BATCH_SIZE);
+    let mut buffer: VecDeque<Packet> = VecDeque::with_capacity(BATCH_SIZE);
     let mut time = Instant::now();
     let mut seq_num = 0;
     let mut counter = 0;
