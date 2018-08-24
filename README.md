@@ -6,7 +6,7 @@ It supports Intel 82599 10GbE NICs (`ixgbe` family).
 
 ## Features
 
-* less than 2000 lines of Rust code for the driver and two example applications
+* less than 2000 lines of Rust code for the driver and two sample applications
 * simple API to use, see this README
 * super fast, can saturate a 10 Gbit/s connection with 60 byte packets on a single cpu core
 
@@ -20,22 +20,24 @@ curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain nightly
 source $HOME/.cargo/env
 ```
 
-Build the binaries:
+Ixy.rs uses hugepages. To enable them run:
+
+```
+sudo ./setup-hugetlbfs.sh
+```
+
+You can then either build the binaries and run them manually (as explained below) or use `cargo` to build and run them at once (see **Usage**).
 
 ```
 cd ixy.rs
 cargo build --all-targets
 ```
 
-Ixy.rs uses hugepages so you'll have to enable them:
-
-```
-sudo ./setup-hugetlbfs.sh
-```
+The built binaries are located in `targets/`.
 
 ## Usage
 
-There are two demo applications included in the ixy.rs crate.
+There are two sample applications included in the ixy.rs crate.
 You can run the packet generator with
 
 ```
@@ -54,7 +56,7 @@ sudo cargo run --release --example forwarder 0000:AA:BB.C 0000:AA:BB.D
 
 ### Example
 
-`examples` contains all demo applications included in this crate.
+`examples` contains all sample applications included in this crate.
 
 ## Internals
 
