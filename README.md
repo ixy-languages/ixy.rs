@@ -58,6 +58,14 @@ sudo cargo run --release --example forwarder 0000:AA:BB.C 0000:AA:BB.D
 
 `examples` contains all sample applications included in this crate.
 
+## Docs
+
+ixy.rs contains documentation that can be created and viewed by running
+
+```
+cargo doc --open
+```
+
 ## Internals
 
 `src/ixgbe.rs` contains the core logic.
