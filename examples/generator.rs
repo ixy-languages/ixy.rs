@@ -1,14 +1,15 @@
 #![feature(duration_as_u128)]
 
 extern crate ixy;
+extern crate simple_logger;
 
 use std::collections::VecDeque;
 use std::env;
 use std::process;
 use std::time::Instant;
 
+use ixy::memory::{alloc_pkt_batch, Packet, Packetpool};
 use ixy::*;
-use ixy::memory::{Packetpool, Packet, alloc_pkt_batch};
 
 // number of packets sent simultaneously by our driver
 const BATCH_SIZE: usize = 32;
@@ -17,8 +18,9 @@ const NUM_PACKETS: usize = 2048;
 // size of our packets
 const PACKET_SIZE: usize = 60;
 
-
 pub fn main() {
+    simple_logger::init().unwrap();
+
     let mut args = env::args();
     args.next();
 
@@ -88,8 +90,8 @@ pub fn main() {
 
         // update sequence number and checksum of all packets
         for p in buffer.iter_mut() {
-            p[PACKET_SIZE-4] = seq_num;
-            seq_num += 1;
+            p[PACKET_SIZE - 4] = seq_num;
+            seq_num = (seq_num % std::u8::MAX) + 1;
         }
 
         dev.tx_batch(0, &mut buffer);
@@ -114,11 +116,11 @@ pub fn main() {
 // calculate IP/TCP/UDP checksum
 fn calc_ip_checksum(packet: &mut Packet, offset: usize, len: usize) -> u16 {
     let mut checksum = 0;
-    for i in 0..len/2 {
+    for i in 0..len / 2 {
         checksum += ((u32::from(packet[i + offset])) << 8) + u32::from(packet[i + offset + 1]);
         if checksum > 0xffff {
             checksum = (checksum & 0xfff) + 1;
         }
     }
-    return !(checksum as u16)
+    return !(checksum as u16);
 }

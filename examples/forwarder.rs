@@ -1,18 +1,21 @@
 #![feature(duration_as_u128)]
 
 extern crate ixy;
+extern crate simple_logger;
 
 use std::collections::VecDeque;
 use std::env;
 use std::process;
 use std::time::Instant;
 
-use ixy::*;
 use ixy::memory::Packet;
+use ixy::*;
 
 const BATCH_SIZE: usize = 32;
 
 pub fn main() {
+    simple_logger::init().unwrap();
+
     let mut args = env::args();
     args.next();
 
@@ -77,7 +80,13 @@ pub fn main() {
     }
 }
 
-fn forward(buffer: &mut VecDeque<Packet>, rx_dev: &mut impl IxyDriver, rx_queue: u32, tx_dev: &mut impl IxyDriver, tx_queue: u32) {
+fn forward(
+    buffer: &mut VecDeque<Packet>,
+    rx_dev: &mut impl IxyDevice,
+    rx_queue: u32,
+    tx_dev: &mut impl IxyDevice,
+    tx_queue: u32,
+) {
     let num_rx = rx_dev.rx_batch(rx_queue, buffer, BATCH_SIZE);
 
     if num_rx > 0 {

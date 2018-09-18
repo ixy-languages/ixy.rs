@@ -7,8 +7,8 @@
 #![feature(const_fn)]
 #![feature(untagged_unions)]
 
-extern crate libc;
 extern crate byteorder;
+extern crate libc;
 #[macro_use]
 extern crate log;
 
@@ -16,11 +16,12 @@ extern crate log;
 #[allow(non_snake_case)]
 #[allow(non_camel_case_types)]
 #[allow(non_upper_case_globals)]
+#[allow(clippy)]
 mod constants;
 
 mod ixgbe;
-mod pci;
 pub mod memory;
+mod pci;
 
 use self::ixgbe::*;
 use self::memory::*;
@@ -32,9 +33,11 @@ use std::error::Error;
 const MAX_QUEUES: u16 = 64;
 
 /// Used for implementing an ixy device driver like ixgbe or virtio.
-pub trait IxyDriver {
+pub trait IxyDevice {
     /// Initializes an intel 82599 network card.
-    fn init(pci_addr: &str, num_rx_queues: u16, num_tx_queues: u16) -> Result<Self, Box<Error>> where Self: Sized;
+    fn init(pci_addr: &str, num_rx_queues: u16, num_tx_queues: u16) -> Result<Self, Box<Error>>
+    where
+        Self: Sized;
 
     /// Returns the driver's name.
     fn get_driver_name(&self) -> &str;
@@ -57,7 +60,12 @@ pub trait IxyDriver {
     ///
     /// dev.rx_batch(0, &mut buf, 32);
     /// ```
-    fn rx_batch(&mut self, queue_id: u32, buffer: &mut VecDeque<Packet>, num_packets: usize) -> usize;
+    fn rx_batch(
+        &mut self,
+        queue_id: u32,
+        buffer: &mut VecDeque<Packet>,
+        num_packets: usize,
+    ) -> usize;
 
     /// Takes `Packet`s out of `buffer` until `buffer` is empty or the network card's tx
     /// queue is full.
@@ -110,7 +118,6 @@ pub trait IxyDriver {
     /// use ixy::*;
     ///
     /// let mut dev = ixy_init("0000:01:00.0", 1, 1).unwrap();
-    ///
     /// println!("Link speed is {} Mbit/s", dev.get_link_speed());
     /// ```
     fn get_link_speed(&self) -> u16;
@@ -127,20 +134,40 @@ pub struct DeviceStats {
 
 impl DeviceStats {
     ///  Prints the stats differences between `stats_old` and `self`.
-    pub fn print_stats_diff(&self, dev: &impl IxyDriver, stats_old: &DeviceStats, nanos: u64) {
+    pub fn print_stats_diff(&self, dev: &impl IxyDevice, stats_old: &DeviceStats, nanos: u64) {
         let pci_addr = dev.get_pci_addr();
-        let mbits = self.diff_mbit(self.rx_bytes, stats_old.rx_bytes, self.rx_pkts, stats_old.rx_pkts, nanos);
+        let mbits = self.diff_mbit(
+            self.rx_bytes,
+            stats_old.rx_bytes,
+            self.rx_pkts,
+            stats_old.rx_pkts,
+            nanos,
+        );
         let mpps = self.diff_mpps(self.rx_pkts, stats_old.rx_pkts, nanos);
         println!("[{}] RX: {:.2} Mbit/s {:.2} Mpps", pci_addr, mbits, mpps);
 
-        let mbits = self.diff_mbit(self.tx_bytes, stats_old.tx_bytes, self.tx_pkts, stats_old.tx_pkts, nanos);
+        let mbits = self.diff_mbit(
+            self.tx_bytes,
+            stats_old.tx_bytes,
+            self.tx_pkts,
+            stats_old.tx_pkts,
+            nanos,
+        );
         let mpps = self.diff_mpps(self.tx_pkts, stats_old.tx_pkts, nanos);
         println!("[{}] TX: {:.2} Mbit/s {:.2} Mpps", pci_addr, mbits, mpps);
     }
 
     /// Returns Mbit/s between two points in time.
-    fn diff_mbit(&self, bytes_new: u64, bytes_old: u64, pkts_new: u64, pkts_old: u64, nanos: u64) -> f64 {
-        (((bytes_new - bytes_old) as f64 / 1_000_000.0 / (nanos as f64 / 1_000_000_000.0)) * f64::from(8)
+    fn diff_mbit(
+        &self,
+        bytes_new: u64,
+        bytes_old: u64,
+        pkts_new: u64,
+        pkts_old: u64,
+        nanos: u64,
+    ) -> f64 {
+        (((bytes_new - bytes_old) as f64 / 1_000_000.0 / (nanos as f64 / 1_000_000_000.0))
+            * f64::from(8)
             + self.diff_mpps(pkts_new, pkts_old, nanos) * f64::from(20) * f64::from(8))
     }
 
@@ -153,7 +180,11 @@ impl DeviceStats {
 /// Initializes the network card at `pci_addr`.
 ///
 /// `rx_queues` and `tx_queues` specify the number of queues that will be initialized and used.
-pub fn ixy_init(pci_addr: &str, rx_queues: u16, tx_queues: u16) -> Result<impl IxyDriver, Box<Error>> {
+pub fn ixy_init(
+    pci_addr: &str,
+    rx_queues: u16,
+    tx_queues: u16,
+) -> Result<impl IxyDevice, Box<Error>> {
     let mut config_file = pci_open_resource(pci_addr, "config").expect("wrong pci address");
 
     let vendor_id = read_io16(&mut config_file, 0)?;
@@ -168,7 +199,7 @@ pub fn ixy_init(pci_addr: &str, rx_queues: u16, tx_queues: u16) -> Result<impl I
         unimplemented!("virtio driver is not implemented yet");
     } else {
         // let's give it a try with ixgbe
-        let driver: IxgbeDevice = IxyDriver::init(pci_addr, rx_queues, tx_queues)?;
-        Ok(driver)
+        let device: IxgbeDevice = IxyDevice::init(pci_addr, rx_queues, tx_queues)?;
+        Ok(device)
     }
 }
