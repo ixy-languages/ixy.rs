@@ -7,3 +7,6 @@ authors = ["Simon Ellmann <simon.ellmann@tum.de>"]
 libc = "0.2"
 byteorder = "1"
 log = "0.4"
+
+[dev-dependencies]
+simple_logger = "0.5"
