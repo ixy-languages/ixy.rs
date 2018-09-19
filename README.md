@@ -27,13 +27,13 @@ cd ixy.rs
 sudo ./setup-hugetlbfs.sh
 ```
 
-You can then either build the binaries and run them manually (as explained below) or use `cargo` to build and run them at once (see **Usage**).
+You can then either build the binaries and run them manually or use `cargo` to build and run them at once (see **Usage**). To build the binaries run:
 
 ```
-cargo build --all-targets
+cargo build --release --all-targets
 ```
 
-The built binaries are located in `targets/`.
+The built binaries are located in `targets/release/examples/`.
 
 ## Usage
 
