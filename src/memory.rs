@@ -18,14 +18,14 @@ const HUGE_PAGE_SIZE: usize = 1 << HUGE_PAGE_BITS;
 
 static HUGEPAGE_ID: AtomicUsize = ATOMIC_USIZE_INIT;
 
-pub struct DmaMemory<T> {
+pub struct Dma<T> {
     pub virt: *mut T,
     pub phys: *const usize,
 }
 
-impl<T> DmaMemory<T> {
+impl<T> Dma<T> {
     /// Allocates dma memory on a huge page.
-    pub fn allocate(size: usize, require_contigous: bool) -> Result<DmaMemory<T>, Box<Error>> {
+    pub fn allocate(size: usize, require_contigous: bool) -> Result<Dma<T>, Box<Error>> {
         let size = if size % HUGE_PAGE_SIZE != 0 {
             ((size >> HUGE_PAGE_BITS) + 1) << HUGE_PAGE_BITS
         } else {
@@ -58,27 +58,28 @@ impl<T> DmaMemory<T> {
                 };
 
                 if ptr.is_null() || (ptr as isize) < 0 {
-                    Err("memory mapping failed".into())
+                    Err("failed to memory map hugepage - hugepages enabled and free?".into())
                 } else if unsafe { libc::mlock(ptr as *mut libc::c_void, size) } == 0 {
-                    let memory = DmaMemory {
+                    let memory = Dma {
                         virt: ptr,
                         phys: virt_to_phys(ptr as usize)?,
                     };
 
                     Ok(memory)
                 } else {
-                    Err("memory locking failed".into())
+                    Err("failed to memory lock hugepage".into())
                 }
             }
             Err(ref e) if e.kind() == io::ErrorKind::NotFound => Err(Box::new(io::Error::new(
                 io::ErrorKind::NotFound,
-                format!("{} could not be created - hugepages enabled?", path),
+                format!("hugepage {} could not be created - hugepages enabled?", path),
             ))),
             Err(e) => Err(Box::new(e)),
         }
     }
 }
 
+#[derive(Clone)]
 pub struct Packet {
     addr_virt: *mut u8,
     addr_phys: *const usize,
@@ -102,8 +103,7 @@ impl DerefMut for Packet {
 
 impl Drop for Packet {
     fn drop(&mut self) {
-        let p = unsafe { Packet::new(self.addr_virt, self.addr_phys, self.len, &self.pool) };
-        self.pool.borrow_mut().free_pkt(p);
+        self.pool.borrow_mut().free_pkt(self.clone());
     }
 }
 
@@ -124,7 +124,7 @@ impl Packet {
     }
 
     /// Sets the size of the packet.
-    pub unsafe fn set_size(&mut self, len: usize) {
+    pub(crate) unsafe fn set_size(&mut self, len: usize) {
         self.len = len
     }
 
@@ -163,7 +163,7 @@ impl Packetpool {
             x => x,
         };
 
-        let dma: DmaMemory<u8> = DmaMemory::allocate(entries * entry_size, false)?;
+        let dma: Dma<u8> = Dma::allocate(entries * entry_size, false)?;
         let mut phys_addresses = Vec::with_capacity(entries);
 
         for i in 0..entries {
@@ -199,12 +199,12 @@ impl Packetpool {
     }
 
     /// Removes a packet from the packet pool and returns it, or [`None`] if the pool is empty.
-    pub fn alloc_pkt(&mut self) -> Option<Packet> {
+    pub(crate) fn alloc_pkt(&mut self) -> Option<Packet> {
         self.free_stack.pop()
     }
 
     /// Returns a packet to the packet pool.
-    pub fn free_pkt(&mut self, p: Packet) {
+    pub(crate) fn free_pkt(&mut self, p: Packet) {
         self.free_stack.push(p);
     }
 }
@@ -234,10 +234,7 @@ pub fn alloc_pkt_batch(
 pub fn alloc_pkt(pool: &Rc<RefCell<Packetpool>>, size: usize) -> Option<Packet> {
     if size > pool.borrow().entry_size {
         return None;
-    } /*else if let Some(mut p) = pool.borrow_mut().alloc_pkt() {
-        unsafe { p.set_size(size) };
-        return Some(p);
-    }*/
+    }
 
     match pool.borrow_mut().alloc_pkt() {
         Some(mut p) => {
@@ -248,15 +245,15 @@ pub fn alloc_pkt(pool: &Rc<RefCell<Packetpool>>, size: usize) -> Option<Packet> 
     }
 }
 
-/// Initializes `len` bytes at `addr` with `value`.
-pub unsafe fn memset<T: Copy>(addr: *mut T, len: usize, value: T) {
+/// Initializes `len` fields of type `T` at `addr` with `value`.
+pub(crate) unsafe fn memset<T: Copy>(addr: *mut T, len: usize, value: T) {
     for i in 0..len {
         ptr::write_volatile(addr.offset(i as isize) as *mut T, value);
     }
 }
 
 /// Translates a virtual address to its physical counterpart.
-pub fn virt_to_phys(addr: usize) -> Result<*const usize, Box<Error>> {
+pub(crate) fn virt_to_phys(addr: usize) -> Result<*const usize, Box<Error>> {
     let pagesize = unsafe { libc::sysconf(libc::_SC_PAGE_SIZE) } as usize;
 
     let mut file = fs::OpenOptions::new()

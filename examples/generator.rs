@@ -88,7 +88,7 @@ pub fn main() {
         // re-fill our packet queue with new packets to send out
         alloc_pkt_batch(&pool, &mut buffer, BATCH_SIZE, PACKET_SIZE);
 
-        // update sequence number and checksum of all packets
+        // update sequence number of all packets (and checksum if necessary)
         for p in buffer.iter_mut() {
             p[PACKET_SIZE - 4] = seq_num;
             seq_num = (seq_num % std::u8::MAX) + 1;

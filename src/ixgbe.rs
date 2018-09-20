@@ -373,7 +373,7 @@ impl IxgbeDevice {
             let ring_size_bytes =
                 (NUM_RX_QUEUE_ENTRIES) as usize * mem::size_of::<ixgbe_adv_rx_desc>();
 
-            let dma: DmaMemory<ixgbe_adv_rx_desc> = DmaMemory::allocate(ring_size_bytes, true)?;
+            let dma: Dma<ixgbe_adv_rx_desc> = Dma::allocate(ring_size_bytes, true)?;
 
             // initialize to 0xff to prevent rogue memory accesses on premature dma activation
             unsafe {
@@ -450,7 +450,7 @@ impl IxgbeDevice {
             let ring_size_bytes =
                 NUM_TX_QUEUE_ENTRIES as usize * mem::size_of::<ixgbe_adv_tx_desc>();
 
-            let dma: DmaMemory<ixgbe_adv_tx_desc> = DmaMemory::allocate(ring_size_bytes, true)?;
+            let dma: Dma<ixgbe_adv_tx_desc> = Dma::allocate(ring_size_bytes, true)?;
             unsafe {
                 memset(dma.virt as *mut u8, ring_size_bytes, 0xff);
             }
@@ -706,16 +706,11 @@ fn clean_tx_queue(queue: &mut IxgbeTxQueue) -> usize {
         };
 
         if (status & IXGBE_ADVTXD_STAT_DD) != 0 {
-            let packets_to_clean = if TX_CLEAN_BATCH as usize >= queue.queue.len() {
+            if TX_CLEAN_BATCH as usize >= queue.queue.len() {
                 queue.queue.drain(..)
             } else {
                 queue.queue.drain(..TX_CLEAN_BATCH as usize)
             };
-
-            for p in packets_to_clean {
-                let mut pool = p.get_pool().clone();
-                pool.borrow_mut().free_pkt(p);
-            }
 
             clean_index = wrap_ring(cleanup_to, queue.num_descriptors);
         } else {
