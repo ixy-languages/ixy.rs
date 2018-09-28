@@ -47,7 +47,7 @@ struct IxgbeRxQueue {
 struct IxgbeTxQueue {
     descriptors: *mut ixgbe_adv_tx_desc,
     num_descriptors: usize,
-    queue: VecDeque<Packet>,
+    pkts_in_use: VecDeque<Packet>,
     clean_index: usize,
     tx_index: usize,
 }
@@ -228,7 +228,7 @@ impl IxyDevice for IxgbeDevice {
                     );
                 }
 
-                queue.queue.push_back(packet);
+                queue.pkts_in_use.push_back(packet);
 
                 cur_index = next_index;
                 sent += 1;
@@ -478,7 +478,7 @@ impl IxgbeDevice {
 
             let tx_queue = IxgbeTxQueue {
                 descriptors: dma.virt,
-                queue: VecDeque::new(),
+                pkts_in_use: VecDeque::new(),
                 num_descriptors: NUM_TX_QUEUE_ENTRIES,
                 clean_index: 0,
                 tx_index: 0,
@@ -706,10 +706,10 @@ fn clean_tx_queue(queue: &mut IxgbeTxQueue) -> usize {
         };
 
         if (status & IXGBE_ADVTXD_STAT_DD) != 0 {
-            if TX_CLEAN_BATCH as usize >= queue.queue.len() {
-                queue.queue.drain(..)
+            if TX_CLEAN_BATCH as usize >= queue.pkts_in_use.len() {
+                queue.pkts_in_use.drain(..)
             } else {
-                queue.queue.drain(..TX_CLEAN_BATCH as usize)
+                queue.pkts_in_use.drain(..TX_CLEAN_BATCH as usize)
             };
 
             clean_index = wrap_ring(cleanup_to, queue.num_descriptors);
@@ -740,7 +740,7 @@ mod tests {
 
         let mut q = IxgbeTxQueue {
             descriptors,
-            queue: VecDeque::new(),
+            pkts_in_use: VecDeque::new(),
             num_descriptors,
             clean_index: 0,
             tx_index: 4,
