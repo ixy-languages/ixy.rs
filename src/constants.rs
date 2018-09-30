@@ -1,5 +1,10 @@
+#![allow(dead_code)]
+#![allow(non_snake_case)]
+#![allow(non_camel_case_types)]
+#![allow(non_upper_case_globals)]
+#![allow(clippy)]
 // list of all NIC registers and some structs
-// copy & paste from the DPDK driver, but without any function declarations and DPDK-specific stuff;
+// copied and changed from the ixy C driver
 
 /*******************************************************************************
 
@@ -113,7 +118,7 @@ pub const IXGBE_DEV_ID_X550EM_X_VF: u32                                = 0x15A8;
 pub const IXGBE_DEV_ID_X550EM_X_VF_HV: u32                             = 0x15A9;
 
 // unused/unsupported by ixy
-pub const fn IXGBE_BY_MAC(_hw: u32, _r: u32) -> u32 { 0 }
+pub fn IXGBE_BY_MAC(_hw: u32, _r: u32) -> u32 { 0 }
 
 /* General Registers */
 pub const IXGBE_CTRL: u32                                              = 0x00000;
@@ -128,7 +133,7 @@ pub const IXGBE_I2CCTL_X550: u32                                       = 0x15F5C
 pub const IXGBE_I2CCTL_X550EM_x: u32                                   = IXGBE_I2CCTL_X550;
 pub const IXGBE_I2CCTL_X550EM_a: u32                                   = IXGBE_I2CCTL_X550;
 
-pub const fn IXGBE_I2CCTL_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_I2CCTL) }
+pub fn IXGBE_I2CCTL_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_I2CCTL) }
 
 pub const IXGBE_PHY_GPIO: u32                                          = 0x00028;
 pub const IXGBE_MAC_GPIO: u32                                          = 0x00030;
@@ -148,7 +153,7 @@ pub const IXGBE_EEC_X550: u32                                          = IXGBE_E
 pub const IXGBE_EEC_X550EM_x: u32                                      = IXGBE_EEC;
 pub const IXGBE_EEC_X550EM_a: u32                                      = 0x15FF8;
 
-pub const fn IXGBE_EEC_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_EEC) }
+pub fn IXGBE_EEC_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_EEC) }
 
 pub const IXGBE_EERD: u32                                              = 0x10014;
 pub const IXGBE_EEWR: u32                                              = 0x10018;
@@ -159,7 +164,7 @@ pub const IXGBE_FLA_X550: u32                                          = IXGBE_F
 pub const IXGBE_FLA_X550EM_x: u32                                      = IXGBE_FLA;
 pub const IXGBE_FLA_X550EM_a: u32                                      = 0x15F68;
 
-pub const fn IXGBE_FLA_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_FLA) }
+pub fn IXGBE_FLA_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_FLA) }
 
 pub const IXGBE_EEMNGCTL: u32                                          = 0x10110;
 pub const IXGBE_EEMNGDATA: u32                                         = 0x10114;
@@ -174,7 +179,7 @@ pub const IXGBE_GRC_X550: u32                                          = IXGBE_G
 pub const IXGBE_GRC_X550EM_x: u32                                      = IXGBE_GRC;
 pub const IXGBE_GRC_X550EM_a: u32                                      = 0x15F64;
 
-pub const fn IXGBE_GRC_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_GRC) }
+pub fn IXGBE_GRC_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_GRC) }
 
 pub const IXGBE_SRAMREL: u32                                           = 0x10210;
 pub const IXGBE_SRAMREL_X540: u32                                      = IXGBE_SRAMREL;
@@ -182,7 +187,7 @@ pub const IXGBE_SRAMREL_X550: u32                                      = IXGBE_S
 pub const IXGBE_SRAMREL_X550EM_x: u32                                  = IXGBE_SRAMREL;
 pub const IXGBE_SRAMREL_X550EM_a: u32                                  = 0x15F6C;
 
-pub const fn IXGBE_SRAMREL_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_SRAMREL) }
+pub fn IXGBE_SRAMREL_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_SRAMREL) }
 
 pub const IXGBE_PHYDBG: u32                                            = 0x10218;
 
@@ -200,7 +205,7 @@ pub const IXGBE_I2C_CLK_IN_X550: u32                                   = 0x00004
 pub const IXGBE_I2C_CLK_IN_X550EM_x: u32                               = IXGBE_I2C_CLK_IN_X550;
 pub const IXGBE_I2C_CLK_IN_X550EM_a: u32                               = IXGBE_I2C_CLK_IN_X550;
 
-pub const fn fnIXGBE_I2C_CLK_IN_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_I2C_CLK_IN) }
+pub fn fnIXGBE_I2C_CLK_IN_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_I2C_CLK_IN) }
 
 pub const IXGBE_I2C_CLK_OUT: u32                                       = 0x00000002;
 pub const IXGBE_I2C_CLK_OUT_X540: u32                                  = IXGBE_I2C_CLK_OUT;
@@ -208,7 +213,7 @@ pub const IXGBE_I2C_CLK_OUT_X550: u32                                  = 0x00000
 pub const IXGBE_I2C_CLK_OUT_X550EM_x: u32                              = IXGBE_I2C_CLK_OUT_X550;
 pub const IXGBE_I2C_CLK_OUT_X550EM_a: u32                              = IXGBE_I2C_CLK_OUT_X550;
 
-pub const fn IXGBE_I2C_CLK_OUT_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_I2C_CLK_OUT) }
+pub fn IXGBE_I2C_CLK_OUT_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_I2C_CLK_OUT) }
 
 pub const IXGBE_I2C_DATA_IN: u32                                       = 0x00000004;
 pub const IXGBE_I2C_DATA_IN_X540: u32                                  = IXGBE_I2C_DATA_IN;
@@ -216,7 +221,7 @@ pub const IXGBE_I2C_DATA_IN_X550: u32                                  = 0x00001
 pub const IXGBE_I2C_DATA_IN_X550EM_x: u32                              = IXGBE_I2C_DATA_IN_X550;
 pub const IXGBE_I2C_DATA_IN_X550EM_a: u32                              = IXGBE_I2C_DATA_IN_X550;
 
-pub const fn IXGBE_I2C_DATA_IN_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_I2C_DATA_IN) }
+pub fn IXGBE_I2C_DATA_IN_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_I2C_DATA_IN) }
 
 pub const IXGBE_I2C_DATA_OUT: u32                                      = 0x00000008;
 pub const IXGBE_I2C_DATA_OUT_X540: u32                                 = IXGBE_I2C_DATA_OUT;
@@ -224,7 +229,7 @@ pub const IXGBE_I2C_DATA_OUT_X550: u32                                 = 0x00000
 pub const IXGBE_I2C_DATA_OUT_X550EM_x: u32                             = IXGBE_I2C_DATA_OUT_X550;
 pub const IXGBE_I2C_DATA_OUT_X550EM_a: u32                             = IXGBE_I2C_DATA_OUT_X550;
 
-pub const fn IXGBE_I2C_DATA_OUT_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_I2C_DATA_OUT) }
+pub fn IXGBE_I2C_DATA_OUT_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_I2C_DATA_OUT) }
 
 pub const IXGBE_I2C_DATA_OE_N_EN: u32                                  = 0;
 pub const IXGBE_I2C_DATA_OE_N_EN_X540: u32                             = IXGBE_I2C_DATA_OE_N_EN;
@@ -232,7 +237,7 @@ pub const IXGBE_I2C_DATA_OE_N_EN_X550: u32                             = 0x00000
 pub const IXGBE_I2C_DATA_OE_N_EN_X550EM_x: u32                         = IXGBE_I2C_DATA_OE_N_EN_X550;
 pub const IXGBE_I2C_DATA_OE_N_EN_X550EM_a: u32                         = IXGBE_I2C_DATA_OE_N_EN_X550;
 
-pub const fn IXGBE_I2C_DATA_OE_N_EN_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_I2C_DATA_OE_N_EN) }
+pub fn IXGBE_I2C_DATA_OE_N_EN_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_I2C_DATA_OE_N_EN) }
 
 pub const IXGBE_I2C_BB_EN: u32                                         = 0;
 pub const IXGBE_I2C_BB_EN_X540: u32                                    = IXGBE_I2C_BB_EN;
@@ -240,7 +245,7 @@ pub const IXGBE_I2C_BB_EN_X550: u32                                    = 0x00000
 pub const IXGBE_I2C_BB_EN_X550EM_x: u32                                = IXGBE_I2C_BB_EN_X550;
 pub const IXGBE_I2C_BB_EN_X550EM_a: u32                                = IXGBE_I2C_BB_EN_X550;
 
-pub const fn IXGBE_I2C_BB_EN_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_I2C_BB_EN) }
+pub fn IXGBE_I2C_BB_EN_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_I2C_BB_EN) }
 
 pub const IXGBE_I2C_CLK_OE_N_EN: u32                                   = 0;
 pub const IXGBE_I2C_CLK_OE_N_EN_X540: u32                              = IXGBE_I2C_CLK_OE_N_EN;
@@ -248,7 +253,7 @@ pub const IXGBE_I2C_CLK_OE_N_EN_X550: u32                              = 0x00002
 pub const IXGBE_I2C_CLK_OE_N_EN_X550EM_x: u32                          = IXGBE_I2C_CLK_OE_N_EN_X550;
 pub const IXGBE_I2C_CLK_OE_N_EN_X550EM_a: u32                          = IXGBE_I2C_CLK_OE_N_EN_X550;
 
-pub const fn IXGBE_I2C_CLK_OE_N_EN_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_I2C_CLK_OE_N_EN) }
+pub fn IXGBE_I2C_CLK_OE_N_EN_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_I2C_CLK_OE_N_EN) }
 
 pub const IXGBE_I2C_CLOCK_STRETCHING_TIMEOUT: u32                      = 500;
 
@@ -270,13 +275,13 @@ pub const IXGBE_EIMC: u32                                              = 0x00888
 pub const IXGBE_EIAC: u32                                              = 0x00810;
 pub const IXGBE_EIAM: u32                                              = 0x00890;
 
-pub const fn IXGBE_EICS_EX(_i: u32) -> u32 { (0x00A90 + (_i) * 4) }
+pub fn IXGBE_EICS_EX(_i: u32) -> u32 { (0x00A90 + (_i) * 4) }
 
-pub const fn IXGBE_EIMS_EX(_i: u32) -> u32 { (0x00AA0 + (_i) * 4) }
+pub fn IXGBE_EIMS_EX(_i: u32) -> u32 { (0x00AA0 + (_i) * 4) }
 
-pub const fn IXGBE_EIMC_EX(_i: u32) -> u32 { (0x00AB0 + (_i) * 4) }
+pub fn IXGBE_EIMC_EX(_i: u32) -> u32 { (0x00AB0 + (_i) * 4) }
 
-pub const fn IXGBE_EIAM_EX(_i: u32) -> u32 { (0x00AD0 + (_i) * 4) }
+pub fn IXGBE_EIAM_EX(_i: u32) -> u32 { (0x00AD0 + (_i) * 4) }
 /* 82599 EITR is only 12 bits, with the lower 3 always zero */
 /*
  * 82598 EITR is 16 bits but set the limits based on the max
@@ -293,7 +298,7 @@ pub const IXGBE_EITR_ITR_INT_MASK: u32                                 = 0x00000
 pub const IXGBE_EITR_LLI_MOD: u32                                      = 0x00008000;
 pub const IXGBE_EITR_CNT_WDIS: u32                                     = 0x80000000;
 
-pub const fn IXGBE_IVAR(_i: u32) -> u32 { (0x00900 + (_i * 4)) } /* 24 at 0x900-0x960 */
+pub fn IXGBE_IVAR(_i: u32) -> u32 { (0x00900 + (_i * 4)) } /* 24 at 0x900-0x960 */
 pub const IXGBE_IVAR_MISC: u32                                         = 0x00A00; /* misc MSI-X interrupt causes */
 pub const IXGBE_EITRSEL: u32                                           = 0x00894;
 pub const IXGBE_MSIXT: u32                                             = 0x00000; /* MSI-X Table. 0x0000 - 0x01C */
@@ -308,13 +313,13 @@ pub const IXGBE_FCADBUH: u32                                           = 0x03214
 pub const IXGBE_FCAMACL: u32                                           = 0x04328;
 pub const IXGBE_FCAMACH: u32                                           = 0x0432C;
 
-pub const fn IXGBE_FCRTH_82599(_i: u32) -> u32 { (0x03260 + (_i * 4)) } /* 8 of these (0-7) */
-pub const fn IXGBE_FCRTL_82599(_i: u32) -> u32 { (0x03220 + (_i * 4)) } /* 8 of these (0-7) */
+pub fn IXGBE_FCRTH_82599(_i: u32) -> u32 { (0x03260 + (_i * 4)) } /* 8 of these (0-7) */
+pub fn IXGBE_FCRTL_82599(_i: u32) -> u32 { (0x03220 + (_i * 4)) } /* 8 of these (0-7) */
 pub const IXGBE_PFCTOP: u32                                            = 0x03008;
 
-pub const fn IXGBE_FCTTV(_i: u32) -> u32 { (0x03200 + (_i * 4)) } /* 4 of these (0-3) */
-pub const fn IXGBE_FCRTL(_i: u32) -> u32 { (0x03220 + (_i * 8)) } /* 8 of these (0-7) */
-pub const fn IXGBE_FCRTH(_i: u32) -> u32 { (0x03260 + (_i * 8)) } /* 8 of these (0-7) */
+pub fn IXGBE_FCTTV(_i: u32) -> u32 { (0x03200 + (_i * 4)) } /* 4 of these (0-3) */
+pub fn IXGBE_FCRTL(_i: u32) -> u32 { (0x03220 + (_i * 8)) } /* 8 of these (0-7) */
+pub fn IXGBE_FCRTH(_i: u32) -> u32 { (0x03260 + (_i * 8)) } /* 8 of these (0-7) */
 pub const IXGBE_FCRTV: u32                                             = 0x032A0;
 pub const IXGBE_FCCFG: u32                                             = 0x03D00;
 pub const IXGBE_TFCS: u32                                              = 0x0CE00;
@@ -365,7 +370,7 @@ pub fn IXGBE_DCA_RXCTRL(_i: u32) -> u32 {
 
 pub const IXGBE_RDRXCTL: u32                                           = 0x02F00;
 /* 8 of these 0x03C00 - 0x03C1C */
-pub const fn IXGBE_RXPBSIZE(_i: u32) -> u32 { (0x03C00 + (_i * 4)) }
+pub fn IXGBE_RXPBSIZE(_i: u32) -> u32 { (0x03C00 + (_i * 4)) }
 
 pub const IXGBE_RXCTRL: u32                                            = 0x03000;
 pub const IXGBE_DROPEN: u32                                            = 0x03D04;
@@ -380,97 +385,97 @@ pub const IXGBE_DRECCCTL_DISABLE: u32                                  = 0;
 pub const IXGBE_DRECCCTL2: u32                                         = 0x02F8C;
 
 /* Multicast Table Array - 128 entries */
-pub const fn IXGBE_MTA(_i: u32) -> u32 { (0x05200 + ((_i) * 4)) }
+pub fn IXGBE_MTA(_i: u32) -> u32 { (0x05200 + ((_i) * 4)) }
 
 pub fn IXGBE_RAL(_i: u32) -> u32 { if _i <= 15 { 0x05400 + (_i * 8) } else { 0x0A200 + (_i * 8) } }
 
 pub fn IXGBE_RAH(_i: u32) -> u32 { if _i <= 15 { 0x05404 + (_i * 8) } else { 0x0A204 + (_i * 8) } }
 
-pub const fn IXGBE_MPSAR_LO(_i: u32) -> u32 { (0x0A600 + ((_i) * 8)) }
+pub fn IXGBE_MPSAR_LO(_i: u32) -> u32 { (0x0A600 + ((_i) * 8)) }
 
-pub const fn IXGBE_MPSAR_HI(_i: u32) -> u32 { (0x0A604 + ((_i) * 8)) }
+pub fn IXGBE_MPSAR_HI(_i: u32) -> u32 { (0x0A604 + ((_i) * 8)) }
 /* Packet split receive type */
 pub fn IXGBE_PSRTYPE(_i: u32) -> u32 { if _i <= 15 { 0x05480 + (_i * 4) } else { 0x0EA00 + (_i * 4) } }
 /* array of 4096 1-bit vlan filters */
-pub const fn IXGBE_VFTA(_i: u32) -> u32 { (0x0A000 + ((_i) * 4)) }
+pub fn IXGBE_VFTA(_i: u32) -> u32 { (0x0A000 + ((_i) * 4)) }
 /*array of 4096 4-bit vlan vmdq indices */
-pub const fn IXGBE_VFTAVIND(_j: u32, _i: u32) -> u32 { (0x0A200 + ((_j) * 0x200) + ((_i) * 4)) }
+pub fn IXGBE_VFTAVIND(_j: u32, _i: u32) -> u32 { (0x0A200 + ((_j) * 0x200) + ((_i) * 4)) }
 
 pub const IXGBE_FCTRL: u32                                             = 0x05080;
 pub const IXGBE_VLNCTRL: u32                                           = 0x05088;
 pub const IXGBE_MCSTCTRL: u32                                          = 0x05090;
 pub const IXGBE_MRQC: u32                                              = 0x05818;
 
-pub const fn IXGBE_SAQF(_i: u32) -> u32 { (0x0E000 + (_i * 4)) } /* Source Address Queue Filter */
-pub const fn IXGBE_DAQF(_i: u32) -> u32 { (0x0E200 + (_i * 4)) } /* Dest. Address Queue Filter */
-pub const fn IXGBE_SDPQF(_i: u32) -> u32 { (0x0E400 + (_i * 4)) } /* Src Dest. Addr Queue Filter */
-pub const fn IXGBE_FTQF(_i: u32) -> u32 { (0x0E600 + (_i * 4)) } /* Five Tuple Queue Filter */
-pub const fn IXGBE_ETQF(_i: u32) -> u32 { (0x05128 + (_i * 4)) } /* EType Queue Filter */
-pub const fn IXGBE_ETQS(_i: u32) -> u32 { (0x0EC00 + (_i * 4)) } /* EType Queue Select */
+pub fn IXGBE_SAQF(_i: u32) -> u32 { (0x0E000 + (_i * 4)) } /* Source Address Queue Filter */
+pub fn IXGBE_DAQF(_i: u32) -> u32 { (0x0E200 + (_i * 4)) } /* Dest. Address Queue Filter */
+pub fn IXGBE_SDPQF(_i: u32) -> u32 { (0x0E400 + (_i * 4)) } /* Src Dest. Addr Queue Filter */
+pub fn IXGBE_FTQF(_i: u32) -> u32 { (0x0E600 + (_i * 4)) } /* Five Tuple Queue Filter */
+pub fn IXGBE_ETQF(_i: u32) -> u32 { (0x05128 + (_i * 4)) } /* EType Queue Filter */
+pub fn IXGBE_ETQS(_i: u32) -> u32 { (0x0EC00 + (_i * 4)) } /* EType Queue Select */
 pub const IXGBE_SYNQF: u32                                             = 0x0EC30; /* SYN Packet Queue Filter */
 pub const IXGBE_RQTC: u32                                              = 0x0EC70;
 pub const IXGBE_MTQC: u32                                              = 0x08120;
 
-pub const fn IXGBE_VLVF(_i: u32) -> u32 { (0x0F100 + ((_i) * 4)) }  /* 64 of these (0-63) */
-pub const fn IXGBE_VLVFB(_i: u32) -> u32 { (0x0F200 + ((_i) * 4)) }  /* 128 of these (0-127) */
-pub const fn IXGBE_VMVIR(_i: u32) -> u32 { (0x08000 + ((_i) * 4)) }  /* 64 of these (0-63) */
+pub fn IXGBE_VLVF(_i: u32) -> u32 { (0x0F100 + ((_i) * 4)) }  /* 64 of these (0-63) */
+pub fn IXGBE_VLVFB(_i: u32) -> u32 { (0x0F200 + ((_i) * 4)) }  /* 128 of these (0-127) */
+pub fn IXGBE_VMVIR(_i: u32) -> u32 { (0x08000 + ((_i) * 4)) }  /* 64 of these (0-63) */
 pub const IXGBE_PFFLPL: u32                                            = 0x050B0;
 pub const IXGBE_PFFLPH: u32                                            = 0x050B4;
 pub const IXGBE_VT_CTL: u32                                            = 0x051B0;
 
-pub const fn IXGBE_PFMAILBOX(_i: u32) -> u32 { (0x04B00 + (4 * (_i))) } /* 64 total */
+pub fn IXGBE_PFMAILBOX(_i: u32) -> u32 { (0x04B00 + (4 * (_i))) } /* 64 total */
 /* 64 Mailboxes, 16 DW each */
-pub const fn IXGBE_PFMBMEM(_i: u32) -> u32 { (0x13000 + (64 * (_i))) }
+pub fn IXGBE_PFMBMEM(_i: u32) -> u32 { (0x13000 + (64 * (_i))) }
 
-pub const fn IXGBE_PFMBICR(_i: u32) -> u32 { (0x00710 + (4 * (_i))) } /* 4 total */
-pub const fn IXGBE_PFMBIMR(_i: u32) -> u32 { (0x00720 + (4 * (_i))) } /* 4 total */
-pub const fn IXGBE_VFRE(_i: u32) -> u32 { (0x051E0 + ((_i) * 4)) }
+pub fn IXGBE_PFMBICR(_i: u32) -> u32 { (0x00710 + (4 * (_i))) } /* 4 total */
+pub fn IXGBE_PFMBIMR(_i: u32) -> u32 { (0x00720 + (4 * (_i))) } /* 4 total */
+pub fn IXGBE_VFRE(_i: u32) -> u32 { (0x051E0 + ((_i) * 4)) }
 
-pub const fn IXGBE_VFTE(_i: u32) -> u32 { (0x08110 + ((_i) * 4)) }
+pub fn IXGBE_VFTE(_i: u32) -> u32 { (0x08110 + ((_i) * 4)) }
 
-pub const fn IXGBE_VMECM(_i: u32) -> u32 { (0x08790 + ((_i) * 4)) }
+pub fn IXGBE_VMECM(_i: u32) -> u32 { (0x08790 + ((_i) * 4)) }
 
 pub const IXGBE_QDE: u32                                               = 0x2F04;
 
-pub const fn IXGBE_VMTXSW(_i: u32) -> u32 { (0x05180 + ((_i) * 4)) } /* 2 total */
-pub const fn IXGBE_VMOLR(_i: u32) -> u32 { (0x0F000 + ((_i) * 4)) } /* 64 total */
-pub const fn IXGBE_UTA(_i: u32) -> u32 { (0x0F400 + ((_i) * 4)) }
+pub fn IXGBE_VMTXSW(_i: u32) -> u32 { (0x05180 + ((_i) * 4)) } /* 2 total */
+pub fn IXGBE_VMOLR(_i: u32) -> u32 { (0x0F000 + ((_i) * 4)) } /* 64 total */
+pub fn IXGBE_UTA(_i: u32) -> u32 { (0x0F400 + ((_i) * 4)) }
 
-pub const fn IXGBE_MRCTL(_i: u32) -> u32 { (0x0F600 + ((_i) * 4)) }
+pub fn IXGBE_MRCTL(_i: u32) -> u32 { (0x0F600 + ((_i) * 4)) }
 
-pub const fn IXGBE_VMRVLAN(_i: u32) -> u32 { (0x0F610 + ((_i) * 4)) }
+pub fn IXGBE_VMRVLAN(_i: u32) -> u32 { (0x0F610 + ((_i) * 4)) }
 
-pub const fn IXGBE_VMRVM(_i: u32) -> u32 { (0x0F630 + ((_i) * 4)) }
+pub fn IXGBE_VMRVM(_i: u32) -> u32 { (0x0F630 + ((_i) * 4)) }
 
 pub const IXGBE_LVMMC_RX: u32                                          = 0x2FA8;
 pub const IXGBE_LVMMC_TX: u32                                          = 0x8108;
 pub const IXGBE_LMVM_RX: u32                                           = 0x2FA4;
 pub const IXGBE_LMVM_TX: u32                                           = 0x8124;
 
-pub const fn IXGBE_WQBR_RX(_i: u32) -> u32 { (0x2FB0 + ((_i) * 4)) } /* 4 total */
-pub const fn IXGBE_WQBR_TX(_i: u32) -> u32 { (0x8130 + ((_i) * 4)) } /* 4 total */
-pub const fn IXGBE_L34T_IMIR(_i: u32) -> u32 { (0x0E800 + ((_i) * 4)) } /*128 of these (0-127) */
+pub fn IXGBE_WQBR_RX(_i: u32) -> u32 { (0x2FB0 + ((_i) * 4)) } /* 4 total */
+pub fn IXGBE_WQBR_TX(_i: u32) -> u32 { (0x8130 + ((_i) * 4)) } /* 4 total */
+pub fn IXGBE_L34T_IMIR(_i: u32) -> u32 { (0x0E800 + ((_i) * 4)) } /*128 of these (0-127) */
 pub const IXGBE_RXFECCERR0: u32                                        = 0x051B8;
 pub const IXGBE_LLITHRESH: u32                                         = 0x0EC90;
 
-pub const fn IXGBE_IMIR(_i: u32) -> u32 { (0x05A80 + ((_i) * 4)) }  /* 8 of these (0-7) */
-pub const fn IXGBE_IMIREXT(_i: u32) -> u32 { (0x05AA0 + ((_i) * 4)) }  /* 8 of these (0-7) */
+pub fn IXGBE_IMIR(_i: u32) -> u32 { (0x05A80 + ((_i) * 4)) }  /* 8 of these (0-7) */
+pub fn IXGBE_IMIREXT(_i: u32) -> u32 { (0x05AA0 + ((_i) * 4)) }  /* 8 of these (0-7) */
 pub const IXGBE_IMIRVP: u32                                            = 0x05AC0;
 pub const IXGBE_VMD_CTL: u32                                           = 0x0581C;
 
-pub const fn IXGBE_RETA(_i: u32) -> u32 { (0x05C00 + ((_i) * 4)) }  /* 32 of these (0-31) */
-pub const fn IXGBE_ERETA(_i: u32) -> u32 { (0x0EE80 + ((_i) * 4)) }  /* 96 of these (0-95) */
-pub const fn IXGBE_RSSRK(_i: u32) -> u32 { (0x05C80 + ((_i) * 4)) }  /* 10 of these (0-9) */
+pub fn IXGBE_RETA(_i: u32) -> u32 { (0x05C00 + ((_i) * 4)) }  /* 32 of these (0-31) */
+pub fn IXGBE_ERETA(_i: u32) -> u32 { (0x0EE80 + ((_i) * 4)) }  /* 96 of these (0-95) */
+pub fn IXGBE_RSSRK(_i: u32) -> u32 { (0x05C80 + ((_i) * 4)) }  /* 10 of these (0-9) */
 
 /* Registers for setting up RSS on X550 with SRIOV;
  * _p - pool number (0..63)
  * _i - index (0..10 for PFVFRSSRK, 0..15 for PFVFRETA)
  */
-pub const fn IXGBE_PFVFMRQC(_p: u32) -> u32 { (0x03400 + (_p * 4)) }
+pub fn IXGBE_PFVFMRQC(_p: u32) -> u32 { (0x03400 + (_p * 4)) }
 
-pub const fn IXGBE_PFVFRSSRK(_i: u32, _p: u32) -> u32 { (0x018000 + (_i * 4) + (_p * 0x40)) }
+pub fn IXGBE_PFVFRSSRK(_i: u32, _p: u32) -> u32 { (0x018000 + (_i * 4) + (_p * 0x40)) }
 
-pub const fn IXGBE_PFVFRETA(_i: u32, _p: u32) -> u32 { (0x019000 + (_i * 4) + (_p * 0x40)) }
+pub fn IXGBE_PFVFRETA(_i: u32, _p: u32) -> u32 { (0x019000 + (_i * 4) + (_p * 0x40)) }
 
 /* Flow Director registers */
 pub const IXGBE_FDIRCTRL: u32                                          = 0x0EE00;
@@ -493,7 +498,7 @@ pub const IXGBE_FDIRMATCH: u32                                         = 0x0EE58
 pub const IXGBE_FDIRMISS: u32                                          = 0x0EE5C;
 
 /* Flow Director Programming registers */
-pub const fn IXGBE_FDIRSIPv6(_i: u32) -> u32 { (0x0EE0C + ((_i) * 4)) } /* 3 of these (0-2) */
+pub fn IXGBE_FDIRSIPv6(_i: u32) -> u32 { (0x0EE0C + ((_i) * 4)) } /* 3 of these (0-2) */
 pub const IXGBE_FDIRIPSA: u32                                          = 0x0EE18;
 pub const IXGBE_FDIRIPDA: u32                                          = 0x0EE1C;
 pub const IXGBE_FDIRPORT: u32                                          = 0x0EE20;
@@ -502,33 +507,33 @@ pub const IXGBE_FDIRHASH: u32                                          = 0x0EE28
 pub const IXGBE_FDIRCMD: u32                                           = 0x0EE2C;
 
 /* Transmit DMA registers */
-pub const fn IXGBE_TDBAL(_i: u32) -> u32 { (0x06000 + ((_i) * 0x40)) } /* 32 of them (0-31)*/
-pub const fn IXGBE_TDBAH(_i: u32) -> u32 { (0x06004 + ((_i) * 0x40)) }
+pub fn IXGBE_TDBAL(_i: u32) -> u32 { (0x06000 + ((_i) * 0x40)) } /* 32 of them (0-31)*/
+pub fn IXGBE_TDBAH(_i: u32) -> u32 { (0x06004 + ((_i) * 0x40)) }
 
-pub const fn IXGBE_TDLEN(_i: u32) -> u32 { (0x06008 + ((_i) * 0x40)) }
+pub fn IXGBE_TDLEN(_i: u32) -> u32 { (0x06008 + ((_i) * 0x40)) }
 
-pub const fn IXGBE_TDH(_i: u32) -> u32 { (0x06010 + ((_i) * 0x40)) }
+pub fn IXGBE_TDH(_i: u32) -> u32 { (0x06010 + ((_i) * 0x40)) }
 
-pub const fn IXGBE_TDT(_i: u32) -> u32 { (0x06018 + ((_i) * 0x40)) }
+pub fn IXGBE_TDT(_i: u32) -> u32 { (0x06018 + ((_i) * 0x40)) }
 
-pub const fn IXGBE_TXDCTL(_i: u32) -> u32 { (0x06028 + ((_i) * 0x40)) }
+pub fn IXGBE_TXDCTL(_i: u32) -> u32 { (0x06028 + ((_i) * 0x40)) }
 
-pub const fn IXGBE_TDWBAL(_i: u32) -> u32 { (0x06038 + ((_i) * 0x40)) }
+pub fn IXGBE_TDWBAL(_i: u32) -> u32 { (0x06038 + ((_i) * 0x40)) }
 
-pub const fn IXGBE_TDWBAH(_i: u32) -> u32 { (0x0603C + ((_i) * 0x40)) }
+pub fn IXGBE_TDWBAH(_i: u32) -> u32 { (0x0603C + ((_i) * 0x40)) }
 
 pub const IXGBE_DTXCTL: u32                                            = 0x07E00;
 
 pub const IXGBE_DMATXCTL: u32                                          = 0x04A80;
 
-pub const fn IXGBE_PFVFSPOOF(_i: u32) -> u32 { (0x08200 + ((_i) * 4)) } /* 8 of these 0 - 7 */
+pub fn IXGBE_PFVFSPOOF(_i: u32) -> u32 { (0x08200 + ((_i) * 4)) } /* 8 of these 0 - 7 */
 pub const IXGBE_PFDTXGSWC: u32                                         = 0x08220;
 pub const IXGBE_DTXMXSZRQ: u32                                         = 0x08100;
 pub const IXGBE_DTXTCPFLGL: u32                                        = 0x04A88;
 pub const IXGBE_DTXTCPFLGH: u32                                        = 0x04A8C;
 pub const IXGBE_LBDRPEN: u32                                           = 0x0CA00;
 
-pub const fn IXGBE_TXPBTHRESH(_i: u32) -> u32 { (0x04950 + ((_i) * 4)) } /* 8 of these 0 - 7 */
+pub fn IXGBE_TXPBTHRESH(_i: u32) -> u32 { (0x04950 + ((_i) * 4)) } /* 8 of these 0 - 7 */
 
 pub const IXGBE_DMATXCTL_TE: u32                                       = 0x1; /* Transmit Enable */
 pub const IXGBE_DMATXCTL_NS: u32                                       = 0x2; /* No Snoop LSO hdr buffer */
@@ -547,13 +552,13 @@ pub const IXGBE_SPOOF_ETHERTYPEAS: u32                                 = 0xFF000
 pub const IXGBE_SPOOF_ETHERTYPEAS_SHIFT: u32                           = 16;
 pub const IXGBE_PFVFSPOOF_REG_COUNT: u32                               = 8;
 /* 16 of these (0-15) */
-pub const fn IXGBE_DCA_TXCTRL(_i: u32) -> u32 { (0x07200 + ((_i) * 4)) }
+pub fn IXGBE_DCA_TXCTRL(_i: u32) -> u32 { (0x07200 + ((_i) * 4)) }
 /* Tx DCA Control register : 128 of these (0-127) */
-pub const fn IXGBE_DCA_TXCTRL_82599(_i: u32) -> u32 { (0x0600C + ((_i) * 0x40)) }
+pub fn IXGBE_DCA_TXCTRL_82599(_i: u32) -> u32 { (0x0600C + ((_i) * 0x40)) }
 
 pub const IXGBE_TIPG: u32                                              = 0x0CB00;
 
-pub const fn IXGBE_TXPBSIZE(_i: u32) -> u32 { (0x0CC00 + ((_i) * 4)) } /* 8 of these */
+pub fn IXGBE_TXPBSIZE(_i: u32) -> u32 { (0x0CC00 + ((_i) * 4)) } /* 8 of these */
 pub const IXGBE_MNGTXMAP: u32                                          = 0x0CD10;
 pub const IXGBE_TIPG_FIBER_DEFAULT: u32                                = 3;
 pub const IXGBE_TXPBSIZE_SHIFT: u32                                    = 10;
@@ -579,11 +584,11 @@ pub const IXGBE_VXLANCTRL_ALL_UDPPORT_MASK: u32                        = 0xfffff
 
 pub const IXGBE_VXLANCTRL_GENEVE_UDPPORT_SHIFT: u32                    = 16;
 
-pub const fn IXGBE_FHFT(_n: u32) -> u32 { (0x09000 + ((_n) * 0x100)) } /* Flex host filter table */
+pub fn IXGBE_FHFT(_n: u32) -> u32 { (0x09000 + ((_n) * 0x100)) } /* Flex host filter table */
 /* Ext Flexible Host Filter Table */
-pub const fn IXGBE_FHFT_EXT(_n: u32) -> u32 { (0x09800 + ((_n) * 0x100)) }
+pub fn IXGBE_FHFT_EXT(_n: u32) -> u32 { (0x09800 + ((_n) * 0x100)) }
 
-pub const fn IXGBE_FHFT_EXT_X550(_n: u32) -> u32 { (0x09600 + ((_n) * 0x100)) }
+pub fn IXGBE_FHFT_EXT_X550(_n: u32) -> u32 { (0x09600 + ((_n) * 0x100)) }
 
 /* Four Flexible Filters are supported */
 pub const IXGBE_FLEXIBLE_FILTER_COUNT_MAX: u32                         = 4;
@@ -678,15 +683,17 @@ pub const IXGBE_DPMCS: u32                                             = 0x07F40
 pub const IXGBE_PDPMCS: u32                                            = 0x0CD00;
 pub const IXGBE_RUPPBMR: u32                                           = 0x050A0;
 
-pub const fn IXGBE_RT2CR(_i: u32) -> u32 { (0x03C20 + ((_i) * 4)) } /* 8 of these (0-7) */
-pub const fn IXGBE_RT2SR(_i: u32) -> u32 { (0x03C40 + ((_i) * 4)) } /* 8 of these (0-7) */
-pub const fn IXGBE_TDTQ2TCCR(_i: u32) -> u32 { (0x0602C + ((_i) * 0x40)) } /* 8 of these (0-7) */
-pub const fn IXGBE_TDTQ2TCSR(_i: u32) -> u32 { (0x0622C + ((_i) * 0x40)) } /* 8 of these (0-7) */
-pub const fn IXGBE_TDPT2TCCR(_i: u32) -> u32 { (0x0CD20 + ((_i) * 4)) } /* 8 of these (0-7) */
-pub const fn IXGBE_TDPT2TCSR(_i: u32) -> u32 { (0x0CD40 + ((_i) * 4)) } /* 8 of these (0-7) */
+pub fn IXGBE_RT2CR(_i: u32) -> u32 { (0x03C20 + ((_i) * 4)) } /* 8 of these (0-7) */
+pub fn IXGBE_RT2SR(_i: u32) -> u32 { (0x03C40 + ((_i) * 4)) } /* 8 of these (0-7) */
+pub fn IXGBE_TDTQ2TCCR(_i: u32) -> u32 { (0x0602C + ((_i) * 0x40)) } /* 8 of these (0-7) */
+pub fn IXGBE_TDTQ2TCSR(_i: u32) -> u32 { (0x0622C + ((_i) * 0x40)) } /* 8 of these (0-7) */
+pub fn IXGBE_TDPT2TCCR(_i: u32) -> u32 { (0x0CD20 + ((_i) * 4)) } /* 8 of these (0-7) */
+pub fn IXGBE_TDPT2TCSR(_i: u32) -> u32 { (0x0CD40 + ((_i) * 4)) } /* 8 of these (0-7) */
 
 /* Power Management */
 /* DMA Coalescing configuration */
+#[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_dmac_config {
     pub watchdog_timer: u16,
     /* usec units */
@@ -707,7 +714,7 @@ pub const IXGBE_DMACRXT_100M: u32                                      = 0x01;
 /* DMA Coalescing registers */
 pub const IXGBE_DMCMNGTH: u32                                          = 0x15F20; /* Management Threshold */
 pub const IXGBE_DMACR: u32                                             = 0x02400; /* Control register */
-pub const fn IXGBE_DMCTH(_i: u32) -> u32 { (0x03300 + ((_i) * 4)) } /* 8 of these */
+pub fn IXGBE_DMCTH(_i: u32) -> u32 { (0x03300 + ((_i) * 4)) } /* 8 of these */
 pub const IXGBE_DMCTLX: u32                                            = 0x02404; /* Time to Lx request */
 /* DMA Coalescing register fields */
 pub const IXGBE_DMCMNGTH_DMCMNGTH_MASK: u32                            = 0x000FFFF0; /* Mng Threshold mask */
@@ -769,15 +776,15 @@ pub const IXGBE_LSECTXSA: u32                                          = 0x08A10
 pub const IXGBE_LSECTXPN0: u32                                         = 0x08A14;
 pub const IXGBE_LSECTXPN1: u32                                         = 0x08A18;
 
-pub const fn IXGBE_LSECTXKEY0(_n: u32) -> u32 { (0x08A1C + (4 * (_n))) } /* 4 of these (0-3) */
-pub const fn IXGBE_LSECTXKEY1(_n: u32) -> u32 { (0x08A2C + (4 * (_n))) } /* 4 of these (0-3) */
+pub fn IXGBE_LSECTXKEY0(_n: u32) -> u32 { (0x08A1C + (4 * (_n))) } /* 4 of these (0-3) */
+pub fn IXGBE_LSECTXKEY1(_n: u32) -> u32 { (0x08A2C + (4 * (_n))) } /* 4 of these (0-3) */
 pub const IXGBE_LSECRXCTRL: u32                                        = 0x08F04;
 pub const IXGBE_LSECRXSCL: u32                                         = 0x08F08;
 pub const IXGBE_LSECRXSCH: u32                                         = 0x08F0C;
 
-pub const fn IXGBE_LSECRXSA(_i: u32) -> u32 { (0x08F10 + (4 * (_i))) } /* 2 of these (0-1) */
-pub const fn IXGBE_LSECRXPN(_i: u32) -> u32 { (0x08F18 + (4 * (_i))) } /* 2 of these (0-1) */
-pub const fn IXGBE_LSECRXKEY(_n: u32, _m: u32) -> u32 { (0x08F20 + ((0x10 * (_n)) + (4 * _m))) }
+pub fn IXGBE_LSECRXSA(_i: u32) -> u32 { (0x08F10 + (4 * (_i))) } /* 2 of these (0-1) */
+pub fn IXGBE_LSECRXPN(_i: u32) -> u32 { (0x08F18 + (4 * (_i))) } /* 2 of these (0-1) */
+pub fn IXGBE_LSECRXKEY(_n: u32, _m: u32) -> u32 { (0x08F20 + ((0x10 * (_n)) + (4 * _m))) }
 
 pub const IXGBE_LSECTXUT: u32                                          = 0x08A3C; /* OutPktsUntagged */
 pub const IXGBE_LSECTXPKTE: u32                                        = 0x08A40; /* OutPktsEncrypted */
@@ -793,9 +800,9 @@ pub const IXGBE_LSECRXUNSCI: u32                                       = 0x08F54
 pub const IXGBE_LSECRXUNCH: u32                                        = 0x08F58; /* InPktsUnchecked */
 pub const IXGBE_LSECRXDELAY: u32                                       = 0x08F5C; /* InPktsDelayed */
 pub const IXGBE_LSECRXLATE: u32                                        = 0x08F60; /* InPktsLate */
-pub const fn IXGBE_LSECRXOK(_n: u32) -> u32 { (0x08F64 + (0x04 * (_n))) } /* InPktsOk */
-pub const fn IXGBE_LSECRXINV(_n: u32) -> u32 { (0x08F6C + (0x04 * (_n))) } /* InPktsInvalid */
-pub const fn IXGBE_LSECRXNV(_n: u32) -> u32 { (0x08F74 + (0x04 * (_n))) } /* InPktsNotValid */
+pub fn IXGBE_LSECRXOK(_n: u32) -> u32 { (0x08F64 + (0x04 * (_n))) } /* InPktsOk */
+pub fn IXGBE_LSECRXINV(_n: u32) -> u32 { (0x08F6C + (0x04 * (_n))) } /* InPktsInvalid */
+pub fn IXGBE_LSECRXNV(_n: u32) -> u32 { (0x08F74 + (0x04 * (_n))) } /* InPktsNotValid */
 pub const IXGBE_LSECRXUNSA: u32                                        = 0x08F7C; /* InPktsUnusedSa */
 pub const IXGBE_LSECRXNUSA: u32                                        = 0x08F80; /* InPktsNotUsingSa */
 
@@ -827,14 +834,14 @@ pub const IXGBE_LSECRXCTRL_RSV_MASK: u32                               = 0xFFFFF
 pub const IXGBE_IPSTXIDX: u32                                          = 0x08900;
 pub const IXGBE_IPSTXSALT: u32                                         = 0x08904;
 
-pub const fn IXGBE_IPSTXKEY(_i: u32) -> u32 { (0x08908 + (4 * (_i))) } /* 4 of these (0-3) */
+pub fn IXGBE_IPSTXKEY(_i: u32) -> u32 { (0x08908 + (4 * (_i))) } /* 4 of these (0-3) */
 pub const IXGBE_IPSRXIDX: u32                                          = 0x08E00;
 
-pub const fn IXGBE_IPSRXIPADDR(_i: u32) -> u32 { (0x08E04 + (4 * (_i))) } /* 4 of these (0-3) */
+pub fn IXGBE_IPSRXIPADDR(_i: u32) -> u32 { (0x08E04 + (4 * (_i))) } /* 4 of these (0-3) */
 pub const IXGBE_IPSRXSPI: u32                                          = 0x08E14;
 pub const IXGBE_IPSRXIPIDX: u32                                        = 0x08E18;
 
-pub const fn IXGBE_IPSRXKEY(_i: u32) -> u32 { (0x08E1C + (4 * (_i))) } /* 4 of these (0-3) */
+pub fn IXGBE_IPSRXKEY(_i: u32) -> u32 { (0x08E1C + (4 * (_i))) } /* 4 of these (0-3) */
 pub const IXGBE_IPSRXSALT: u32                                         = 0x08E2C;
 pub const IXGBE_IPSRXMOD: u32                                          = 0x08E30;
 
@@ -848,13 +855,13 @@ pub const IXGBE_RTTPCS: u32                                            = 0x0CD00
 pub const IXGBE_RTRUP2TC: u32                                          = 0x03020;
 pub const IXGBE_RTTUP2TC: u32                                          = 0x0C800;
 
-pub const fn IXGBE_RTRPT4C(_i: u32) -> u32 { (0x02140 + ((_i) * 4)) } /* 8 of these (0-7) */
-pub const fn IXGBE_TXLLQ(_i: u32) -> u32 { (0x082E0 + ((_i) * 4)) } /* 4 of these (0-3) */
-pub const fn IXGBE_RTRPT4S(_i: u32) -> u32 { (0x02160 + ((_i) * 4)) } /* 8 of these (0-7) */
-pub const fn IXGBE_RTTDT2C(_i: u32) -> u32 { (0x04910 + ((_i) * 4)) } /* 8 of these (0-7) */
-pub const fn IXGBE_RTTDT2S(_i: u32) -> u32 { (0x04930 + ((_i) * 4)) } /* 8 of these (0-7) */
-pub const fn IXGBE_RTTPT2C(_i: u32) -> u32 { (0x0CD20 + ((_i) * 4)) } /* 8 of these (0-7) */
-pub const fn IXGBE_RTTPT2S(_i: u32) -> u32 { (0x0CD40 + ((_i) * 4)) } /* 8 of these (0-7) */
+pub fn IXGBE_RTRPT4C(_i: u32) -> u32 { (0x02140 + ((_i) * 4)) } /* 8 of these (0-7) */
+pub fn IXGBE_TXLLQ(_i: u32) -> u32 { (0x082E0 + ((_i) * 4)) } /* 4 of these (0-3) */
+pub fn IXGBE_RTRPT4S(_i: u32) -> u32 { (0x02160 + ((_i) * 4)) } /* 8 of these (0-7) */
+pub fn IXGBE_RTTDT2C(_i: u32) -> u32 { (0x04910 + ((_i) * 4)) } /* 8 of these (0-7) */
+pub fn IXGBE_RTTDT2S(_i: u32) -> u32 { (0x04930 + ((_i) * 4)) } /* 8 of these (0-7) */
+pub fn IXGBE_RTTPT2C(_i: u32) -> u32 { (0x0CD20 + ((_i) * 4)) } /* 8 of these (0-7) */
+pub fn IXGBE_RTTPT2S(_i: u32) -> u32 { (0x0CD40 + ((_i) * 4)) } /* 8 of these (0-7) */
 pub const IXGBE_RTTDQSEL: u32                                          = 0x04904;
 pub const IXGBE_RTTDT1C: u32                                           = 0x04908;
 pub const IXGBE_RTTDT1S: u32                                           = 0x0490C;
@@ -883,7 +890,7 @@ pub const IXGBE_RTTBCNRD: u32                                          = 0x0498C
 
 /* FCoE DMA Context Registers */
 /* FCoE Direct DMA Context */
-pub const fn IXGBE_FCDDC(_i: u32, _j: u32) -> u32 { (0x20000 + (_i * 0x4) + (_j * 0x10)) }
+pub fn IXGBE_FCDDC(_i: u32, _j: u32) -> u32 { (0x20000 + (_i * 0x4) + (_j * 0x10)) }
 
 pub const IXGBE_FCPTRL: u32                                            = 0x02410; /* FC User Desc. PTR Low */
 pub const IXGBE_FCPTRH: u32                                            = 0x02414; /* FC USer Desc. PTR High */
@@ -912,9 +919,9 @@ pub const IXGBE_FCD_ID: u32                                            = 0x05114
 pub const IXGBE_FCSMAC: u32                                            = 0x0510C; /* FCoE Source MAC */
 pub const IXGBE_FCFLTRW_SMAC_HIGH_SHIFT: u32                           = 16;
 /* FCoE Direct Filter Context */
-pub const fn IXGBE_FCDFC(_i: u32, _j: u32) -> u32 { (0x28000 + ((_i) * 0x4) + ((_j) * 0x10)) }
+pub fn IXGBE_FCDFC(_i: u32, _j: u32) -> u32 { (0x28000 + ((_i) * 0x4) + ((_j) * 0x10)) }
 
-pub const fn IXGBE_FCDFCD(_i: u32) -> u32 { (0x30000 + ((_i) * 0x4)) }
+pub fn IXGBE_FCDFCD(_i: u32) -> u32 { (0x30000 + ((_i) * 0x4)) }
 
 pub const IXGBE_FCFLT: u32                                             = 0x05108; /* FC FLT Context */
 pub const IXGBE_FCFLTRW: u32                                           = 0x05110; /* FC Filter RW Control */
@@ -941,7 +948,7 @@ pub const IXGBE_FCRXCTRL_FCOEVER_SHIFT: u32                            = 8;
 /* FCoE Redirection */
 pub const IXGBE_FCRECTL: u32                                           = 0x0ED00; /* FC Redirection Control */
 pub const IXGBE_FCRETA0: u32                                           = 0x0ED10; /* FC Redirection Table 0 */
-pub const fn IXGBE_FCRETA(_i: u32) -> u32 { (IXGBE_FCRETA0 + ((_i) * 4)) } /* FCoE Redir */
+pub fn IXGBE_FCRETA(_i: u32) -> u32 { (IXGBE_FCRETA0 + ((_i) * 4)) } /* FCoE Redir */
 pub const IXGBE_FCRECTL_ENA: u32                                       = 0x1; /* FCoE Redir Table Enable */
 pub const IXGBE_FCRETASEL_ENA: u32                                     = 0x2; /* FCoE FCRETASEL bit */
 pub const IXGBE_FCRETA_SIZE: u32                                       = 8; /* Max entries in FCRETA */
@@ -957,7 +964,7 @@ pub const IXGBE_ILLERRC: u32                                           = 0x04004
 pub const IXGBE_ERRBC: u32                                             = 0x04008;
 pub const IXGBE_MSPDC: u32                                             = 0x04010;
 
-pub const fn IXGBE_MPC(_i: u32) -> u32 { (0x03FA0 + ((_i) * 4)) } /* 8 of these 3FA0-3FBC*/
+pub fn IXGBE_MPC(_i: u32) -> u32 { (0x03FA0 + ((_i) * 4)) } /* 8 of these 3FA0-3FBC*/
 pub const IXGBE_MLFC: u32                                              = 0x04034;
 pub const IXGBE_MRFC: u32                                              = 0x04038;
 pub const IXGBE_RLEC: u32                                              = 0x04040;
@@ -968,13 +975,13 @@ pub const IXGBE_LXOFFRXC: u32                                          = 0x0CF68
 pub const IXGBE_LXONRXCNT: u32                                         = 0x041A4;
 pub const IXGBE_LXOFFRXCNT: u32                                        = 0x041A8;
 
-pub const fn IXGBE_PXONRXCNT(_i: u32) -> u32 { (0x04140 + ((_i) * 4)) } /* 8 of these */
-pub const fn IXGBE_PXOFFRXCNT(_i: u32) -> u32 { (0x04160 + ((_i) * 4)) } /* 8 of these */
-pub const fn IXGBE_PXON2OFFCNT(_i: u32) -> u32 { (0x03240 + ((_i) * 4)) } /* 8 of these */
-pub const fn IXGBE_PXONTXC(_i: u32) -> u32 { (0x03F00 + ((_i) * 4)) } /* 8 of these 3F00-3F1C*/
-pub const fn IXGBE_PXONRXC(_i: u32) -> u32 { (0x0CF00 + ((_i) * 4)) } /* 8 of these CF00-CF1C*/
-pub const fn IXGBE_PXOFFTXC(_i: u32) -> u32 { (0x03F20 + ((_i) * 4)) } /* 8 of these 3F20-3F3C*/
-pub const fn IXGBE_PXOFFRXC(_i: u32) -> u32 { (0x0CF20 + ((_i) * 4)) } /* 8 of these CF20-CF3C*/
+pub fn IXGBE_PXONRXCNT(_i: u32) -> u32 { (0x04140 + ((_i) * 4)) } /* 8 of these */
+pub fn IXGBE_PXOFFRXCNT(_i: u32) -> u32 { (0x04160 + ((_i) * 4)) } /* 8 of these */
+pub fn IXGBE_PXON2OFFCNT(_i: u32) -> u32 { (0x03240 + ((_i) * 4)) } /* 8 of these */
+pub fn IXGBE_PXONTXC(_i: u32) -> u32 { (0x03F00 + ((_i) * 4)) } /* 8 of these 3F00-3F1C*/
+pub fn IXGBE_PXONRXC(_i: u32) -> u32 { (0x0CF00 + ((_i) * 4)) } /* 8 of these CF00-CF1C*/
+pub fn IXGBE_PXOFFTXC(_i: u32) -> u32 { (0x03F20 + ((_i) * 4)) } /* 8 of these 3F20-3F3C*/
+pub fn IXGBE_PXOFFRXC(_i: u32) -> u32 { (0x0CF20 + ((_i) * 4)) } /* 8 of these CF20-CF3C*/
 pub const IXGBE_PRC64: u32                                             = 0x0405C;
 pub const IXGBE_PRC127: u32                                            = 0x04060;
 pub const IXGBE_PRC255: u32                                            = 0x04064;
@@ -990,7 +997,7 @@ pub const IXGBE_GORCH: u32                                             = 0x0408C
 pub const IXGBE_GOTCL: u32                                             = 0x04090;
 pub const IXGBE_GOTCH: u32                                             = 0x04094;
 
-pub const fn IXGBE_RNBC(_i: u32) -> u32 { (0x03FC0 + ((_i) * 4)) } /* 8 of these 3FC0-3FDC*/
+pub fn IXGBE_RNBC(_i: u32) -> u32 { (0x03FC0 + ((_i) * 4)) } /* 8 of these 3FC0-3FDC*/
 pub const IXGBE_RUC: u32                                               = 0x040A4;
 pub const IXGBE_RFC: u32                                               = 0x040A8;
 pub const IXGBE_ROC: u32                                               = 0x040AC;
@@ -1013,21 +1020,21 @@ pub const IXGBE_BPTC: u32                                              = 0x040F4
 pub const IXGBE_XEC: u32                                               = 0x04120;
 pub const IXGBE_SSVPC: u32                                             = 0x08780;
 
-pub const fn IXGBE_RQSMR(_i: u32) -> u32 { (0x02300 + ((_i) * 4)) }
+pub fn IXGBE_RQSMR(_i: u32) -> u32 { (0x02300 + ((_i) * 4)) }
 
 pub fn IXGBE_TQSMR(_i: u32) -> u32 { if _i <= 7 { 0x07300 + (_i * 4) } else { 0x08600 + (_i * 4) } }
 
-pub const fn IXGBE_TQSM(_i: u32) -> u32 { (0x08600 + ((_i) * 4)) }
+pub fn IXGBE_TQSM(_i: u32) -> u32 { (0x08600 + ((_i) * 4)) }
 
-pub const fn IXGBE_QPRC(_i: u32) -> u32 { (0x01030 + ((_i) * 0x40)) } /* 16 of these */
-pub const fn IXGBE_QPTC(_i: u32) -> u32 { (0x06030 + ((_i) * 0x40)) } /* 16 of these */
-pub const fn IXGBE_QBRC(_i: u32) -> u32 { (0x01034 + ((_i) * 0x40)) } /* 16 of these */
-pub const fn IXGBE_QBTC(_i: u32) -> u32 { (0x06034 + ((_i) * 0x40)) } /* 16 of these */
-pub const fn IXGBE_QBRC_L(_i: u32) -> u32 { (0x01034 + ((_i) * 0x40)) } /* 16 of these */
-pub const fn IXGBE_QBRC_H(_i: u32) -> u32 { (0x01038 + ((_i) * 0x40)) } /* 16 of these */
-pub const fn IXGBE_QPRDC(_i: u32) -> u32 { (0x01430 + ((_i) * 0x40)) } /* 16 of these */
-pub const fn IXGBE_QBTC_L(_i: u32) -> u32 { (0x08700 + ((_i) * 0x8)) } /* 16 of these */
-pub const fn IXGBE_QBTC_H(_i: u32) -> u32 { (0x08704 + ((_i) * 0x8)) } /* 16 of these */
+pub fn IXGBE_QPRC(_i: u32) -> u32 { (0x01030 + ((_i) * 0x40)) } /* 16 of these */
+pub fn IXGBE_QPTC(_i: u32) -> u32 { (0x06030 + ((_i) * 0x40)) } /* 16 of these */
+pub fn IXGBE_QBRC(_i: u32) -> u32 { (0x01034 + ((_i) * 0x40)) } /* 16 of these */
+pub fn IXGBE_QBTC(_i: u32) -> u32 { (0x06034 + ((_i) * 0x40)) } /* 16 of these */
+pub fn IXGBE_QBRC_L(_i: u32) -> u32 { (0x01034 + ((_i) * 0x40)) } /* 16 of these */
+pub fn IXGBE_QBRC_H(_i: u32) -> u32 { (0x01038 + ((_i) * 0x40)) } /* 16 of these */
+pub fn IXGBE_QPRDC(_i: u32) -> u32 { (0x01430 + ((_i) * 0x40)) } /* 16 of these */
+pub fn IXGBE_QBTC_L(_i: u32) -> u32 { (0x08700 + ((_i) * 0x8)) } /* 16 of these */
+pub fn IXGBE_QBTC_H(_i: u32) -> u32 { (0x08704 + ((_i) * 0x8)) } /* 16 of these */
 pub const IXGBE_FCCRC: u32                                             = 0x05118; /* Num of Good Eth CRC w/ Bad FC CRC */
 pub const IXGBE_FCOERPDC: u32                                          = 0x0241C; /* FCoE Rx Packets Dropped Count */
 pub const IXGBE_FCLAST: u32                                            = 0x02424; /* FCoE Last Error Count */
@@ -1054,23 +1061,23 @@ pub const IXGBE_BXONTXC: u32                                           = 0x041E4
 pub const IXGBE_BXOFFTXC: u32                                          = 0x041E8;
 
 /* Management */
-pub const fn IXGBE_MAVTV(_i: u32) -> u32 { (0x05010 + ((_i) * 4)) } /* 8 of these (0-7) */
-pub const fn IXGBE_MFUTP(_i: u32) -> u32 { (0x05030 + ((_i) * 4)) } /* 8 of these (0-7) */
+pub fn IXGBE_MAVTV(_i: u32) -> u32 { (0x05010 + ((_i) * 4)) } /* 8 of these (0-7) */
+pub fn IXGBE_MFUTP(_i: u32) -> u32 { (0x05030 + ((_i) * 4)) } /* 8 of these (0-7) */
 pub const IXGBE_MANC: u32                                              = 0x05820;
 pub const IXGBE_MFVAL: u32                                             = 0x05824;
 pub const IXGBE_MANC2H: u32                                            = 0x05860;
 
-pub const fn IXGBE_MDEF(_i: u32) -> u32 { (0x05890 + ((_i) * 4)) } /* 8 of these (0-7) */
+pub fn IXGBE_MDEF(_i: u32) -> u32 { (0x05890 + ((_i) * 4)) } /* 8 of these (0-7) */
 pub const IXGBE_MIPAF: u32                                             = 0x058B0;
 
-pub const fn IXGBE_MMAL(_i: u32) -> u32 { (0x05910 + ((_i) * 8)) } /* 4 of these (0-3) */
-pub const fn IXGBE_MMAH(_i: u32) -> u32 { (0x05914 + ((_i) * 8)) } /* 4 of these (0-3) */
+pub fn IXGBE_MMAL(_i: u32) -> u32 { (0x05910 + ((_i) * 8)) } /* 4 of these (0-3) */
+pub fn IXGBE_MMAH(_i: u32) -> u32 { (0x05914 + ((_i) * 8)) } /* 4 of these (0-3) */
 pub const IXGBE_FTFT: u32                                              = 0x09400; /* 0x9400-0x97FC */
-pub const fn IXGBE_METF(_i: u32) -> u32 { (0x05190 + ((_i) * 4)) } /* 4 of these (0-3) */
-pub const fn IXGBE_MDEF_EXT(_i: u32) -> u32 { (0x05160 + ((_i) * 4)) } /* 8 of these (0-7) */
+pub fn IXGBE_METF(_i: u32) -> u32 { (0x05190 + ((_i) * 4)) } /* 4 of these (0-3) */
+pub fn IXGBE_MDEF_EXT(_i: u32) -> u32 { (0x05160 + ((_i) * 4)) } /* 8 of these (0-7) */
 pub const IXGBE_LSWFW: u32                                             = 0x15F14;
 
-pub const fn IXGBE_BMCIP(_i: u32) -> u32 { (0x05050 + ((_i) * 4)) } /* 0x5050-0x505C */
+pub fn IXGBE_BMCIP(_i: u32) -> u32 { (0x05050 + ((_i) * 4)) } /* 0x5050-0x505C */
 pub const IXGBE_BMCIPVAL: u32                                          = 0x05060;
 pub const IXGBE_BMCIP_IPADDR_TYPE: u32                                 = 0x00000001;
 pub const IXGBE_BMCIP_IPADDR_VALID: u32                                = 0x00000002;
@@ -1147,7 +1154,7 @@ pub const IXGBE_GSCN_2_X550EM_a: u32                                   = IXGBE_G
 pub const IXGBE_GSCN_3_X550EM_a: u32                                   = IXGBE_GSCN_3_X550;
 pub const IXGBE_FACTPS_X550EM_a: u32                                   = 0x15FEC;
 
-pub const fn IXGBE_FACTPS_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_FACTPS) }
+pub fn IXGBE_FACTPS_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_FACTPS) }
 
 pub const IXGBE_PCIEANACTL: u32                                        = 0x11040;
 pub const IXGBE_SWSM: u32                                              = 0x10140;
@@ -1156,7 +1163,7 @@ pub const IXGBE_SWSM_X550: u32                                         = IXGBE_S
 pub const IXGBE_SWSM_X550EM_x: u32                                     = IXGBE_SWSM;
 pub const IXGBE_SWSM_X550EM_a: u32                                     = 0x15F70;
 
-pub const fn IXGBE_SWSM_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_SWSM) }
+pub fn IXGBE_SWSM_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_SWSM) }
 
 pub const IXGBE_FWSM: u32                                              = 0x10148;
 pub const IXGBE_FWSM_X540: u32                                         = IXGBE_FWSM;
@@ -1164,7 +1171,7 @@ pub const IXGBE_FWSM_X550: u32                                         = IXGBE_F
 pub const IXGBE_FWSM_X550EM_x: u32                                     = IXGBE_FWSM;
 pub const IXGBE_FWSM_X550EM_a: u32                                     = 0x15F74;
 
-pub const fn IXGBE_FWSM_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_FWSM) }
+pub fn IXGBE_FWSM_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_FWSM) }
 
 pub const IXGBE_SWFW_SYNC: u32                                         = IXGBE_GSSR;
 pub const IXGBE_SWFW_SYNC_X540: u32                                    = IXGBE_SWFW_SYNC;
@@ -1172,7 +1179,7 @@ pub const IXGBE_SWFW_SYNC_X550: u32                                    = IXGBE_S
 pub const IXGBE_SWFW_SYNC_X550EM_x: u32                                = IXGBE_SWFW_SYNC;
 pub const IXGBE_SWFW_SYNC_X550EM_a: u32                                = 0x15F78;
 
-pub const fn IXGBE_SWFW_SYNC_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_SWFW_SYNC) }
+pub fn IXGBE_SWFW_SYNC_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_SWFW_SYNC) }
 
 pub const IXGBE_GSSR: u32                                              = 0x10160;
 pub const IXGBE_MREVID: u32                                            = 0x11064;
@@ -1218,9 +1225,9 @@ pub const IXGBE_GSCL_8_X550EM_a: u32                                   = IXGBE_G
 pub const IXGBE_CIAA_X550EM_a: u32                                     = IXGBE_CIAA_X550;
 pub const IXGBE_CIAD_X550EM_a: u32                                     = IXGBE_CIAD_X550;
 
-pub const fn IXGBE_CIAA_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_CIAA) }
+pub fn IXGBE_CIAA_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_CIAA) }
 
-pub const fn IXGBE_CIAD_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_CIAD) }
+pub fn IXGBE_CIAD_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_CIAD) }
 
 pub const IXGBE_PICAUSE: u32                                           = 0x110B0;
 pub const IXGBE_PIENA: u32                                             = 0x110B8;
@@ -1281,10 +1288,10 @@ pub const IXGBE_TSSDP: u32                                             = 0x0003C
 /* Diagnostic Registers */
 pub const IXGBE_RDSTATCTL: u32                                         = 0x02C20;
 
-pub const fn IXGBE_RDSTAT(_i: u32) -> u32 { (0x02C00 + ((_i) * 4)) } /* 0x02C00-0x02C1C */
+pub fn IXGBE_RDSTAT(_i: u32) -> u32 { (0x02C00 + ((_i) * 4)) } /* 0x02C00-0x02C1C */
 pub const IXGBE_RDHMPN: u32                                            = 0x02F08;
 
-pub const fn IXGBE_RIC_DW(_i: u32) -> u32 { (0x02F10 + ((_i) * 4)) }
+pub fn IXGBE_RIC_DW(_i: u32) -> u32 { (0x02F10 + ((_i) * 4)) }
 
 pub const IXGBE_RDPROBE: u32                                           = 0x02F20;
 pub const IXGBE_RDMAM: u32                                             = 0x02F30;
@@ -1293,9 +1300,9 @@ pub const IXGBE_TDHMPN: u32                                            = 0x07F08
 pub const IXGBE_TDHMPN2: u32                                           = 0x082FC;
 pub const IXGBE_TXDESCIC: u32                                          = 0x082CC;
 
-pub const fn IXGBE_TIC_DW(_i: u32) -> u32 { (0x07F10 + ((_i) * 4)) }
+pub fn IXGBE_TIC_DW(_i: u32) -> u32 { (0x07F10 + ((_i) * 4)) }
 
-pub const fn IXGBE_TIC_DW2(_i: u32) -> u32 { (0x082B0 + ((_i) * 4)) }
+pub fn IXGBE_TIC_DW2(_i: u32) -> u32 { (0x082B0 + ((_i) * 4)) }
 
 pub const IXGBE_TDPROBE: u32                                           = 0x07F20;
 pub const IXGBE_TXBUFCTRL: u32                                         = 0x0C600;
@@ -1309,7 +1316,7 @@ pub const IXGBE_RXBUFDATA1: u32                                        = 0x03614
 pub const IXGBE_RXBUFDATA2: u32                                        = 0x03618;
 pub const IXGBE_RXBUFDATA3: u32                                        = 0x0361C;
 
-pub const fn IXGBE_PCIE_DIAG(_i: u32) -> u32 { (0x11090 + ((_i) * 4)) } /* 8 of these */
+pub fn IXGBE_PCIE_DIAG(_i: u32) -> u32 { (0x11090 + ((_i) * 4)) } /* 8 of these */
 pub const IXGBE_RFVAL: u32                                             = 0x050A4;
 pub const IXGBE_MDFTC1: u32                                            = 0x042B8;
 pub const IXGBE_MDFTC2: u32                                            = 0x042C0;
@@ -1317,24 +1324,24 @@ pub const IXGBE_MDFTFIFO1: u32                                         = 0x042C4
 pub const IXGBE_MDFTFIFO2: u32                                         = 0x042C8;
 pub const IXGBE_MDFTS: u32                                             = 0x042CC;
 
-pub const fn IXGBE_RXDATAWRPTR(_i: u32) -> u32 { (0x03700 + ((_i) * 4)) } /* 8 of these 3700-370C */
-pub const fn IXGBE_RXDESCWRPTR(_i: u32) -> u32 { (0x03710 + ((_i) * 4)) } /* 8 of these 3710-371C */
-pub const fn IXGBE_RXDATARDPTR(_i: u32) -> u32 { (0x03720 + ((_i) * 4)) } /* 8 of these 3720-372C */
-pub const fn IXGBE_RXDESCRDPTR(_i: u32) -> u32 { (0x03730 + ((_i) * 4)) } /* 8 of these 3730-373C */
-pub const fn IXGBE_TXDATAWRPTR(_i: u32) -> u32 { (0x0C700 + ((_i) * 4)) } /* 8 of these C700-C70C */
-pub const fn IXGBE_TXDESCWRPTR(_i: u32) -> u32 { (0x0C710 + ((_i) * 4)) } /* 8 of these C710-C71C */
-pub const fn IXGBE_TXDATARDPTR(_i: u32) -> u32 { (0x0C720 + ((_i) * 4)) } /* 8 of these C720-C72C */
-pub const fn IXGBE_TXDESCRDPTR(_i: u32) -> u32 { (0x0C730 + ((_i) * 4)) } /* 8 of these C730-C73C */
+pub fn IXGBE_RXDATAWRPTR(_i: u32) -> u32 { (0x03700 + ((_i) * 4)) } /* 8 of these 3700-370C */
+pub fn IXGBE_RXDESCWRPTR(_i: u32) -> u32 { (0x03710 + ((_i) * 4)) } /* 8 of these 3710-371C */
+pub fn IXGBE_RXDATARDPTR(_i: u32) -> u32 { (0x03720 + ((_i) * 4)) } /* 8 of these 3720-372C */
+pub fn IXGBE_RXDESCRDPTR(_i: u32) -> u32 { (0x03730 + ((_i) * 4)) } /* 8 of these 3730-373C */
+pub fn IXGBE_TXDATAWRPTR(_i: u32) -> u32 { (0x0C700 + ((_i) * 4)) } /* 8 of these C700-C70C */
+pub fn IXGBE_TXDESCWRPTR(_i: u32) -> u32 { (0x0C710 + ((_i) * 4)) } /* 8 of these C710-C71C */
+pub fn IXGBE_TXDATARDPTR(_i: u32) -> u32 { (0x0C720 + ((_i) * 4)) } /* 8 of these C720-C72C */
+pub fn IXGBE_TXDESCRDPTR(_i: u32) -> u32 { (0x0C730 + ((_i) * 4)) } /* 8 of these C730-C73C */
 pub const IXGBE_PCIEECCCTL: u32                                        = 0x1106C;
 
-pub const fn IXGBE_RXWRPTR(_i: u32) -> u32 { (0x03100 + ((_i) * 4)) } /* 8 of these 3100-310C */
-pub const fn IXGBE_RXUSED(_i: u32) -> u32 { (0x03120 + ((_i) * 4)) } /* 8 of these 3120-312C */
-pub const fn IXGBE_RXRDPTR(_i: u32) -> u32 { (0x03140 + ((_i) * 4)) } /* 8 of these 3140-314C */
-pub const fn IXGBE_RXRDWRPTR(_i: u32) -> u32 { (0x03160 + ((_i) * 4)) } /* 8 of these 3160-310C */
-pub const fn IXGBE_TXWRPTR(_i: u32) -> u32 { (0x0C100 + ((_i) * 4)) } /* 8 of these C100-C10C */
-pub const fn IXGBE_TXUSED(_i: u32) -> u32 { (0x0C120 + ((_i) * 4)) } /* 8 of these C120-C12C */
-pub const fn IXGBE_TXRDPTR(_i: u32) -> u32 { (0x0C140 + ((_i) * 4)) } /* 8 of these C140-C14C */
-pub const fn IXGBE_TXRDWRPTR(_i: u32) -> u32 { (0x0C160 + ((_i) * 4)) } /* 8 of these C160-C10C */
+pub fn IXGBE_RXWRPTR(_i: u32) -> u32 { (0x03100 + ((_i) * 4)) } /* 8 of these 3100-310C */
+pub fn IXGBE_RXUSED(_i: u32) -> u32 { (0x03120 + ((_i) * 4)) } /* 8 of these 3120-312C */
+pub fn IXGBE_RXRDPTR(_i: u32) -> u32 { (0x03140 + ((_i) * 4)) } /* 8 of these 3140-314C */
+pub fn IXGBE_RXRDWRPTR(_i: u32) -> u32 { (0x03160 + ((_i) * 4)) } /* 8 of these 3160-310C */
+pub fn IXGBE_TXWRPTR(_i: u32) -> u32 { (0x0C100 + ((_i) * 4)) } /* 8 of these C100-C10C */
+pub fn IXGBE_TXUSED(_i: u32) -> u32 { (0x0C120 + ((_i) * 4)) } /* 8 of these C120-C12C */
+pub fn IXGBE_TXRDPTR(_i: u32) -> u32 { (0x0C140 + ((_i) * 4)) } /* 8 of these C140-C14C */
+pub fn IXGBE_TXRDWRPTR(_i: u32) -> u32 { (0x0C160 + ((_i) * 4)) } /* 8 of these C160-C10C */
 pub const IXGBE_PCIEECCCTL0: u32                                       = 0x11100;
 pub const IXGBE_PCIEECCCTL1: u32                                       = 0x11104;
 pub const IXGBE_RXDBUECC: u32                                          = 0x03F70;
@@ -1457,7 +1464,7 @@ pub const IXGBE_RDRXCTL_MBINTEN: u32                                   = 0x10000
 pub const IXGBE_RDRXCTL_MDP_EN: u32                                    = 0x20000000;
 
 /* RQTC Bit Masks and Shifts */
-pub const fn IXGBE_RQTC_SHIFT_TC(_i: u32) -> u32 { ((_i) * 4) }
+pub fn IXGBE_RQTC_SHIFT_TC(_i: u32) -> u32 { ((_i) * 4) }
 
 pub const IXGBE_RQTC_TC0_MASK: u32                                     = (0x7 << 0);
 pub const IXGBE_RQTC_TC1_MASK: u32                                     = (0x7 << 4);
@@ -1728,11 +1735,11 @@ pub const IXGBE_SDP0_GPIEN_X550EM_a: u32                               = IXGBE_S
 pub const IXGBE_SDP1_GPIEN_X550EM_a: u32                               = IXGBE_SDP1_GPIEN_X540;
 pub const IXGBE_SDP2_GPIEN_X550EM_a: u32                               = IXGBE_SDP2_GPIEN_X540;
 
-pub const fn IXGBE_SDP0_GPIEN_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_SDP0_GPIEN) }
+pub fn IXGBE_SDP0_GPIEN_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_SDP0_GPIEN) }
 
-pub const fn IXGBE_SDP1_GPIEN_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_SDP1_GPIEN) }
+pub fn IXGBE_SDP1_GPIEN_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_SDP1_GPIEN) }
 
-pub const fn IXGBE_SDP2_GPIEN_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_SDP2_GPIEN) }
+pub fn IXGBE_SDP2_GPIEN_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_SDP2_GPIEN) }
 
 pub const IXGBE_GPIE_MSIX_MODE: u32                                    = 0x00000010; /* MSI-X mode */
 pub const IXGBE_GPIE_OCD: u32                                          = 0x00000020; /* Other Clear Disable */
@@ -1923,11 +1930,11 @@ pub const IXGBE_EICR_GPI_SDP0_X550EM_a: u32                            = IXGBE_E
 pub const IXGBE_EICR_GPI_SDP1_X550EM_a: u32                            = IXGBE_EICR_GPI_SDP1_X540;
 pub const IXGBE_EICR_GPI_SDP2_X550EM_a: u32                            = IXGBE_EICR_GPI_SDP2_X540;
 
-pub const fn IXGBE_EICR_GPI_SDP0_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_EICR_GPI_SDP0) }
+pub fn IXGBE_EICR_GPI_SDP0_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_EICR_GPI_SDP0) }
 
-pub const fn IXGBE_EICR_GPI_SDP1_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_EICR_GPI_SDP1) }
+pub fn IXGBE_EICR_GPI_SDP1_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_EICR_GPI_SDP1) }
 
-pub const fn IXGBE_EICR_GPI_SDP2_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_EICR_GPI_SDP2) }
+pub fn IXGBE_EICR_GPI_SDP2_BY_MAC(_hw: u32) -> u32 { IXGBE_BY_MAC(_hw, IXGBE_EICR_GPI_SDP2) }
 
 pub const IXGBE_EICR_PBUR: u32                                         = 0x10000000; /* Packet Buffer Handler Error */
 pub const IXGBE_EICR_DHER: u32                                         = 0x20000000; /* Descriptor Handler Error */
@@ -1947,11 +1954,11 @@ pub const IXGBE_EICS_GPI_SDP0: u32                                     = IXGBE_E
 pub const IXGBE_EICS_GPI_SDP1: u32                                     = IXGBE_EICR_GPI_SDP1; /* SDP1 Gen Purpose Int */
 pub const IXGBE_EICS_GPI_SDP2: u32                                     = IXGBE_EICR_GPI_SDP2; /* SDP2 Gen Purpose Int */
 pub const IXGBE_EICS_ECC: u32                                          = IXGBE_EICR_ECC; /* ECC Error */
-pub const fn IXGBE_EICS_GPI_SDP0_BY_MAC(_hw: u32) -> u32 { IXGBE_EICR_GPI_SDP0_BY_MAC(_hw) }
+pub fn IXGBE_EICS_GPI_SDP0_BY_MAC(_hw: u32) -> u32 { IXGBE_EICR_GPI_SDP0_BY_MAC(_hw) }
 
-pub const fn IXGBE_EICS_GPI_SDP1_BY_MAC(_hw: u32) -> u32 { IXGBE_EICR_GPI_SDP1_BY_MAC(_hw) }
+pub fn IXGBE_EICS_GPI_SDP1_BY_MAC(_hw: u32) -> u32 { IXGBE_EICR_GPI_SDP1_BY_MAC(_hw) }
 
-pub const fn IXGBE_EICS_GPI_SDP2_BY_MAC(_hw: u32) -> u32 { IXGBE_EICR_GPI_SDP2_BY_MAC(_hw) }
+pub fn IXGBE_EICS_GPI_SDP2_BY_MAC(_hw: u32) -> u32 { IXGBE_EICR_GPI_SDP2_BY_MAC(_hw) }
 
 pub const IXGBE_EICS_PBUR: u32                                         = IXGBE_EICR_PBUR; /* Pkt Buf Handler Err */
 pub const IXGBE_EICS_DHER: u32                                         = IXGBE_EICR_DHER; /* Desc Handler Error */
@@ -1972,11 +1979,11 @@ pub const IXGBE_EIMS_GPI_SDP0: u32                                     = IXGBE_E
 pub const IXGBE_EIMS_GPI_SDP1: u32                                     = IXGBE_EICR_GPI_SDP1; /* SDP1 Gen Purpose Int */
 pub const IXGBE_EIMS_GPI_SDP2: u32                                     = IXGBE_EICR_GPI_SDP2; /* SDP2 Gen Purpose Int */
 pub const IXGBE_EIMS_ECC: u32                                          = IXGBE_EICR_ECC; /* ECC Error */
-pub const fn IXGBE_EIMS_GPI_SDP0_BY_MAC(_hw: u32) -> u32 { IXGBE_EICR_GPI_SDP0_BY_MAC(_hw) }
+pub fn IXGBE_EIMS_GPI_SDP0_BY_MAC(_hw: u32) -> u32 { IXGBE_EICR_GPI_SDP0_BY_MAC(_hw) }
 
-pub const fn IXGBE_EIMS_GPI_SDP1_BY_MAC(_hw: u32) -> u32 { IXGBE_EICR_GPI_SDP1_BY_MAC(_hw) }
+pub fn IXGBE_EIMS_GPI_SDP1_BY_MAC(_hw: u32) -> u32 { IXGBE_EICR_GPI_SDP1_BY_MAC(_hw) }
 
-pub const fn IXGBE_EIMS_GPI_SDP2_BY_MAC(_hw: u32) -> u32 { IXGBE_EICR_GPI_SDP2_BY_MAC(_hw) }
+pub fn IXGBE_EIMS_GPI_SDP2_BY_MAC(_hw: u32) -> u32 { IXGBE_EICR_GPI_SDP2_BY_MAC(_hw) }
 
 pub const IXGBE_EIMS_PBUR: u32                                         = IXGBE_EICR_PBUR; /* Pkt Buf Handler Err */
 pub const IXGBE_EIMS_DHER: u32                                         = IXGBE_EICR_DHER; /* Descr Handler Error */
@@ -1996,11 +2003,11 @@ pub const IXGBE_EIMC_GPI_SDP0: u32                                     = IXGBE_E
 pub const IXGBE_EIMC_GPI_SDP1: u32                                     = IXGBE_EICR_GPI_SDP1; /* SDP1 Gen Purpose Int */
 pub const IXGBE_EIMC_GPI_SDP2: u32                                     = IXGBE_EICR_GPI_SDP2;  /* SDP2 Gen Purpose Int */
 pub const IXGBE_EIMC_ECC: u32                                          = IXGBE_EICR_ECC; /* ECC Error */
-pub const fn IXGBE_EIMC_GPI_SDP0_BY_MAC(_hw: u32) -> u32 { IXGBE_EICR_GPI_SDP0_BY_MAC(_hw) }
+pub fn IXGBE_EIMC_GPI_SDP0_BY_MAC(_hw: u32) -> u32 { IXGBE_EICR_GPI_SDP0_BY_MAC(_hw) }
 
-pub const fn IXGBE_EIMC_GPI_SDP1_BY_MAC(_hw: u32) -> u32 { IXGBE_EICR_GPI_SDP1_BY_MAC(_hw) }
+pub fn IXGBE_EIMC_GPI_SDP1_BY_MAC(_hw: u32) -> u32 { IXGBE_EICR_GPI_SDP1_BY_MAC(_hw) }
 
-pub const fn IXGBE_EIMC_GPI_SDP2_BY_MAC(_hw: u32) -> u32 { IXGBE_EICR_GPI_SDP2_BY_MAC(_hw) }
+pub fn IXGBE_EIMC_GPI_SDP2_BY_MAC(_hw: u32) -> u32 { IXGBE_EICR_GPI_SDP2_BY_MAC(_hw) }
 
 pub const IXGBE_EIMC_PBUR: u32                                         = IXGBE_EICR_PBUR; /* Pkt Buf Handler Err */
 pub const IXGBE_EIMC_DHER: u32                                         = IXGBE_EICR_DHER; /* Desc Handler Err */
@@ -2062,16 +2069,16 @@ pub const IXGBE_IVAR_REG_NUM_82599: u32                                = 64;
 pub const IXGBE_IVAR_TXRX_ENTRY: u32                                   = 96;
 pub const IXGBE_IVAR_RX_ENTRY: u32                                     = 64;
 
-pub const fn IXGBE_IVAR_RX_QUEUE(_i: u32) -> u32 { (0 + (_i)) }
+pub fn IXGBE_IVAR_RX_QUEUE(_i: u32) -> u32 { (0 + (_i)) }
 
-pub const fn IXGBE_IVAR_TX_QUEUE(_i: u32) -> u32 { (64 + (_i)) }
+pub fn IXGBE_IVAR_TX_QUEUE(_i: u32) -> u32 { (64 + (_i)) }
 
 pub const IXGBE_IVAR_TX_ENTRY: u32                                     = 32;
 
 pub const IXGBE_IVAR_TCP_TIMER_INDEX: u32                              = 96; /* 0 based index */
 pub const IXGBE_IVAR_OTHER_CAUSES_INDEX: u32                           = 97; /* 0 based index */
 
-pub const fn IXGBE_MSIX_VECTOR(_i: u32) -> u32 { (0 + (_i)) }
+pub fn IXGBE_MSIX_VECTOR(_i: u32) -> u32 { (0 + (_i)) }
 
 pub const IXGBE_IVAR_ALLOC_VAL: u32                                    = 0x80; /* Interrupt Allocation valid */
 
@@ -2162,15 +2169,15 @@ pub const IXGBE_LED_IVRT_BASE: u32                                     = 0x00000
 pub const IXGBE_LED_BLINK_BASE: u32                                    = 0x00000080;
 pub const IXGBE_LED_MODE_MASK_BASE: u32                                = 0x0000000F;
 
-pub const fn IXGBE_LED_OFFSET(_base: u32, _i: u32) -> u32 { (_base << (8 * _i)) }
+pub fn IXGBE_LED_OFFSET(_base: u32, _i: u32) -> u32 { (_base << (8 * _i)) }
 
-pub const fn IXGBE_LED_MODE_SHIFT(_i: u32) -> u32 { (8 * (_i)) }
+pub fn IXGBE_LED_MODE_SHIFT(_i: u32) -> u32 { (8 * (_i)) }
 
-pub const fn IXGBE_LED_IVRT(_i: u32) -> u32 { IXGBE_LED_OFFSET(IXGBE_LED_IVRT_BASE, _i) }
+pub fn IXGBE_LED_IVRT(_i: u32) -> u32 { IXGBE_LED_OFFSET(IXGBE_LED_IVRT_BASE, _i) }
 
-pub const fn IXGBE_LED_BLINK(_i: u32) -> u32 { IXGBE_LED_OFFSET(IXGBE_LED_BLINK_BASE, _i) }
+pub fn IXGBE_LED_BLINK(_i: u32) -> u32 { IXGBE_LED_OFFSET(IXGBE_LED_BLINK_BASE, _i) }
 
-pub const fn IXGBE_LED_MODE_MASK(_i: u32) -> u32 { IXGBE_LED_OFFSET(IXGBE_LED_MODE_MASK_BASE, _i) }
+pub fn IXGBE_LED_MODE_MASK(_i: u32) -> u32 { IXGBE_LED_OFFSET(IXGBE_LED_MODE_MASK_BASE, _i) }
 
 pub const IXGBE_X557_LED_MANUAL_SET_MASK: u32                          = (1 << 8);
 pub const IXGBE_X557_MAX_LED_INDEX: u32                                = 3;
@@ -2884,47 +2891,47 @@ pub const IXGBE_RX_DESC_SPECIAL_PRI_SHIFT: u32                         = 0x000D;
 pub const IXGBE_TX_DESC_SPECIAL_PRI_SHIFT: u32                         = IXGBE_RX_DESC_SPECIAL_PRI_SHIFT;
 
 /* SR-IOV specific macros */
-pub const fn IXGBE_MBVFICR_INDEX(vf_number: u32) -> u32 { (vf_number >> 4) }
+pub fn IXGBE_MBVFICR_INDEX(vf_number: u32) -> u32 { (vf_number >> 4) }
 
-pub const fn IXGBE_MBVFICR(_i: u32) -> u32 { (0x00710 + ((_i) * 4)) }
+pub fn IXGBE_MBVFICR(_i: u32) -> u32 { (0x00710 + ((_i) * 4)) }
 
 pub fn IXGBE_VFLRE(_i: u32) -> u32 { if (_i & 1) != 0 { 0x001C0 } else { 0x00600 } }
 
-pub const fn IXGBE_VFLREC(_i: u32) -> u32 { (0x00700 + (_i * 4)) }
+pub fn IXGBE_VFLREC(_i: u32) -> u32 { (0x00700 + (_i * 4)) }
 /* Translated register consts */
-pub const fn IXGBE_PVFCTRL(P: u32) -> u32 { (0x00300 + (4 * (P))) }
+pub fn IXGBE_PVFCTRL(P: u32) -> u32 { (0x00300 + (4 * (P))) }
 
-pub const fn IXGBE_PVFSTATUS(P: u32) -> u32 { (0x00008 + (0 * (P))) }
+pub fn IXGBE_PVFSTATUS(P: u32) -> u32 { (0x00008 + (0 * (P))) }
 
-pub const fn IXGBE_PVFLINKS(P: u32) -> u32 { (0x042A4 + (0 * (P))) }
+pub fn IXGBE_PVFLINKS(P: u32) -> u32 { (0x042A4 + (0 * (P))) }
 
-pub const fn IXGBE_PVFRTIMER(P: u32) -> u32 { (0x00048 + (0 * (P))) }
+pub fn IXGBE_PVFRTIMER(P: u32) -> u32 { (0x00048 + (0 * (P))) }
 
-pub const fn IXGBE_PVFMAILBOX(P: u32) -> u32 { (0x04C00 + (4 * (P))) }
+pub fn IXGBE_PVFMAILBOX(P: u32) -> u32 { (0x04C00 + (4 * (P))) }
 
-pub const fn IXGBE_PVFRXMEMWRAP(P: u32) -> u32 { (0x03190 + (0 * (P))) }
+pub fn IXGBE_PVFRXMEMWRAP(P: u32) -> u32 { (0x03190 + (0 * (P))) }
 
-pub const fn IXGBE_PVTEICR(P: u32) -> u32 { (0x00B00 + (4 * (P))) }
+pub fn IXGBE_PVTEICR(P: u32) -> u32 { (0x00B00 + (4 * (P))) }
 
-pub const fn IXGBE_PVTEICS(P: u32) -> u32 { (0x00C00 + (4 * (P))) }
+pub fn IXGBE_PVTEICS(P: u32) -> u32 { (0x00C00 + (4 * (P))) }
 
-pub const fn IXGBE_PVTEIMS(P: u32) -> u32 { (0x00D00 + (4 * (P))) }
+pub fn IXGBE_PVTEIMS(P: u32) -> u32 { (0x00D00 + (4 * (P))) }
 
-pub const fn IXGBE_PVTEIMC(P: u32) -> u32 { (0x00E00 + (4 * (P))) }
+pub fn IXGBE_PVTEIMC(P: u32) -> u32 { (0x00E00 + (4 * (P))) }
 
-pub const fn IXGBE_PVTEIAC(P: u32) -> u32 { (0x00F00 + (4 * (P))) }
+pub fn IXGBE_PVTEIAC(P: u32) -> u32 { (0x00F00 + (4 * (P))) }
 
-pub const fn IXGBE_PVTEIAM(P: u32) -> u32 { (0x04D00 + (4 * (P))) }
+pub fn IXGBE_PVTEIAM(P: u32) -> u32 { (0x04D00 + (4 * (P))) }
 
 pub fn IXGBE_PVTEITR(P: u32) -> u32 { if P < 24 { 0x00820 + (P * 4) } else { 0x012300 + ((P - 24) * 4) } }
 
-pub const fn IXGBE_PVTIVAR(P: u32) -> u32 { (0x12500 + (4 * (P))) }
+pub fn IXGBE_PVTIVAR(P: u32) -> u32 { (0x12500 + (4 * (P))) }
 
-pub const fn IXGBE_PVTIVAR_MISC(P: u32) -> u32 { (0x04E00 + (4 * (P))) }
+pub fn IXGBE_PVTIVAR_MISC(P: u32) -> u32 { (0x04E00 + (4 * (P))) }
 
-pub const fn IXGBE_PVTRSCINT(P: u32) -> u32 { (0x12000 + (4 * (P))) }
+pub fn IXGBE_PVTRSCINT(P: u32) -> u32 { (0x12000 + (4 * (P))) }
 
-pub const fn IXGBE_VFPBACL(P: u32) -> u32 { (0x110C8 + (4 * (P))) }
+pub fn IXGBE_VFPBACL(P: u32) -> u32 { (0x110C8 + (4 * (P))) }
 
 pub fn IXGBE_PVFRDBAL(P: u32) -> u32 { if P < 64 { 0x01000 + (0x40 * P) } else { 0x0D000 + (0x40 * (P - 64)) } }
 
@@ -2940,48 +2947,48 @@ pub fn IXGBE_PVFRXDCTL(P: u32) -> u32 { if P < 64 { 0x01028 + (0x40 * P) } else 
 
 pub fn IXGBE_PVFSRRCTL(P: u32) -> u32 { if P < 64 { 0x01014 + (0x40 * P) } else { 0x0D014 + (0x40 * (P - 64)) } }
 
-pub const fn IXGBE_PVFPSRTYPE(P: u32) -> u32 { (0x0EA00 + (4 * (P))) }
+pub fn IXGBE_PVFPSRTYPE(P: u32) -> u32 { (0x0EA00 + (4 * (P))) }
 
-pub const fn IXGBE_PVFTDBAL(P: u32) -> u32 { (0x06000 + (0x40 * (P))) }
+pub fn IXGBE_PVFTDBAL(P: u32) -> u32 { (0x06000 + (0x40 * (P))) }
 
-pub const fn IXGBE_PVFTDBAH(P: u32) -> u32 { (0x06004 + (0x40 * (P))) }
+pub fn IXGBE_PVFTDBAH(P: u32) -> u32 { (0x06004 + (0x40 * (P))) }
 
-pub const fn IXGBE_PVFTDLEN(P: u32) -> u32 { (0x06008 + (0x40 * (P))) }
+pub fn IXGBE_PVFTDLEN(P: u32) -> u32 { (0x06008 + (0x40 * (P))) }
 
-pub const fn IXGBE_PVFTDH(P: u32) -> u32 { (0x06010 + (0x40 * (P))) }
+pub fn IXGBE_PVFTDH(P: u32) -> u32 { (0x06010 + (0x40 * (P))) }
 
-pub const fn IXGBE_PVFTDT(P: u32) -> u32 { (0x06018 + (0x40 * (P))) }
+pub fn IXGBE_PVFTDT(P: u32) -> u32 { (0x06018 + (0x40 * (P))) }
 
-pub const fn IXGBE_PVFTXDCTL(P: u32) -> u32 { (0x06028 + (0x40 * (P))) }
+pub fn IXGBE_PVFTXDCTL(P: u32) -> u32 { (0x06028 + (0x40 * (P))) }
 
-pub const fn IXGBE_PVFTDWBAL(P: u32) -> u32 { (0x06038 + (0x40 * (P))) }
+pub fn IXGBE_PVFTDWBAL(P: u32) -> u32 { (0x06038 + (0x40 * (P))) }
 
-pub const fn IXGBE_PVFTDWBAH(P: u32) -> u32 { (0x0603C + (0x40 * (P))) }
+pub fn IXGBE_PVFTDWBAH(P: u32) -> u32 { (0x0603C + (0x40 * (P))) }
 
-//const fn IXGBE_PVFDCA_RXCTRL(P: u32) -> u32 { (((P) < 64) ? (0x0100C + (0x40 * (P))) : (0x0D00C + (0x40 * ((P) - 64)))) }
-pub const fn IXGBE_PVFDCA_TXCTRL(P: u32) -> u32 { (0x0600C + (0x40 * (P))) }
+pub fn IXGBE_PVFDCA_RXCTRL(P: u32) -> u32 { if P < 64 { 0x0100C + 0x40 * P } else { 0x0D00C + 0x40 * (P - 64) } }
+pub fn IXGBE_PVFDCA_TXCTRL(P: u32) -> u32 { (0x0600C + (0x40 * (P))) }
 
-pub const fn IXGBE_PVFGPRC(x: u32) -> u32 { (0x0101C + (0x40 * (x))) }
+pub fn IXGBE_PVFGPRC(x: u32) -> u32 { (0x0101C + (0x40 * (x))) }
 
-pub const fn IXGBE_PVFGPTC(x: u32) -> u32 { (0x08300 + (0x04 * (x))) }
+pub fn IXGBE_PVFGPTC(x: u32) -> u32 { (0x08300 + (0x04 * (x))) }
 
-pub const fn IXGBE_PVFGORC_LSB(x: u32) -> u32 { (0x01020 + (0x40 * (x))) }
+pub fn IXGBE_PVFGORC_LSB(x: u32) -> u32 { (0x01020 + (0x40 * (x))) }
 
-pub const fn IXGBE_PVFGORC_MSB(x: u32) -> u32 { (0x0D020 + (0x40 * (x))) }
+pub fn IXGBE_PVFGORC_MSB(x: u32) -> u32 { (0x0D020 + (0x40 * (x))) }
 
-pub const fn IXGBE_PVFGOTC_LSB(x: u32) -> u32 { (0x08400 + (0x08 * (x))) }
+pub fn IXGBE_PVFGOTC_LSB(x: u32) -> u32 { (0x08400 + (0x08 * (x))) }
 
-pub const fn IXGBE_PVFGOTC_MSB(x: u32) -> u32 { (0x08404 + (0x08 * (x))) }
+pub fn IXGBE_PVFGOTC_MSB(x: u32) -> u32 { (0x08404 + (0x08 * (x))) }
 
-pub const fn IXGBE_PVFMPRC(x: u32) -> u32 { (0x0D01C + (0x40 * (x))) }
+pub fn IXGBE_PVFMPRC(x: u32) -> u32 { (0x0D01C + (0x40 * (x))) }
 
-pub const fn IXGBE_PVFTDWBALn(q_per_pool: u32, vf_number: u32, vf_q_index: u32) -> u32 { (IXGBE_PVFTDWBAL((q_per_pool) * (vf_number) + (vf_q_index))) }
+pub fn IXGBE_PVFTDWBALn(q_per_pool: u32, vf_number: u32, vf_q_index: u32) -> u32 { (IXGBE_PVFTDWBAL((q_per_pool) * (vf_number) + (vf_q_index))) }
 
-pub const fn IXGBE_PVFTDWBAHn(q_per_pool: u32, vf_number: u32, vf_q_index: u32) -> u32 { (IXGBE_PVFTDWBAH((q_per_pool) * (vf_number) + (vf_q_index))) }
+pub fn IXGBE_PVFTDWBAHn(q_per_pool: u32, vf_number: u32, vf_q_index: u32) -> u32 { (IXGBE_PVFTDWBAH((q_per_pool) * (vf_number) + (vf_q_index))) }
 
-pub const fn IXGBE_PVFTDHn(q_per_pool: u32, vf_number: u32, vf_q_index: u32) -> u32 { (IXGBE_PVFTDH((q_per_pool) * (vf_number) + (vf_q_index))) }
+pub fn IXGBE_PVFTDHn(q_per_pool: u32, vf_number: u32, vf_q_index: u32) -> u32 { (IXGBE_PVFTDH((q_per_pool) * (vf_number) + (vf_q_index))) }
 
-pub const fn IXGBE_PVFTDTn(q_per_pool: u32, vf_number: u32, vf_q_index: u32) -> u32 { (IXGBE_PVFTDT((q_per_pool) * (vf_number) + (vf_q_index))) }
+pub fn IXGBE_PVFTDTn(q_per_pool: u32, vf_number: u32, vf_q_index: u32) -> u32 { (IXGBE_PVFTDT((q_per_pool) * (vf_number) + (vf_q_index))) }
 
 
 pub enum ixgbe_fdir_pballoc_type {
@@ -3115,7 +3122,7 @@ pub const FW_PHY_TOKEN_OK: u32                                         = 1;
 pub const FW_PHY_TOKEN_RETRY: u32                                      = 0x80;
 pub const FW_PHY_TOKEN_DELAY: u32                                      = 5;    /* milliseconds */
 pub const FW_PHY_TOKEN_WAIT: u32                                       = 5;    /* seconds */
-pub const fn FW_PHY_TOKEN_RETRIES() -> u32 { ((FW_PHY_TOKEN_WAIT * 1000) / FW_PHY_TOKEN_DELAY) }
+pub fn FW_PHY_TOKEN_RETRIES() -> u32 { ((FW_PHY_TOKEN_WAIT * 1000) / FW_PHY_TOKEN_DELAY) }
 
 pub const FW_INT_PHY_REQ_CMD: u32                                      = 0xB;
 pub const FW_INT_PHY_REQ_LEN: u32                                      = 10;
@@ -3139,7 +3146,7 @@ pub const FW_PHY_ACT_LINK_SPEED_50G: u32                               = (1 << 9
 pub const FW_PHY_ACT_LINK_SPEED_100G: u32                              = (1 << 10);
 pub const FW_PHY_ACT_SETUP_LINK_PAUSE_SHIFT: u32                       = 16;
 
-pub const fn FW_PHY_ACT_SETUP_LINK_PAUSE_MASK() -> u32 { (3 << FW_PHY_ACT_SETUP_LINK_PAUSE_SHIFT) }
+pub fn FW_PHY_ACT_SETUP_LINK_PAUSE_MASK() -> u32 { (3 << FW_PHY_ACT_SETUP_LINK_PAUSE_SHIFT) }
 
 pub const FW_PHY_ACT_SETUP_LINK_PAUSE_NONE: u32                        = 0;
 pub const FW_PHY_ACT_SETUP_LINK_PAUSE_TX: u32                          = 1;
@@ -3179,6 +3186,7 @@ pub const FW_PHY_INFO_ID_LO_MASK: u32                                  = 0x0000F
 /* Host Interface Command Structures */
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_hic_hdr {
     pub cmd: u8,
     pub buf_len: u8,
@@ -3187,6 +3195,7 @@ pub struct ixgbe_hic_hdr {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_hic_hdr2_req {
     pub cmd: u8,
     pub buf_lenh: u8,
@@ -3195,6 +3204,7 @@ pub struct ixgbe_hic_hdr2_req {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_hic_hdr2_rsp {
     pub cmd: u8,
     pub buf_lenl: u8,
@@ -3204,12 +3214,14 @@ pub struct ixgbe_hic_hdr2_rsp {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub union ixgbe_hic_hdr2 {
     pub req: ixgbe_hic_hdr2_req,
     pub rsp: ixgbe_hic_hdr2_rsp,
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_hic_drv_info {
     pub hdr: ixgbe_hic_hdr,
     pub port_num: u8,
@@ -3224,6 +3236,7 @@ pub struct ixgbe_hic_drv_info {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_hic_drv_info2 {
     pub hdr: ixgbe_hic_hdr,
     pub port_num: u8,
@@ -3236,6 +3249,7 @@ pub struct ixgbe_hic_drv_info2 {
 
 /* These need to be dword aligned */
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_hic_read_shadow_ram {
     pub hdr: ixgbe_hic_hdr2,
     pub address: u32,
@@ -3246,6 +3260,7 @@ pub struct ixgbe_hic_read_shadow_ram {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_hic_write_shadow_ram {
     pub hdr: ixgbe_hic_hdr2,
     pub address: u32,
@@ -3256,6 +3271,7 @@ pub struct ixgbe_hic_write_shadow_ram {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_hic_disable_rxen {
     pub hdr: ixgbe_hic_hdr,
     pub port_number: u8,
@@ -3264,6 +3280,7 @@ pub struct ixgbe_hic_disable_rxen {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_hic_phy_token_req {
     pub hdr: ixgbe_hic_hdr,
     pub port_number: u8,
@@ -3272,6 +3289,7 @@ pub struct ixgbe_hic_phy_token_req {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_hic_internal_phy_req {
     pub hdr: ixgbe_hic_hdr,
     pub port_number: u8,
@@ -3283,12 +3301,14 @@ pub struct ixgbe_hic_internal_phy_req {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_hic_internal_phy_resp {
     pub hdr: ixgbe_hic_hdr,
     pub read_data: u32,
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_hic_phy_activity_req {
     pub hdr: ixgbe_hic_hdr,
     pub port_number: u8,
@@ -3298,6 +3318,7 @@ pub struct ixgbe_hic_phy_activity_req {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_hic_phy_activity_resp {
     pub hdr: ixgbe_hic_hdr,
     pub data: [u32; FW_PHY_ACT_DATA_COUNT as usize],
@@ -3305,6 +3326,7 @@ pub struct ixgbe_hic_phy_activity_resp {
 
 /* Transmit Descriptor - Legacy */
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub union ixgbe_legacy_tx_desc_lower {
     pub data: u32,
     /* flags */
@@ -3318,6 +3340,7 @@ pub union ixgbe_legacy_tx_desc_lower {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_legacy_tx_desc_upper_fields {
     pub status: u8,
     /* Descriptor status */
@@ -3327,6 +3350,7 @@ pub struct ixgbe_legacy_tx_desc_upper_fields {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub union ixgbe_legacy_tx_desc_upper {
     pub data: u32,
     pub fields: ixgbe_legacy_tx_desc_upper_fields,
@@ -3342,6 +3366,7 @@ pub struct ixgbe_legacy_tx_desc {
 
 /* Transmit Descriptor - Advanced */
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_adv_tx_desc_read {
     pub buffer_addr: u64,
     /* Address of descriptor's data buf */
@@ -3350,6 +3375,7 @@ pub struct ixgbe_adv_tx_desc_read {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_adv_tx_desc_wb {
     pub rsvd: u64,
     /* Reserved */
@@ -3358,6 +3384,7 @@ pub struct ixgbe_adv_tx_desc_wb {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub union ixgbe_adv_tx_desc {
     pub read: ixgbe_adv_tx_desc_read,
     pub wb: ixgbe_adv_tx_desc_wb,
@@ -3365,6 +3392,7 @@ pub union ixgbe_adv_tx_desc {
 
 /* Receive Descriptor - Legacy */
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_legacy_rx_desc {
     pub buffer_addr: u64,
     /* Address of the descriptor's data buffer */
@@ -3380,6 +3408,7 @@ pub struct ixgbe_legacy_rx_desc {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_adv_rx_desc_read {
     pub pkt_addr: u64,
     /* Packet buffer address */
@@ -3389,6 +3418,7 @@ pub struct ixgbe_adv_rx_desc_read {
 
 /* Receive Descriptor - Advanced */
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_adv_rx_desc_wb_lower_lo_dword_hs_rss {
     pub pkt_info: u16,
     /* RSS, Pkt type */
@@ -3397,12 +3427,14 @@ pub struct ixgbe_adv_rx_desc_wb_lower_lo_dword_hs_rss {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub union ixgbe_adv_rx_desc_wb_lower_lo_dword {
     pub data: u32,
     pub hs_rss: ixgbe_adv_rx_desc_wb_lower_lo_dword_hs_rss,
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_adv_rx_desc_wb_lower_hi_dword_csum_ip {
     pub ip_id: u16,
     /* IP id */
@@ -3411,6 +3443,7 @@ pub struct ixgbe_adv_rx_desc_wb_lower_hi_dword_csum_ip {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub union ixgbe_adv_rx_desc_wb_lower_hi_dword {
     pub rss: u32,
     /* RSS Hash */
@@ -3418,12 +3451,14 @@ pub union ixgbe_adv_rx_desc_wb_lower_hi_dword {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_adv_rx_desc_wb_lower {
     pub lo_dword: ixgbe_adv_rx_desc_wb_lower_lo_dword,
     pub hi_dword: ixgbe_adv_rx_desc_wb_lower_hi_dword,
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_adv_rx_desc_wb_upper {
     pub status_error: u32,
     /* ext status/error */
@@ -3434,12 +3469,14 @@ pub struct ixgbe_adv_rx_desc_wb_upper {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_adv_rx_desc_wb {
     pub lower: ixgbe_adv_rx_desc_wb_lower,
     pub upper: ixgbe_adv_rx_desc_wb_upper,
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub union ixgbe_adv_rx_desc {
     pub read: ixgbe_adv_rx_desc_read,
     pub wb: ixgbe_adv_rx_desc_wb, /* writeback */
@@ -3447,6 +3484,7 @@ pub union ixgbe_adv_rx_desc {
 
 /* Context descriptors */
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_adv_tx_context_desc {
     pub vlan_macip_lens: u32,
     pub seqnum_seed: u32,
@@ -3552,9 +3590,9 @@ pub const IXGBE_PHYSICAL_LAYER_2500BASE_KX: u32                        = 0x10000
  */
 
 /* BitTimes (BT) conversion */
-pub const fn IXGBE_BT2KB(BT: u32) -> u32 { ((BT + (8 * 1024 - 1)) / (8 * 1024)) }
+pub fn IXGBE_BT2KB(BT: u32) -> u32 { ((BT + (8 * 1024 - 1)) / (8 * 1024)) }
 
-pub const fn IXGBE_B2BT(BT: u32) -> u32 { (BT * 8) }
+pub fn IXGBE_B2BT(BT: u32) -> u32 { (BT * 8) }
 
 /* Calculate Delay to respond to PFC */
 pub const IXGBE_PFC_D: u32                                             = 672;
@@ -3584,15 +3622,15 @@ pub const IXGBE_HD: u32                                                = 6144;
 pub const IXGBE_PCI_DELAY: u32                                         = 10000;
 
 /* Calculate X540 delay value in bit times */
-pub const fn IXGBE_DV_X540(_max_frame_link: u32, _max_frame_tc: u32) -> u32 { ((36 * (IXGBE_B2BT(_max_frame_link) + IXGBE_PFC_D + (2 * IXGBE_CABLE_DC) + (2 * IXGBE_ID_X540) + IXGBE_HD) / 25 + 1) + 2 * IXGBE_B2BT(_max_frame_tc)) }
+pub fn IXGBE_DV_X540(_max_frame_link: u32, _max_frame_tc: u32) -> u32 { ((36 * (IXGBE_B2BT(_max_frame_link) + IXGBE_PFC_D + (2 * IXGBE_CABLE_DC) + (2 * IXGBE_ID_X540) + IXGBE_HD) / 25 + 1) + 2 * IXGBE_B2BT(_max_frame_tc)) }
 
 /* Calculate 82599, 82598 delay value in bit times */
-pub const fn IXGBE_DV(_max_frame_link: u32, _max_frame_tc: u32) -> u32 { ((36 * (IXGBE_B2BT(_max_frame_link) + IXGBE_PFC_D + (2 * IXGBE_CABLE_DC) + (2 * IXGBE_ID) + IXGBE_HD) / 25 + 1) + 2 * IXGBE_B2BT(_max_frame_tc)) }
+pub fn IXGBE_DV(_max_frame_link: u32, _max_frame_tc: u32) -> u32 { ((36 * (IXGBE_B2BT(_max_frame_link) + IXGBE_PFC_D + (2 * IXGBE_CABLE_DC) + (2 * IXGBE_ID) + IXGBE_HD) / 25 + 1) + 2 * IXGBE_B2BT(_max_frame_tc)) }
 
 /* Calculate low threshold delay values */
-pub const fn IXGBE_LOW_DV_X540(_max_frame_tc: u32) -> u32 { (2 * IXGBE_B2BT(_max_frame_tc) + (36 * IXGBE_PCI_DELAY / 25) + 1) }
+pub fn IXGBE_LOW_DV_X540(_max_frame_tc: u32) -> u32 { (2 * IXGBE_B2BT(_max_frame_tc) + (36 * IXGBE_PCI_DELAY / 25) + 1) }
 
-pub const fn IXGBE_LOW_DV(_max_frame_tc: u32) -> u32 { (2 * IXGBE_LOW_DV_X540(_max_frame_tc)) }
+pub fn IXGBE_LOW_DV(_max_frame_tc: u32) -> u32 { (2 * IXGBE_LOW_DV_X540(_max_frame_tc)) }
 
 /* Software ATR hash keys */
 pub const IXGBE_ATR_BUCKET_HASH_KEY: u32                               = 0x3DAD14E2;
@@ -3643,6 +3681,7 @@ pub enum ixgbe_atr_flow_type {
  * bkt_hash	- 2 bytes
  */
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_atr_input_formatted {
     pub vm_pool: u8,
     pub flow_type: u8,
@@ -3659,12 +3698,14 @@ pub struct ixgbe_atr_input_formatted {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub union ixgbe_atr_input {
     pub formatted: ixgbe_atr_input_formatted,
     pub dword_stream: [u32; 14],
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_atr_hash_dword_formatted {
     pub vm_pool: u8,
     pub flow_type: u8,
@@ -3672,6 +3713,7 @@ pub struct ixgbe_atr_hash_dword_formatted {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_atr_hash_dword_port {
     pub src: u16,
     pub dst: u16,
@@ -3679,6 +3721,7 @@ pub struct ixgbe_atr_hash_dword_port {
 
 /* Flow Director compressed ATR hash input struct */
 #[repr(C)]
+#[derive(Copy, Clone)]
 union ixgbe_atr_hash_dword {
     pub formatted: ixgbe_atr_hash_dword_formatted,
     pub ip: u32,
@@ -3692,12 +3735,14 @@ union ixgbe_atr_hash_dword {
  * Disabled: Present; boot order is not set for any targets on the port.
  * Enabled: Present; boot order is set for at least one target on the port.
  */
+#[derive(Copy, Clone)]
 pub enum ixgbe_fcoe_boot_status {
     IXGbe_fcoe_bootstatus_disabled    = 0,
     IXGbe_fcoe_bootstatus_enabled     = 1,
     IXGbe_fcoe_bootstatus_unavailable = 0xFFFF,
 }
 
+#[derive(Copy, Clone)]
 pub enum ixgbe_eeprom_type {
     IXGbe_eeprom_uninitialized        = 0,
     IXGbe_eeprom_spi,
@@ -3706,6 +3751,7 @@ pub enum ixgbe_eeprom_type {
     /* No NVM support */
 }
 
+#[derive(Copy, Clone)]
 pub enum ixgbe_mac_type {
     IXGbe_mac_unknown                 = 0,
     IXGbe_mac_82598EB,
@@ -3722,6 +3768,7 @@ pub enum ixgbe_mac_type {
     IXGbe_num_macs,
 }
 
+#[derive(Copy, Clone)]
 pub enum ixgbe_phy_type {
     IXGbe_phy_unknown                 = 0,
     IXGbe_phy_none,
@@ -3768,6 +3815,7 @@ pub enum ixgbe_phy_type {
  * 5	SFP_SR/LR_CORE0 - 82599-specific;
  * 6	SFP_SR/LR_CORE1 - 82599-specific;
  */
+#[derive(Copy, Clone)]
 pub enum ixgbe_sfp_type {
     IXGbe_sfp_type_da_cu              =  0,
     IXGbe_sfp_type_sr                 =  1,
@@ -3788,6 +3836,7 @@ pub enum ixgbe_sfp_type {
     IXGbe_sfp_type_unknown            = 0xFFFF,
 }
 
+#[derive(Copy, Clone)]
 pub enum ixgbe_media_type {
     IXGbe_media_type_unknown          = 0,
     IXGbe_media_type_fiber,
@@ -3800,6 +3849,7 @@ pub enum ixgbe_media_type {
 }
 
 /* Flow Control Settings */
+#[derive(Copy, Clone)]
 pub enum ixgbe_fc_mode {
     IXGbe_fc_none                     = 0,
     IXGbe_fc_rx_pause,
@@ -3811,6 +3861,7 @@ pub enum ixgbe_fc_mode {
 /* Smart Speed Settings */
 pub const IXGBE_SMARTSPEED_MAX_RETRIES: u32                            = 3;
 
+#[derive(Copy, Clone)]
 pub enum ixgbe_smart_speed {
     IXGbe_smart_speed_auto            = 0,
     IXGbe_smart_speed_on,
@@ -3818,6 +3869,7 @@ pub enum ixgbe_smart_speed {
 }
 
 /* PCI bus types */
+#[derive(Copy, Clone)]
 pub enum ixgbe_bus_type {
     IXGbe_bus_type_unknown            = 0,
     IXGbe_bus_type_pci,
@@ -3828,6 +3880,7 @@ pub enum ixgbe_bus_type {
 }
 
 /* PCI bus speeds */
+#[derive(Copy, Clone)]
 pub enum ixgbe_bus_speed {
     IXGbe_bus_speed_unknown           = 0,
     IXGbe_bus_speed_33                = 33,
@@ -3842,6 +3895,7 @@ pub enum ixgbe_bus_speed {
 }
 
 /* PCI bus widths */
+#[derive(Copy, Clone)]
 pub enum ixgbe_bus_width {
     IXGbe_bus_width_unknown           = 0,
     IXGbe_bus_width_pcie_x1           = 1,
@@ -3854,6 +3908,7 @@ pub enum ixgbe_bus_width {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_addr_filter_info {
     pub num_mc_addrs: u32,
     pub rar_used_count: u32,
@@ -3864,6 +3919,7 @@ pub struct ixgbe_addr_filter_info {
 
 /* Bus parameters */
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_bus_info {
     pub speed: ixgbe_bus_speed,
     pub width: ixgbe_bus_width,
@@ -3875,6 +3931,7 @@ pub struct ixgbe_bus_info {
 
 /* Flow control parameters */
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_fc_info {
     pub high_water: [u32; IXGBE_DCB_MAX_TRAFFIC_CLASS as usize],
     /* Flow Ctrl High-water */
@@ -3898,6 +3955,7 @@ pub struct ixgbe_fc_info {
 
 /* Statistics counters collected by the MAC */
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_hw_stats {
     pub crcerrs: u64,
     pub illerrc: u64,
@@ -3977,46 +4035,30 @@ pub struct ixgbe_hw_stats {
     pub o2bspc: u64,
 }
 
-// functions removed;
+// functions removed
 
 
-pub const fn IXGBE_FUSES0_GROUP(_i: u32) -> u32 { (0x11158 + ((_i) * 4)) }
+pub fn IXGBE_FUSES0_GROUP(_i: u32) -> u32 { (0x11158 + ((_i) * 4)) }
 
 pub const IXGBE_FUSES0_300MHZ: u32                                     = (1 << 5);
 pub const IXGBE_FUSES0_REV_MASK: u32                                   = (3 << 6);
 
 pub fn IXGBE_KRM_PORT_CAR_GEN_CTRL(P: u32) -> u32 { if P != 0 { 0x8010 } else { 0x4010 } }
-
 pub fn IXGBE_KRM_LINK_S1(P: u32) -> u32 { if P != 0 { 0x8200 } else { 0x4200 } }
-
 pub fn IXGBE_KRM_LINK_CTRL_1(P: u32) -> u32 { if P != 0 { 0x820C } else { 0x420C } }
-
 pub fn IXGBE_KRM_AN_CNTL_1(P: u32) -> u32 { if P != 0 { 0x822C } else { 0x422C } }
-
 pub fn IXGBE_KRM_AN_CNTL_4(P: u32) -> u32 { if P != 0 { 0x8238 } else { 0x4238 } }
-
 pub fn IXGBE_KRM_AN_CNTL_8(P: u32) -> u32 { if P != 0 { 0x8248 } else { 0x4248 } }
-
 pub fn IXGBE_KRM_PCS_KX_AN(P: u32) -> u32 { if P != 0 { 0x9918 } else { 0x5918 } }
-
 pub fn IXGBE_KRM_PCS_KX_AN_LP(P: u32) -> u32 { if P != 0 { 0x991C } else { 0x591C } }
-
 pub fn IXGBE_KRM_SGMII_CTRL(P: u32) -> u32 { if P != 0 { 0x82A0 } else { 0x42A0 } }
-
 pub fn IXGBE_KRM_LP_BASE_PAGE_HIGH(P: u32) -> u32 { if P != 0 { 0x836C } else { 0x436C } }
-
 pub fn IXGBE_KRM_DSP_TXFFE_STATE_4(P: u32) -> u32 { if P != 0 { 0x8634 } else { 0x4634 } }
-
 pub fn IXGBE_KRM_DSP_TXFFE_STATE_5(P: u32) -> u32 { if P != 0 { 0x8638 } else { 0x4638 } }
-
 pub fn IXGBE_KRM_RX_TRN_LINKUP_CTRL(P: u32) -> u32 { if P != 0 { 0x8B00 } else { 0x4B00 } }
-
 pub fn IXGBE_KRM_PMD_DFX_BURNIN(P: u32) -> u32 { if P != 0 { 0x8E00 } else { 0x4E00 } }
-
 pub fn IXGBE_KRM_PMD_FLX_MASK_ST20(P: u32) -> u32 { if P != 0 { 0x9054 } else { 0x5054 } }
-
 pub fn IXGBE_KRM_TX_COEFF_CTRL_1(P: u32) -> u32 { if P != 0 { 0x9520 } else { 0x5520 } }
-
 pub fn IXGBE_KRM_RX_ANA_CTL(P: u32) -> u32 { if P != 0 { 0x9A00 } else { 0x5A00 } }
 
 pub const IXGBE_KRM_PMD_FLX_MASK_ST20_SFI_10G_DA: u32                  = !(0x3 << 20);
