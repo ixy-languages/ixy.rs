@@ -2,7 +2,6 @@
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
 #![allow(non_upper_case_globals)]
-#![allow(clippy)]
 // list of all NIC registers and some structs
 // copied and changed from the ixy C driver
 
@@ -693,7 +692,7 @@ pub fn IXGBE_TDPT2TCSR(_i: u32) -> u32 { (0x0CD40 + ((_i) * 4)) } /* 8 of these 
 /* Power Management */
 /* DMA Coalescing configuration */
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct ixgbe_dmac_config {
     pub watchdog_timer: u16,
     /* usec units */
@@ -3187,15 +3186,23 @@ pub const FW_PHY_INFO_ID_LO_MASK: u32                                  = 0x0000F
 
 #[repr(C)]
 #[derive(Copy, Clone)]
-pub struct ixgbe_hic_hdr {
-    pub cmd: u8,
-    pub buf_len: u8,
-    pub cmd_resv_or_ret_status: u8,
-    pub checksum: u8,
+pub union ixgbe_hic_hdr_cmd_or_resp {
+    pub cmd_resv: u8,
+    pub ret_status: u8,
+    _union_align: u8,
 }
 
 #[repr(C)]
 #[derive(Copy, Clone)]
+pub struct ixgbe_hic_hdr {
+    pub cmd: u8,
+    pub buf_len: u8,
+    pub cmd_or_resp: ixgbe_hic_hdr_cmd_or_resp,
+    pub checksum: u8,
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
 pub struct ixgbe_hic_hdr2_req {
     pub cmd: u8,
     pub buf_lenh: u8,
@@ -3204,7 +3211,7 @@ pub struct ixgbe_hic_hdr2_req {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct ixgbe_hic_hdr2_rsp {
     pub cmd: u8,
     pub buf_lenl: u8,
@@ -3220,7 +3227,7 @@ pub union ixgbe_hic_hdr2 {
     pub rsp: ixgbe_hic_hdr2_rsp,
 }
 
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Copy, Clone)]
 pub struct ixgbe_hic_drv_info {
     pub hdr: ixgbe_hic_hdr,
@@ -3248,7 +3255,7 @@ pub struct ixgbe_hic_drv_info2 {
 }
 
 /* These need to be dword aligned */
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Copy, Clone)]
 pub struct ixgbe_hic_read_shadow_ram {
     pub hdr: ixgbe_hic_hdr2,
@@ -3259,7 +3266,7 @@ pub struct ixgbe_hic_read_shadow_ram {
     pub pad3: u16,
 }
 
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Copy, Clone)]
 pub struct ixgbe_hic_write_shadow_ram {
     pub hdr: ixgbe_hic_hdr2,
@@ -3270,7 +3277,7 @@ pub struct ixgbe_hic_write_shadow_ram {
     pub pad3: u16,
 }
 
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Copy, Clone)]
 pub struct ixgbe_hic_disable_rxen {
     pub hdr: ixgbe_hic_hdr,
@@ -3279,7 +3286,7 @@ pub struct ixgbe_hic_disable_rxen {
     pub pad3: u16,
 }
 
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Copy, Clone)]
 pub struct ixgbe_hic_phy_token_req {
     pub hdr: ixgbe_hic_hdr,
@@ -3288,7 +3295,7 @@ pub struct ixgbe_hic_phy_token_req {
     pub pad: u16,
 }
 
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Copy, Clone)]
 pub struct ixgbe_hic_internal_phy_req {
     pub hdr: ixgbe_hic_hdr,
@@ -3300,14 +3307,14 @@ pub struct ixgbe_hic_internal_phy_req {
     pub pad: u16,
 }
 
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Copy, Clone)]
 pub struct ixgbe_hic_internal_phy_resp {
     pub hdr: ixgbe_hic_hdr,
     pub read_data: u32,
 }
 
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Copy, Clone)]
 pub struct ixgbe_hic_phy_activity_req {
     pub hdr: ixgbe_hic_hdr,
@@ -3317,11 +3324,22 @@ pub struct ixgbe_hic_phy_activity_req {
     pub data: [u32; FW_PHY_ACT_DATA_COUNT as usize],
 }
 
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Copy, Clone)]
 pub struct ixgbe_hic_phy_activity_resp {
     pub hdr: ixgbe_hic_hdr,
     pub data: [u32; FW_PHY_ACT_DATA_COUNT as usize],
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct ixgbe_legacy_tx_desc_lower_flags {
+    pub length: u16,
+    /* Data buffer length */
+    pub cso: u8,
+    /* Checksum offset */
+    pub cmd: u8,
+    /* Descriptor control */
 }
 
 /* Transmit Descriptor - Legacy */
@@ -3329,18 +3347,12 @@ pub struct ixgbe_hic_phy_activity_resp {
 #[derive(Copy, Clone)]
 pub union ixgbe_legacy_tx_desc_lower {
     pub data: u32,
-    /* flags */
-    pub length: u16,
-    /* Data buffer length */
-    pub cso: u8,
-    /* Checksum offset */
-    pub cmd: u8,
-    /* Descriptor control */
-    /* end flags */
+    pub flags: ixgbe_legacy_tx_desc_lower_flags,
+    _union_align: u32,
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct ixgbe_legacy_tx_desc_upper_fields {
     pub status: u8,
     /* Descriptor status */
@@ -3354,9 +3366,11 @@ pub struct ixgbe_legacy_tx_desc_upper_fields {
 pub union ixgbe_legacy_tx_desc_upper {
     pub data: u32,
     pub fields: ixgbe_legacy_tx_desc_upper_fields,
+    _union_align: u32,
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 pub struct ixgbe_legacy_tx_desc {
     pub buffer_addr: u64,
     /* Address of the descriptor's data buffer */
@@ -3366,7 +3380,7 @@ pub struct ixgbe_legacy_tx_desc {
 
 /* Transmit Descriptor - Advanced */
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct ixgbe_adv_tx_desc_read {
     pub buffer_addr: u64,
     /* Address of descriptor's data buf */
@@ -3375,7 +3389,7 @@ pub struct ixgbe_adv_tx_desc_read {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct ixgbe_adv_tx_desc_wb {
     pub rsvd: u64,
     /* Reserved */
@@ -3388,11 +3402,12 @@ pub struct ixgbe_adv_tx_desc_wb {
 pub union ixgbe_adv_tx_desc {
     pub read: ixgbe_adv_tx_desc_read,
     pub wb: ixgbe_adv_tx_desc_wb,
+    _union_align: [u64; 2],
 }
 
 /* Receive Descriptor - Legacy */
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct ixgbe_legacy_rx_desc {
     pub buffer_addr: u64,
     /* Address of the descriptor's data buffer */
@@ -3408,7 +3423,7 @@ pub struct ixgbe_legacy_rx_desc {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct ixgbe_adv_rx_desc_read {
     pub pkt_addr: u64,
     /* Packet buffer address */
@@ -3418,7 +3433,7 @@ pub struct ixgbe_adv_rx_desc_read {
 
 /* Receive Descriptor - Advanced */
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct ixgbe_adv_rx_desc_wb_lower_lo_dword_hs_rss {
     pub pkt_info: u16,
     /* RSS, Pkt type */
@@ -3434,7 +3449,7 @@ pub union ixgbe_adv_rx_desc_wb_lower_lo_dword {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct ixgbe_adv_rx_desc_wb_lower_hi_dword_csum_ip {
     pub ip_id: u16,
     /* IP id */
@@ -3458,7 +3473,7 @@ pub struct ixgbe_adv_rx_desc_wb_lower {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct ixgbe_adv_rx_desc_wb_upper {
     pub status_error: u32,
     /* ext status/error */
@@ -3480,11 +3495,12 @@ pub struct ixgbe_adv_rx_desc_wb {
 pub union ixgbe_adv_rx_desc {
     pub read: ixgbe_adv_rx_desc_read,
     pub wb: ixgbe_adv_rx_desc_wb, /* writeback */
+    _union_align: [u64; 2],
 }
 
 /* Context descriptors */
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct ixgbe_adv_tx_context_desc {
     pub vlan_macip_lens: u32,
     pub seqnum_seed: u32,
@@ -3681,7 +3697,7 @@ pub enum ixgbe_atr_flow_type {
  * bkt_hash	- 2 bytes
  */
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct ixgbe_atr_input_formatted {
     pub vm_pool: u8,
     pub flow_type: u8,
@@ -3702,10 +3718,11 @@ pub struct ixgbe_atr_input_formatted {
 pub union ixgbe_atr_input {
     pub formatted: ixgbe_atr_input_formatted,
     pub dword_stream: [u32; 14],
+    _union_align: [u32; 14],
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct ixgbe_atr_hash_dword_formatted {
     pub vm_pool: u8,
     pub flow_type: u8,
@@ -3713,7 +3730,7 @@ pub struct ixgbe_atr_hash_dword_formatted {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct ixgbe_atr_hash_dword_port {
     pub src: u16,
     pub dst: u16,
@@ -3728,6 +3745,7 @@ union ixgbe_atr_hash_dword {
     pub port: ixgbe_atr_hash_dword_port,
     pub flex_bytes: u16,
     pub dword: u32,
+    _union_align: u32,
 }
 
 /*
@@ -3849,7 +3867,7 @@ pub enum ixgbe_media_type {
 }
 
 /* Flow Control Settings */
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub enum ixgbe_fc_mode {
     IXGbe_fc_none                     = 0,
     IXGbe_fc_rx_pause,
@@ -3869,7 +3887,7 @@ pub enum ixgbe_smart_speed {
 }
 
 /* PCI bus types */
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub enum ixgbe_bus_type {
     IXGbe_bus_type_unknown            = 0,
     IXGbe_bus_type_pci,
@@ -3880,7 +3898,7 @@ pub enum ixgbe_bus_type {
 }
 
 /* PCI bus speeds */
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub enum ixgbe_bus_speed {
     IXGbe_bus_speed_unknown           = 0,
     IXGbe_bus_speed_33                = 33,
@@ -3895,7 +3913,7 @@ pub enum ixgbe_bus_speed {
 }
 
 /* PCI bus widths */
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub enum ixgbe_bus_width {
     IXGbe_bus_width_unknown           = 0,
     IXGbe_bus_width_pcie_x1           = 1,
@@ -3908,7 +3926,7 @@ pub enum ixgbe_bus_width {
 }
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct ixgbe_addr_filter_info {
     pub num_mc_addrs: u32,
     pub rar_used_count: u32,
@@ -3919,7 +3937,7 @@ pub struct ixgbe_addr_filter_info {
 
 /* Bus parameters */
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct ixgbe_bus_info {
     pub speed: ixgbe_bus_speed,
     pub width: ixgbe_bus_width,
@@ -3931,7 +3949,7 @@ pub struct ixgbe_bus_info {
 
 /* Flow control parameters */
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct ixgbe_fc_info {
     pub high_water: [u32; IXGBE_DCB_MAX_TRAFFIC_CLASS as usize],
     /* Flow Ctrl High-water */
@@ -3955,7 +3973,7 @@ pub struct ixgbe_fc_info {
 
 /* Statistics counters collected by the MAC */
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct ixgbe_hw_stats {
     pub crcerrs: u64,
     pub illerrc: u64,
