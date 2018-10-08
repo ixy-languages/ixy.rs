@@ -1,4 +1,7 @@
 # ixy.rs
+[![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![](https://tokei.rs/b1/github/ixy-languages/ixy.rs?category=code)](https://github.com/ixy-languages/ixy.rs)
+[![](https://tokei.rs/b1/github/ixy-languages/ixy.rs?category=comments)](https://github.com/ixy-languages/ixy.rs)
 
 ixy.rs is a Rust rewrite of the [ixy](https://github.com/emmericp/ixy) userspace network driver.
 It is designed to be readable, idiomatic Rust code.
@@ -8,15 +11,16 @@ It supports Intel 82599 10GbE NICs (`ixgbe` family).
 
 * less than 2000 lines of Rust code for the driver and two sample applications
 * simple API to use, see this README
-* super fast, can saturate a 10 Gbit/s connection with 60 byte packets on a single cpu core
+* super fast, can forward > 26 million packets per second on a single 3.3 GHz CPU core
+* documented code
 
 ## Build instructions
 
-You will need a nightly version of Rust and its package manager `cargo`.
+You will need Rust and its package manager `cargo`.
 Install using:
 
 ```
-curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain nightly
+curl https://sh.rustup.rs -sSf | sh -s -- -y
 source $HOME/.cargo/env
 ```
 
@@ -27,7 +31,8 @@ cd ixy.rs
 sudo ./setup-hugetlbfs.sh
 ```
 
-You can then either build the binaries and run them manually or use `cargo` to build and run them at once (see **Usage**). To build the binaries run:
+You can then either build the binaries and run them manually or use `cargo` to build and run them at once (see **Usage**).
+To build the binaries run:
 
 ```
 cargo build --release --all-targets
@@ -54,7 +59,7 @@ sudo cargo run --release --example forwarder 0000:AA:BB.C 0000:AA:BB.D
 
 `src/lib.rs` defines ixy.rs's public API.
 
-### Example
+### Examples
 
 `examples` contains all sample applications included in this crate.
 
