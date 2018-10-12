@@ -16,7 +16,7 @@ pub fn unbind_driver(pci_addr: &str) -> Result<(), Box<Error>> {
         Ok(mut f) => {
             write!(f, "{}", pci_addr)?;
             Ok(())
-        }
+        },
         Err(ref e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(Box::new(e)),
     }
@@ -59,7 +59,7 @@ pub fn pci_map_resource(pci_addr: &str) -> Result<(*mut u8, usize), Box<Error>> 
         ) as *mut u8
     };
 
-    if ptr.is_null() || (ptr as isize) < 0 || len == 0 {
+    if ptr.is_null() || len == 0 {
         Err("pci mapping failed".into())
     } else {
         Ok((ptr, len))

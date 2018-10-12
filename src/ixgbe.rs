@@ -22,7 +22,7 @@ const NUM_RX_QUEUE_ENTRIES: usize = 512;
 const NUM_TX_QUEUE_ENTRIES: usize = 512;
 const TX_CLEAN_BATCH: usize = 32;
 
-const fn wrap_ring(index: usize, ring_size: usize) -> usize {
+fn wrap_ring(index: usize, ring_size: usize) -> usize {
     (index + 1) & (ring_size - 1)
 }
 
@@ -39,15 +39,16 @@ pub struct IxgbeDevice {
 struct IxgbeRxQueue {
     descriptors: *mut ixgbe_adv_rx_desc,
     num_descriptors: usize,
-    pool: Rc<RefCell<Packetpool>>,
-    pkts_in_use: Vec<Packet>,
+    pool: Rc<RefCell<Mempool>>,
+    bufs_in_use: Vec<usize>,
     rx_index: usize,
 }
 
 struct IxgbeTxQueue {
     descriptors: *mut ixgbe_adv_tx_desc,
     num_descriptors: usize,
-    pkts_in_use: VecDeque<Packet>,
+    pool: Option<Rc<RefCell<Mempool>>>,
+    bufs_in_use: VecDeque<usize>,
     clean_index: usize,
     tx_index: usize,
 }
@@ -125,9 +126,7 @@ impl IxyDevice for IxgbeDevice {
             last_rx_index = queue.rx_index;
 
             for i in 0..num_packets {
-                let desc = unsafe {
-                    queue.descriptors.offset(rx_index as isize) as *mut ixgbe_adv_rx_desc
-                };
+                let desc = unsafe { queue.descriptors.add(rx_index) as *mut ixgbe_adv_rx_desc };
                 let status =
                     unsafe { ptr::read_volatile(&mut (*desc).wb.upper.status_error as *mut u32) };
 
@@ -138,28 +137,30 @@ impl IxyDevice for IxgbeDevice {
 
                     let mut pool = queue.pool.borrow_mut();
 
-                    let p = pool
-                        .alloc_pkt()
-                        .unwrap_or_else(|| panic!("no buffer available"));
+                    // get a free buffer from the mempool
+                    let buf = pool.alloc_buf().expect("no buffer available");
 
-                    let mut p = mem::replace(&mut queue.pkts_in_use[rx_index], p);
+                    // replace currently used buffer with new buffer
+                    let mut buf = mem::replace(&mut queue.bufs_in_use[rx_index], buf);
 
-                    // read ixgbe_adv_rx_desc.wb.upper.length
-                    unsafe {
-                        p.set_size(
-                            ptr::read_volatile(&(*desc).wb.upper.length as *const u16) as usize
-                        )
+                    let p = unsafe {
+                        Packet {
+                            addr_virt: pool.get_virt_addr(buf),
+                            addr_phys: pool.get_phys_addr(buf),
+                            len: ptr::read_volatile(&(*desc).wb.upper.length as *const u16)
+                                as usize,
+                            pool: queue.pool.clone(),
+                            pool_entry: buf,
+                        }
                     };
 
                     buffer.push_back(p);
 
                     unsafe {
-                        // write to ixgbe_adv_rx_desc.read.pkt_addr
                         ptr::write_volatile(
                             &mut (*desc).read.pkt_addr as *mut u64,
-                            queue.pkts_in_use[rx_index].get_phys_addr() as u64,
+                            pool.get_phys_addr(queue.bufs_in_use[rx_index]) as u64,
                         );
-                        // write to ixgbe_adv_rx_desc.read.hdr_addr
                         ptr::write_volatile(&mut (*desc).read.hdr_addr as *mut u64, 0);
                     }
 
@@ -190,7 +191,19 @@ impl IxyDevice for IxgbeDevice {
             let mut cur_index = queue.tx_index;
             let clean_index = clean_tx_queue(&mut queue);
 
+            if queue.pool.is_none() {
+                if let Some(packet) = packets.get(0) {
+                    queue.pool = Some(packet.pool.clone());
+                }
+            }
+
             while let Some(packet) = packets.pop_front() {
+                assert_eq!(
+                    queue.pool.as_ref().unwrap().as_ptr(),
+                    packet.pool.as_ptr(),
+                    "distinct memory pools for a single tx queue are not supported yet"
+                );
+
                 let next_index = wrap_ring(cur_index, queue.num_descriptors);
 
                 if clean_index == next_index {
@@ -200,18 +213,12 @@ impl IxyDevice for IxgbeDevice {
                 queue.tx_index = wrap_ring(queue.tx_index, queue.num_descriptors);
 
                 unsafe {
-                    // write to ixgbe_adv_tx_desc.read.buffer_addr
                     ptr::write_volatile(
-                        &mut (*queue.descriptors.offset(cur_index as isize))
-                            .read
-                            .buffer_addr as *mut u64,
+                        &mut (*queue.descriptors.add(cur_index)).read.buffer_addr as *mut u64,
                         packet.get_phys_addr() as u64,
                     );
-                    // write to ixgbe_adv_tx_desc.read.cmd_type_len
                     ptr::write_volatile(
-                        &mut (*queue.descriptors.offset(cur_index as isize))
-                            .read
-                            .cmd_type_len as *mut u32,
+                        &mut (*queue.descriptors.add(cur_index)).read.cmd_type_len as *mut u32,
                         IXGBE_ADVTXD_DCMD_EOP
                             | IXGBE_ADVTXD_DCMD_RS
                             | IXGBE_ADVTXD_DCMD_IFCS
@@ -219,16 +226,14 @@ impl IxyDevice for IxgbeDevice {
                             | IXGBE_ADVTXD_DTYP_DATA
                             | packet.len() as u32,
                     );
-                    // write to ixgbe_adv_tx_desc.read.olinfo_status
                     ptr::write_volatile(
-                        &mut (*queue.descriptors.offset(cur_index as isize))
-                            .read
-                            .olinfo_status as *mut u32,
+                        &mut (*queue.descriptors.add(cur_index)).read.olinfo_status as *mut u32,
                         (packet.len() as u32) << IXGBE_ADVTXD_PAYLEN_SHIFT,
                     );
                 }
 
-                queue.pkts_in_use.push_back(packet);
+                queue.bufs_in_use.push_back(packet.pool_entry);
+                mem::forget(packet);
 
                 cur_index = next_index;
                 sent += 1;
@@ -306,7 +311,7 @@ impl IxgbeDevice {
         // section 4.6.3 - wait for dma initialization done
         self.wait_set_reg32(IXGBE_RDRXCTL, IXGBE_RDRXCTL_DMAIDONE);
 
-        // skip last step from 4.6.3 - we don't want interrups
+        // skip last step from 4.6.3 - we don't want interrupts
 
         // section 4.6.4 - initialize link (auto negotiation)
         self.init_link();
@@ -387,7 +392,7 @@ impl IxgbeDevice {
             self.set_reg32(IXGBE_RDBAH(u32::from(i)), (dma.phys as u64 >> 32) as u32);
             self.set_reg32(IXGBE_RDLEN(u32::from(i)), ring_size_bytes as u32);
 
-            debug!("rx ring {} phys addr: {:p}", i, dma.phys);
+            debug!("rx ring {} phys addr: {:#x}", i, dma.phys);
             debug!("rx ring {} virt addr: {:p}", i, dma.virt);
 
             // set ring to empty at start
@@ -400,14 +405,14 @@ impl IxgbeDevice {
                 NUM_RX_QUEUE_ENTRIES + NUM_TX_QUEUE_ENTRIES
             };
 
-            let mempool = Packetpool::allocate(mempool_size as usize, 2048).unwrap();
+            let mempool = Mempool::allocate(mempool_size as usize, 2048).unwrap();
 
             let rx_queue = IxgbeRxQueue {
                 descriptors: dma.virt,
                 pool: mempool,
                 num_descriptors: NUM_RX_QUEUE_ENTRIES,
                 rx_index: 0,
-                pkts_in_use: Vec::with_capacity(NUM_RX_QUEUE_ENTRIES),
+                bufs_in_use: Vec::with_capacity(NUM_RX_QUEUE_ENTRIES),
             };
 
             self.rx_queues.push(rx_queue);
@@ -462,7 +467,7 @@ impl IxgbeDevice {
             self.set_reg32(IXGBE_TDBAH(u32::from(i)), (dma.phys as u64 >> 32) as u32);
             self.set_reg32(IXGBE_TDLEN(u32::from(i)), ring_size_bytes as u32);
 
-            debug!("tx ring {} phys addr: {:p}", i, dma.phys);
+            debug!("tx ring {} phys addr: {:#x}", i, dma.phys);
             debug!("tx ring {} virt addr: {:p}", i, dma.virt);
 
             // descriptor writeback magic values, important to get good performance and low PCIe overhead
@@ -478,7 +483,8 @@ impl IxgbeDevice {
 
             let tx_queue = IxgbeTxQueue {
                 descriptors: dma.virt,
-                pkts_in_use: VecDeque::new(),
+                bufs_in_use: VecDeque::new(),
+                pool: None,
                 num_descriptors: NUM_TX_QUEUE_ENTRIES,
                 clean_index: 0,
                 tx_index: 0,
@@ -507,28 +513,25 @@ impl IxgbeDevice {
             for i in 0..queue.num_descriptors {
                 let pool = &queue.pool;
 
-                let mut p = if let Some(x) = pool.borrow_mut().alloc_pkt() {
-                    x
-                } else {
-                    return Err("failed to allocate rx descriptor".into());
+                let mut buf = match pool.borrow_mut().alloc_buf() {
+                    Some(x) => x,
+                    None => return Err("failed to allocate rx descriptor".into()),
                 };
 
                 unsafe {
-                    // write to ixgbe_adv_rx_desc.read.pkt_addr
                     ptr::write_volatile(
-                        &mut (*queue.descriptors.offset(i as isize)).read.pkt_addr as *mut u64,
-                        p.get_phys_addr() as u64,
+                        &mut (*queue.descriptors.add(i)).read.pkt_addr as *mut u64,
+                        pool.borrow_mut().get_phys_addr(buf) as u64,
                     );
 
-                    // write to ixgbe_adv_rx_desc.read.hdr_addr
                     ptr::write_volatile(
-                        &mut (*queue.descriptors.offset(i as isize)).read.hdr_addr as *mut u64,
+                        &mut (*queue.descriptors.add(i)).read.hdr_addr as *mut u64,
                         0,
                     );
                 }
 
                 // we need to remember which descriptor entry belongs to which mempool entry
-                queue.pkts_in_use.push(p);
+                queue.bufs_in_use.push(buf);
             }
         }
 
@@ -613,7 +616,7 @@ impl IxgbeDevice {
         }
     }
 
-    /// Returns the register value at `self.addr` + `reg`.
+    /// Returns the register at `self.addr` + `reg`.
     ///
     /// # Panics
     ///
@@ -627,7 +630,7 @@ impl IxgbeDevice {
         unsafe { ptr::read_volatile((self.addr as usize + reg as usize) as *mut u32) }
     }
 
-    /// Sets the register value at `self.addr` + `reg` to `value`.
+    /// Sets the register at `self.addr` + `reg` to `value`.
     ///
     /// # Panics
     ///
@@ -698,19 +701,28 @@ fn clean_tx_queue(queue: &mut IxgbeTxQueue) -> usize {
             cleanup_to -= queue.num_descriptors;
         }
 
-        // read from ixgbe_adv_tx_desc.wb.status
         let status = unsafe {
-            ptr::read_volatile(
-                &(*queue.descriptors.offset(cleanup_to as isize)).wb.status as *const u32,
-            )
+            ptr::read_volatile(&(*queue.descriptors.add(cleanup_to)).wb.status as *const u32)
         };
 
         if (status & IXGBE_ADVTXD_STAT_DD) != 0 {
-            if TX_CLEAN_BATCH as usize >= queue.pkts_in_use.len() {
-                queue.pkts_in_use.drain(..)
-            } else {
-                queue.pkts_in_use.drain(..TX_CLEAN_BATCH as usize)
-            };
+            if let Some(ref p) = queue.pool {
+                if TX_CLEAN_BATCH as usize >= queue.bufs_in_use.len() {
+                    p.borrow_mut().free_stack.append(
+                        &mut queue
+                            .bufs_in_use
+                            .drain(..)
+                            .collect::<Vec<usize>>()
+                    )
+                } else {
+                    p.borrow_mut().free_stack.append(
+                        &mut queue
+                            .bufs_in_use
+                            .drain(..TX_CLEAN_BATCH)
+                            .collect::<Vec<usize>>(),
+                    )
+                }
+            }
 
             clean_index = wrap_ring(cleanup_to, queue.num_descriptors);
         } else {
@@ -723,32 +735,3 @@ fn clean_tx_queue(queue: &mut IxgbeTxQueue) -> usize {
     clean_index
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::alloc::{self, Layout};
-
-    #[test]
-    fn clean_tx_queue_test() {
-        let num_descriptors = 8;
-
-        let capacity = num_descriptors * mem::size_of::<ixgbe_adv_tx_desc>();
-        let layout = Layout::from_size_align(capacity, mem::align_of::<ixgbe_adv_tx_desc>())
-            .expect("bad layout");
-
-        let descriptors = unsafe { alloc::alloc(layout) } as *mut ixgbe_adv_tx_desc;
-
-        let mut q = IxgbeTxQueue {
-            descriptors,
-            pkts_in_use: VecDeque::new(),
-            num_descriptors,
-            clean_index: 0,
-            tx_index: 4,
-        };
-
-        unsafe { ptr::write_volatile(&mut (*q.descriptors.offset(3)).wb.status as *mut u32, 0) };
-        let r = clean_tx_queue(&mut q);
-
-        assert_eq!(r, 0);
-    }
-}

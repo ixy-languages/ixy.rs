@@ -4,21 +4,12 @@
 //! It is designed to be readable, idiomatic Rust code.
 //! It supports Intel 82599 10GbE NICs (ixgbe family).
 
-#![feature(const_fn)]
-#![feature(untagged_unions)]
-
 extern crate byteorder;
 extern crate libc;
 #[macro_use]
 extern crate log;
 
-#[allow(dead_code)]
-#[allow(non_snake_case)]
-#[allow(non_camel_case_types)]
-#[allow(non_upper_case_globals)]
-#[allow(clippy)]
 mod constants;
-
 mod ixgbe;
 pub mod memory;
 mod pci;
@@ -46,7 +37,7 @@ pub trait IxyDevice {
     fn get_pci_addr(&self) -> &str;
 
     /// Pushes up to `num_packets` `Packet`s onto `buffer` depending on the amount of
-    /// received packets by the network card.
+    /// received packets by the network card. Returns the number of received packets.
     ///
     /// # Examples
     ///
@@ -68,7 +59,7 @@ pub trait IxyDevice {
     ) -> usize;
 
     /// Takes `Packet`s out of `buffer` until `buffer` is empty or the network card's tx
-    /// queue is full.
+    /// queue is full. Returns the number of sent packets.
     ///
     /// # Examples
     ///
@@ -134,7 +125,7 @@ pub struct DeviceStats {
 
 impl DeviceStats {
     ///  Prints the stats differences between `stats_old` and `self`.
-    pub fn print_stats_diff(&self, dev: &impl IxyDevice, stats_old: &DeviceStats, nanos: u64) {
+    pub fn print_stats_diff(&self, dev: &impl IxyDevice, stats_old: &DeviceStats, nanos: u32) {
         let pci_addr = dev.get_pci_addr();
         let mbits = self.diff_mbit(
             self.rx_bytes,
@@ -164,16 +155,16 @@ impl DeviceStats {
         bytes_old: u64,
         pkts_new: u64,
         pkts_old: u64,
-        nanos: u64,
+        nanos: u32,
     ) -> f64 {
-        (((bytes_new - bytes_old) as f64 / 1_000_000.0 / (nanos as f64 / 1_000_000_000.0))
+        (((bytes_new - bytes_old) as f64 / 1_000_000.0 / (f64::from(nanos) / 1_000_000_000.0))
             * f64::from(8)
             + self.diff_mpps(pkts_new, pkts_old, nanos) * f64::from(20) * f64::from(8))
     }
 
     /// Returns Mpps between two points in time.
-    fn diff_mpps(&self, pkts_new: u64, pkts_old: u64, nanos: u64) -> f64 {
-        (pkts_new - pkts_old) as f64 / 1_000_000.0 / (nanos as f64 / 1_000_000_000.0)
+    fn diff_mpps(&self, pkts_new: u64, pkts_old: u64, nanos: u32) -> f64 {
+        (pkts_new - pkts_old) as f64 / 1_000_000.0 / (f64::from(nanos) / 1_000_000_000.0)
     }
 }
 

@@ -1,5 +1,3 @@
-#![feature(duration_as_u128)]
-
 extern crate ixy;
 extern crate simple_logger;
 
@@ -8,12 +6,12 @@ use std::env;
 use std::process;
 use std::time::Instant;
 
-use ixy::memory::{alloc_pkt_batch, Packet, Packetpool};
+use ixy::memory::{alloc_pkt_batch, Packet, Mempool};
 use ixy::*;
 
 // number of packets sent simultaneously by our driver
 const BATCH_SIZE: usize = 32;
-// number of packets in our packetpool
+// number of packets in our mempool
 const NUM_PACKETS: usize = 2048;
 // size of our packets
 const PACKET_SIZE: usize = 60;
@@ -53,7 +51,7 @@ pub fn main() {
         // rest of the payload is zero-filled because mempools guarantee empty bufs
     ];
 
-    let pool = Packetpool::allocate(NUM_PACKETS, 0).unwrap();
+    let pool = Mempool::allocate(NUM_PACKETS, 0).unwrap();
 
     // pre-fill all packet buffer in the pool with data and return them to the packet pool
     {
@@ -98,7 +96,8 @@ pub fn main() {
 
         // don't poll the time unnecessarily
         if counter & 0xfff == 0 {
-            let nanos = time.elapsed().as_nanos() as u64;
+            let elapsed = time.elapsed();
+            let nanos = elapsed.as_secs() as u32 * 1_000_000_000 + elapsed.subsec_nanos();
             // every second
             if nanos > 1_000_000_000 {
                 dev.read_stats(&mut dev_stats);
