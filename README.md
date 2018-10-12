@@ -38,7 +38,7 @@ To build the binaries run:
 cargo build --release --all-targets
 ```
 
-The built binaries are located in `targets/release/examples/`.
+The built binaries are located in `target/release/examples/`.
 
 ## Usage
 
