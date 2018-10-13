@@ -483,7 +483,7 @@ impl IxgbeDevice {
 
             let tx_queue = IxgbeTxQueue {
                 descriptors: dma.virt,
-                bufs_in_use: VecDeque::new(),
+                bufs_in_use: VecDeque::with_capacity(NUM_TX_QUEUE_ENTRIES),
                 pool: None,
                 num_descriptors: NUM_TX_QUEUE_ENTRIES,
                 clean_index: 0,
