@@ -10,7 +10,7 @@ extern crate libc;
 extern crate log;
 
 mod constants;
-mod ixgbe;
+pub mod ixgbe;
 pub mod memory;
 mod pci;
 
@@ -92,10 +92,10 @@ pub trait IxyDevice {
     /// Resets the network card's stats registers.
     ///
     /// # Examples
-    ///
-    /// ```rust,no_run
-    /// use ixy::*;
-    ///
+    ///IxyDevice
+    ///IxyDevice
+    ///IxyDevice
+    ///IxyDevice
     /// let mut dev = ixy_init("0000:01:00.0", 1, 1).unwrap();
     /// dev.reset_stats();
     /// ```
@@ -175,7 +175,7 @@ pub fn ixy_init(
     pci_addr: &str,
     rx_queues: u16,
     tx_queues: u16,
-) -> Result<impl IxyDevice, Box<Error>> {
+) -> Result<IxgbeDevice, Box<Error>> {
     let mut config_file = pci_open_resource(pci_addr, "config").expect("wrong pci address");
 
     let vendor_id = read_io16(&mut config_file, 0)?;

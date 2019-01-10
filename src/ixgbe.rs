@@ -2,14 +2,18 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::error::Error;
 use std::fs;
-use std::fs::OpenOptions;
+use std::fs::{File, OpenOptions};
+use std::io::{Seek, SeekFrom};
 use std::mem;
-use std::os::unix::io::AsRawFd;
+use std::os::unix::io::{AsRawFd, FromRawFd};
+use std::os::unix::io::RawFd;
 use std::path::Path;
 use std::ptr;
 use std::rc::Rc;
 use std::thread;
 use std::time::{Duration, Instant};
+
+use byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
 
 use constants::*;
 use memory::*;
@@ -33,11 +37,15 @@ const VFIO_SET_IOMMU: u64 = 15206;
 const VFIO_GROUP_GET_STATUS: u64 = 15207;
 const VFIO_GROUP_SET_CONTAINER: u64 = 15208;
 const VFIO_GROUP_GET_DEVICE_FD:u64 = 15210;
-const VFIO_IOMMU_GET_INFO: u64 = 15216;
+const VFIO_DEVICE_GET_REGION_INFO:u64 = 15212;
+//const VFIO_IOMMU_GET_INFO: u64 = 15216;
+
 const VFIO_API_VERSION: i32 = 0;
 const VFIO_TYPE1_IOMMU: u64 = 1;
 const VFIO_GROUP_FLAGS_VIABLE: u32 = 1;
-const VFIO_GROUP_FLAGS_CONTAINER_SET: u32 = 2;
+//const VFIO_GROUP_FLAGS_CONTAINER_SET: u32 = 2;
+const VFIO_PCI_CONFIG_REGION_INDEX: u32 = 7;
+const VFIO_PCI_BAR0_REGION_INDEX: u32 = 0;
 
 /* struct vfio_group_status, grabbed from linux/vfio.h */
 struct vfio_group_status {
@@ -45,29 +53,30 @@ struct vfio_group_status {
     flags: u32,
 }
 
-/* struct vfio_iommu_type1_info, grabbed from linux/vfio.h */
-struct vfio_iommu_type1_info {
+/* struct vfio_region_info, grabbed from linux/vfio.h */
+struct vfio_region_info {
     argsz: u32,
     flags: u32,
-    iova_pgsizes: u64,
+    index: u32,
+    cap_offset: u32,
+    size: u64,
+    offset: u64,
 }
+
+/* struct vfio_iommu_type1_info, grabbed from linux/vfio.h */
+// struct vfio_iommu_type1_info {
+//     argsz: u32,
+//     flags: u32,
+//     iova_pgsizes: u64,
+// }
 
 /* struct vfio_device_info, grabbed from linux/vfio.h */
-struct vfio_device_info {
-    argsz: u32,
-    flags: u32,
-    num_regions: u32,
-    num_irqs: u32,
-}
-
-/* struct vfio_iommu_type1_dma_map, grabbed from linux/vfio.h */
-struct vfio_iommu_type1_dma_map {
-    argsz: u32,
-    flags: u32,
-    vaddr: u64,
-    iova: u64,
-    size: u64,
-}
+// struct vfio_device_info {
+//     argsz: u32,
+//     flags: u32,
+//     num_regions: u32,
+//     num_irqs: u32,
+// }
 
 fn wrap_ring(index: usize, ring_size: usize) -> usize {
     (index + 1) & (ring_size - 1)
@@ -81,10 +90,9 @@ pub struct IxgbeDevice {
     num_tx_queues: u16,
     rx_queues: Vec<IxgbeRxQueue>,
     tx_queues: Vec<IxgbeTxQueue>,
-    iommu: bool,
     vfio_dfd: i32,
-    vfio_gfd: i32,
-    vfio_cfd: i32,
+    //vfio_gfd: i32,
+    pub vfio_cfd: i32,
 }
 
 struct IxgbeRxQueue {
@@ -134,16 +142,17 @@ impl IxyDevice for IxgbeDevice {
         // check if iommu is activated
         // iommu is activated if there is a iommu_group symlink in /sys/bus/pci/devices/$pci_addr
         let iommu = Path::new(&format!("/sys/bus/pci/devices/{}/iommu_group/", pci_addr)).exists();
-        // ToDo (stefan.huber@stusta.de): unload ixgbe driver, load vfio driver
+        // ToDo (stefan.huber@stusta.de): unload ixgbe driver, load vfio driver (nicetohave)
         let vfio_dfd: i32;
         let vfio_gfd: i32;
         let vfio_cfd: i32;
+        let addr: *mut u8;
+        let len: usize;
         if iommu {
             /* we also have to build these vfio structs... */
-            let mut group_status: vfio_group_status = vfio_group_status { argsz: mem::size_of::<vfio_group_status> as u32, flags: 0, };
-            let mut iommu_info: vfio_iommu_type1_info = vfio_iommu_type1_info { argsz: mem::size_of::<vfio_iommu_type1_info> as u32, flags: 0, iova_pgsizes: 0, };
-            let mut dma_map: vfio_iommu_type1_dma_map = vfio_iommu_type1_dma_map { argsz: mem::size_of::<vfio_iommu_type1_dma_map> as u32, flags: 0, size: 0, iova: 0, vaddr: 0, };
-            let mut device_info: vfio_device_info = vfio_device_info { argsz: mem::size_of::<vfio_device_info> as u32, flags: 0, num_irqs: 0, num_regions: 0, };
+            let group_status: vfio_group_status = vfio_group_status { argsz: mem::size_of::<vfio_group_status> as u32, flags: 0, };
+            //let mut iommu_info: vfio_iommu_type1_info = vfio_iommu_type1_info { argsz: mem::size_of::<vfio_iommu_type1_info> as u32, flags: 0, iova_pgsizes: 0, };
+            //let mut device_info: vfio_device_info = vfio_device_info { argsz: mem::size_of::<vfio_device_info> as u32, flags: 0, num_irqs: 0, num_regions: 0, };
 
             /* Open new VFIO Container */
             vfio_cfd = OpenOptions::new()
@@ -184,18 +193,71 @@ impl IxyDevice for IxgbeDevice {
                 libc::ioctl(vfio_cfd, VFIO_SET_IOMMU, VFIO_TYPE1_IOMMU);
 
                 /* Get addition IOMMU info */
-                libc::ioctl(vfio_cfd, VFIO_IOMMU_GET_INFO, &iommu_info);
+                //libc::iocfiletl(vfio_cfd, VFIO_IOMMU_GET_INFO, &iommu_info);
 
                 /* Get a file descriptor for the device */
                 vfio_dfd = libc::ioctl(vfio_gfd, VFIO_GROUP_GET_DEVICE_FD, pci_addr);
+
+                /* write to the command register (offset 4) in the PCIe config space */
+                let command_register_offset = 4;
+                /* bit 2 is "bus master enable", see PCIe 3.0 specification section 7.5.1.1 */
+                let bus_master_enable_bit = 2;
+                
+                /* map config space */
+                /* Get region info for config region */
+                let conf_reg: vfio_region_info = vfio_region_info {
+                    argsz: mem::size_of::<vfio_region_info> as u32,
+                    flags: 0,
+                    index: VFIO_PCI_CONFIG_REGION_INDEX,
+                    cap_offset: 0,
+                    size: 0,
+                    offset: 0,
+                };
+                let ioctl_result = libc::ioctl(vfio_dfd, VFIO_DEVICE_GET_REGION_INFO, &conf_reg);
+
+                /* set DMA bit */
+                let mut devicefile = File::from_raw_fd(vfio_dfd as RawFd);
+
+                assert_eq!(devicefile.seek(SeekFrom::Start(conf_reg.offset + command_register_offset))?, conf_reg.offset + command_register_offset);
+                let mut dma = devicefile.read_u16::<NativeEndian>()?;
+
+                dma |= 1 << bus_master_enable_bit;
+
+                assert_eq!(devicefile.seek(SeekFrom::Start(conf_reg.offset + command_register_offset))?, conf_reg.offset + command_register_offset);
+                devicefile.write_u16::<NativeEndian>(dma)?;
+
+                /* map BAR0 space */
+                let bar0_reg: vfio_region_info = vfio_region_info {
+                    argsz: mem::size_of::<vfio_region_info> as u32,
+                    flags: 0,
+                    index: VFIO_PCI_BAR0_REGION_INDEX,
+                    cap_offset: 0,
+                    size: 0,
+                    offset: 0,
+                };
+                let ioctl_result = libc::ioctl(vfio_dfd, VFIO_DEVICE_GET_REGION_INFO, &bar0_reg);
+
+                len = bar0_reg.size as usize;
+
+                let ptr = libc::mmap(
+                        ptr::null_mut(),
+                        len,
+                        libc::PROT_READ | libc::PROT_WRITE,
+                        libc::MAP_SHARED,
+                        devicefile.as_raw_fd(),
+                        bar0_reg.offset as i64,
+                    ) as *mut u8;
+                addr = ptr;
             }
         } else {
             vfio_dfd = -1;
             vfio_gfd = -1;
             vfio_cfd = -1;
+            let (addrtemp, lentemp) = pci_map_resource(pci_addr)?;
+            addr = addrtemp;
+            len = lentemp;
         }
 
-        let (addr, len) = pci_map_resource(pci_addr)?;
         let rx_queues = Vec::with_capacity(num_rx_queues as usize);
         let tx_queues = Vec::with_capacity(num_tx_queues as usize);
         let mut dev = IxgbeDevice {
@@ -206,9 +268,8 @@ impl IxyDevice for IxgbeDevice {
             num_tx_queues,
             rx_queues,
             tx_queues,
-            iommu,
             vfio_dfd,
-            vfio_gfd,
+            //vfio_gfd,
             vfio_cfd,
         };
 
@@ -497,7 +558,7 @@ impl IxgbeDevice {
             let ring_size_bytes =
                 (NUM_RX_QUEUE_ENTRIES) as usize * mem::size_of::<ixgbe_adv_rx_desc>();
 
-            let dma: Dma<ixgbe_adv_rx_desc> = Dma::allocate(ring_size_bytes, true)?;
+            let dma: Dma<ixgbe_adv_rx_desc> = Dma::allocate(ring_size_bytes, true, self)?;
 
             // initialize to 0xff to prevent rogue memory accesses on premature dma activation
             unsafe {
@@ -524,7 +585,7 @@ impl IxgbeDevice {
                 NUM_RX_QUEUE_ENTRIES + NUM_TX_QUEUE_ENTRIES
             };
 
-            let mempool = Mempool::allocate(mempool_size as usize, 2048).unwrap();
+            let mempool = Mempool::allocate(mempool_size as usize, 2048, self).unwrap();
 
             let rx_queue = IxgbeRxQueue {
                 descriptors: dma.virt,
@@ -574,7 +635,7 @@ impl IxgbeDevice {
             let ring_size_bytes =
                 NUM_TX_QUEUE_ENTRIES as usize * mem::size_of::<ixgbe_adv_tx_desc>();
 
-            let dma: Dma<ixgbe_adv_tx_desc> = Dma::allocate(ring_size_bytes, true)?;
+            let dma: Dma<ixgbe_adv_tx_desc> = Dma::allocate(ring_size_bytes, true, self)?;
             unsafe {
                 memset(dma.virt as *mut u8, ring_size_bytes, 0xff);
             }
