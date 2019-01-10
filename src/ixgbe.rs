@@ -141,7 +141,7 @@ impl IxyDevice for IxgbeDevice {
 
         // check if iommu is activated
         // iommu is activated if there is a iommu_group symlink in /sys/bus/pci/devices/$pci_addr
-        let iommu = Path::new(&format!("/sys/bus/pci/devices/{}/iommu_group/", pci_addr)).exists();
+        let iommu = Path::new(&format!("/sys/bus/pci/devices/{}/iommu_group", pci_addr)).exists();
         // ToDo (stefan.huber@stusta.de): unload ixgbe driver, load vfio driver (nicetohave)
         let vfio_dfd: i32;
         let vfio_gfd: i32;
@@ -161,7 +161,7 @@ impl IxyDevice for IxgbeDevice {
                 .open("/dev/vfio/vfio")?.as_raw_fd();
 
             /* find vfio group for device */
-            let link = fs::read_link(format!("/sys/bus/pci/devices/{}/iommu_group/", pci_addr))?;
+            let link = fs::read_link(format!("/sys/bus/pci/devices/{}/iommu_group", pci_addr))?;
             let group = link.file_name().unwrap().to_str().unwrap().parse::<i32>().unwrap();
             unsafe {
                 /* check IOMMU API version */
