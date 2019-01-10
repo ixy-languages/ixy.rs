@@ -46,7 +46,7 @@ impl<T> Dma<T> {
             size
         };
 
-        if unsafe{ (*dev).vfio_cfd } != -1 {
+        if ! unsafe{ (*dev).iommu } {
             // get an anonymous mapped memory space from kernel
             let ptr = unsafe {
                 libc::mmap(
@@ -73,7 +73,7 @@ impl<T> Dma<T> {
                     };
 
                 let ioctl_result = unsafe {
-                    libc::ioctl((*dev).vfio_cfd, VFIO_IOMMU_MAP_DMA, &iommu_dma_map)
+                    libc::ioctl((*dev).cfd, VFIO_IOMMU_MAP_DMA, &iommu_dma_map)
                 };
                 if ioctl_result != -1 {
                     let memory = Dma {

@@ -90,9 +90,12 @@ pub struct IxgbeDevice {
     num_tx_queues: u16,
     rx_queues: Vec<IxgbeRxQueue>,
     tx_queues: Vec<IxgbeTxQueue>,
-    vfio_dfd: i32,
-    //vfio_gfd: i32,
-    pub vfio_cfd: i32,
+    pub iommu: bool,
+    vfio_device_file_descriptor: RawFd,
+    vfio_group_file: Option<File>,
+    pub gfd: RawFd,
+    pub vfio_container_file: Option<File>,
+    pub cfd: RawFd,
 }
 
 struct IxgbeRxQueue {
@@ -143,9 +146,11 @@ impl IxyDevice for IxgbeDevice {
         // iommu is activated if there is a iommu_group symlink in /sys/bus/pci/devices/$pci_addr
         let iommu = Path::new(&format!("/sys/bus/pci/devices/{}/iommu_group", pci_addr)).exists();
         // ToDo (stefan.huber@stusta.de): unload ixgbe driver, load vfio driver (nicetohave)
-        let vfio_dfd: i32;
-        let vfio_gfd: i32;
-        let vfio_cfd: i32;
+        let device_file_descriptor: RawFd;
+        let group_file: Option<File>;
+        let gfd: RawFd;
+        let container_file: Option<File>;
+        let cfd: RawFd;
         let addr: *mut u8;
         let len: usize;
         if iommu {
@@ -155,48 +160,51 @@ impl IxyDevice for IxgbeDevice {
             //let mut device_info: vfio_device_info = vfio_device_info { argsz: mem::size_of::<vfio_device_info> as u32, flags: 0, num_irqs: 0, num_regions: 0, };
 
             /* Open new VFIO Container */
-            vfio_cfd = OpenOptions::new()
+            /* Caveat: OpenOptions(...).open(...).as_raw_fd() closes the file again instantly, staling the file descriptor! */
+            container_file = Some(OpenOptions::new()
                 .read(true)
                 .write(true)
-                .open("/dev/vfio/vfio")?.as_raw_fd();
+                .open("/dev/vfio/vfio")?);
 
             /* find vfio group for device */
             let link = fs::read_link(format!("/sys/bus/pci/devices/{}/iommu_group", pci_addr))?;
             let group = link.file_name().unwrap().to_str().unwrap().parse::<i32>().unwrap();
             unsafe {
+                cfd = get_raw_fd(&container_file);
                 /* check IOMMU API version */
-                if libc::ioctl(vfio_cfd, VFIO_GET_API_VERSION) != VFIO_API_VERSION {
+                if libc::ioctl(cfd, VFIO_GET_API_VERSION) != VFIO_API_VERSION {
                     info!("Unknown VFIO API Version. Application will probably die soon(ish).");
                 }
 
                 /* check if device supports Type1 IOMMU */
-                if libc::ioctl(vfio_cfd, VFIO_CHECK_EXTENSION, VFIO_TYPE1_IOMMU) != 1 {
+                if libc::ioctl(cfd, VFIO_CHECK_EXTENSION, VFIO_TYPE1_IOMMU) != 1 {
                     info!("Device doesn't support Type1 IOMMU. Application will probably crash soon(ish).");
                 }
 
                 /* open the devices' group */
-                vfio_gfd = OpenOptions::new()
-                .read(true)
-                .write(true)
-                .open(format!("/dev/vfio/{}",group))?.as_raw_fd();
+                group_file = Some(OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .open(format!("/dev/vfio/{}",group))?);
+                gfd = get_raw_fd(&group_file);
 
                 /* Test the group is viable and available */
-                libc::ioctl(vfio_gfd, VFIO_GROUP_GET_STATUS, &group_status);
+                libc::ioctl(gfd, VFIO_GROUP_GET_STATUS, &group_status);
                 if (group_status.flags & VFIO_GROUP_FLAGS_VIABLE) != 1 {
                     info!("Group is not viable (ie, not all devices bound for vfio). Application will probably crash soon(ish).");
                 }
 
                 /* Add the group to the container */
-                libc::ioctl(vfio_gfd, VFIO_GROUP_SET_CONTAINER, &vfio_cfd);
+                libc::ioctl(gfd, VFIO_GROUP_SET_CONTAINER, cfd);
 
                 /* Enable the IOMMU model we want */
-                libc::ioctl(vfio_cfd, VFIO_SET_IOMMU, VFIO_TYPE1_IOMMU);
+                libc::ioctl(cfd, VFIO_SET_IOMMU, VFIO_TYPE1_IOMMU);
 
                 /* Get addition IOMMU info */
                 //libc::iocfiletl(vfio_cfd, VFIO_IOMMU_GET_INFO, &iommu_info);
 
                 /* Get a file descriptor for the device */
-                vfio_dfd = libc::ioctl(vfio_gfd, VFIO_GROUP_GET_DEVICE_FD, pci_addr);
+                device_file_descriptor = libc::ioctl(gfd, VFIO_GROUP_GET_DEVICE_FD, pci_addr);
 
                 /* write to the command register (offset 4) in the PCIe config space */
                 let command_register_offset = 4;
@@ -213,10 +221,10 @@ impl IxyDevice for IxgbeDevice {
                     size: 0,
                     offset: 0,
                 };
-                let ioctl_result = libc::ioctl(vfio_dfd, VFIO_DEVICE_GET_REGION_INFO, &conf_reg);
+                let ioctl_result = libc::ioctl(device_file_descriptor, VFIO_DEVICE_GET_REGION_INFO, &conf_reg);
 
                 /* set DMA bit */
-                let mut devicefile = File::from_raw_fd(vfio_dfd as RawFd);
+                let mut devicefile = File::from_raw_fd(device_file_descriptor);
 
                 assert_eq!(devicefile.seek(SeekFrom::Start(conf_reg.offset + command_register_offset))?, conf_reg.offset + command_register_offset);
                 let mut dma = devicefile.read_u16::<NativeEndian>()?;
@@ -235,7 +243,7 @@ impl IxyDevice for IxgbeDevice {
                     size: 0,
                     offset: 0,
                 };
-                let ioctl_result = libc::ioctl(vfio_dfd, VFIO_DEVICE_GET_REGION_INFO, &bar0_reg);
+                let ioctl_result = libc::ioctl(device_file_descriptor, VFIO_DEVICE_GET_REGION_INFO, &bar0_reg);
 
                 len = bar0_reg.size as usize;
 
@@ -250,9 +258,11 @@ impl IxyDevice for IxgbeDevice {
                 addr = ptr;
             }
         } else {
-            vfio_dfd = -1;
-            vfio_gfd = -1;
-            vfio_cfd = -1;
+            device_file_descriptor = -1;
+            group_file = None;
+            gfd = -1;
+            container_file = None;
+            cfd = -1;
             let (addrtemp, lentemp) = pci_map_resource(pci_addr)?;
             addr = addrtemp;
             len = lentemp;
@@ -262,15 +272,18 @@ impl IxyDevice for IxgbeDevice {
         let tx_queues = Vec::with_capacity(num_tx_queues as usize);
         let mut dev = IxgbeDevice {
             pci_addr: pci_addr.to_string(),
-            addr,
-            len,
-            num_rx_queues,
-            num_tx_queues,
-            rx_queues,
-            tx_queues,
-            vfio_dfd,
-            //vfio_gfd,
-            vfio_cfd,
+            addr: addr,
+            len: len,
+            num_rx_queues: num_rx_queues,
+            num_tx_queues: num_tx_queues,
+            rx_queues: rx_queues,
+            tx_queues: tx_queues,
+            iommu: iommu,
+            vfio_device_file_descriptor: device_file_descriptor,
+            vfio_group_file: group_file,
+            gfd: gfd,
+            vfio_container_file: container_file,
+            cfd: cfd,
         };
 
         dev.reset_and_init(pci_addr)?;
@@ -679,7 +692,7 @@ impl IxgbeDevice {
         Ok(())
     }
 
-    /// Sets the rx queues` descriptors and enables the queues.
+    /// Sets the rx queues` descriptors and enablesIxgbeDevice the queues.
     fn start_rx_queue(&mut self, queue_id: u16) -> Result<(), Box<Error>> {
         debug!("starting rx queue {}", queue_id);
 
@@ -857,6 +870,10 @@ impl IxgbeDevice {
             thread::sleep(Duration::from_millis(100));
         }
     }
+
+    pub fn is_vfio_device(&self) -> bool {
+        return self.iommu;
+    }
 }
 
 /// Removes multiples of `TX_CLEAN_BATCH` packets from `queue`.
@@ -915,3 +932,9 @@ fn clean_tx_queue(queue: &mut IxgbeTxQueue) -> usize {
     clean_index
 }
 
+fn get_raw_fd(f: &Option<File>) -> RawFd {
+    match f{
+        &Some(ref x) => return x.as_raw_fd(),
+        &None => return -1,
+    }
+}
