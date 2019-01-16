@@ -8,6 +8,11 @@ use byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
 
 use libc;
 
+/* write to the command register (offset 4) in the PCIe config space */
+pub const COMMAND_REGISTER_OFFSET: u64 = 4;
+/* bit 2 is "bus master enable", see PCIe 3.0 specification section 7.5.1.1 */
+pub const BUS_MASTER_ENABLE_BIT: u64 = 2;
+
 /// Unbinds the driver from the device at `pci_addr`.
 pub fn unbind_driver(pci_addr: &str) -> Result<(), Box<Error>> {
     let path = format!("/sys/bus/pci/devices/{}/driver/unbind", pci_addr);
@@ -27,12 +32,18 @@ pub fn enable_dma(pci_addr: &str) -> Result<(), Box<Error>> {
     let path = format!("/sys/bus/pci/devices/{}/config", pci_addr);
     let mut file = fs::OpenOptions::new().read(true).write(true).open(&path)?;
 
-    assert_eq!(file.seek(SeekFrom::Start(4))?, 4);
+    assert_eq!(
+        file.seek(SeekFrom::Start(COMMAND_REGISTER_OFFSET))?,
+        COMMAND_REGISTER_OFFSET
+    );
     let mut dma = file.read_u16::<NativeEndian>()?;
 
-    dma |= 1 << 2;
+    dma |= 1 << BUS_MASTER_ENABLE_BIT;
 
-    assert_eq!(file.seek(SeekFrom::Start(4))?, 4);
+    assert_eq!(
+        file.seek(SeekFrom::Start(COMMAND_REGISTER_OFFSET))?,
+        COMMAND_REGISTER_OFFSET
+    );
     file.write_u16::<NativeEndian>(dma)?;
 
     Ok(())
