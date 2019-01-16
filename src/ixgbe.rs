@@ -296,14 +296,14 @@ impl IxyDevice for IxgbeDevice {
                     libc::MAP_SHARED,
                     devicefile.as_raw_fd(),
                     bar0_reg.offset as i64,
-                ) as *mut u8;
-                if ptr == libc::MAP_FAILED as *mut u8 {
+                );
+                if ptr == libc::MAP_FAILED {
                     error!(
                         "[ERROR]Could not mmap bar0. Errno: {}",
                         *libc::__errno_location()
                     );
                 }
-                addr = ptr;
+                addr = ptr as *mut u8;
             }
         } else {
             device_file_descriptor = -1;

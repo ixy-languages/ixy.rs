@@ -52,7 +52,7 @@ impl<T> Dma<T> {
             size
         };
 
-        if !unsafe { (*dev).iommu } {
+        if unsafe { (*dev).iommu } {
             // get an anonymous mapped memory space from kernel
             let ptr = unsafe {
                 libc::mmap(
@@ -62,11 +62,11 @@ impl<T> Dma<T> {
                     libc::MAP_PRIVATE | libc::MAP_ANONYMOUS,
                     0,
                     0,
-                ) as *mut T
+                )
             };
 
             // This is the main IOMMU work: IOMMU DMA MAP the memory...
-            if ptr.is_null() {
+            if ptr == libc::MAP_FAILED {
                 Err("failed to memory map ".into())
             } else {
                 let iommu_dma_map: vfio_iommu_type1_dma_map = vfio_iommu_type1_dma_map {
@@ -234,7 +234,12 @@ impl Mempool {
         let mut phys_addresses = Vec::with_capacity(entries);
 
         for i in 0..entries {
-            phys_addresses.push(unsafe { virt_to_phys(dma.virt.add(i * entry_size) as usize)? });
+            if unsafe { (*dev).iommu } {
+                phys_addresses.push(unsafe { dma.virt.add(i * entry_size) } as usize);
+            } else {
+                phys_addresses
+                    .push(unsafe { virt_to_phys(dma.virt.add(i * entry_size) as usize)? });
+            }
         }
 
         let pool = Mempool {
