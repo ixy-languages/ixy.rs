@@ -189,22 +189,31 @@ impl IxyDevice for IxgbeDevice {
                 gfd = get_raw_fd(&group_file);
 
                 /* Test the group is viable and available */
-                libc::ioctl(gfd, VFIO_GROUP_GET_STATUS, &group_status);
+                if libc::ioctl(gfd, VFIO_GROUP_GET_STATUS, &group_status) == -1 {
+                    eprintln!("[ERROR]Could not VFIO_GROUP_GET_STATUS. Errno: {}", *libc::__errno_location());
+                }
                 if (group_status.flags & VFIO_GROUP_FLAGS_VIABLE) != 1 {
                     info!("Group is not viable (ie, not all devices bound for vfio). Application will probably crash soon(ish).");
                 }
 
                 /* Add the group to the container */
-                libc::ioctl(gfd, VFIO_GROUP_SET_CONTAINER, cfd);
+                if libc::ioctl(gfd, VFIO_GROUP_SET_CONTAINER, &cfd) == -1 {
+                    eprintln!("[ERROR]Could not VFIO_GROUP_SET_CONTAINER. Errno: {}", *libc::__errno_location());
+                }
 
                 /* Enable the IOMMU model we want */
-                libc::ioctl(cfd, VFIO_SET_IOMMU, VFIO_TYPE1_IOMMU);
+                if libc::ioctl(cfd, VFIO_SET_IOMMU, VFIO_TYPE1_IOMMU) == -1 {
+                    eprintln!("[ERROR]Could not VFIO_SET_IOMMU to VFIO_TYPE1_IOMMU. Errno: {}", *libc::__errno_location());
+                }
 
                 /* Get addition IOMMU info */
                 //libc::iocfiletl(vfio_cfd, VFIO_IOMMU_GET_INFO, &iommu_info);
 
                 /* Get a file descriptor for the device */
                 device_file_descriptor = libc::ioctl(gfd, VFIO_GROUP_GET_DEVICE_FD, pci_addr);
+                if device_file_descriptor == -1 {
+                    eprintln!("[ERROR]Could not VFIO_GROUP_GET_DEVICE_FD. Errno: {}", *libc::__errno_location());
+                }
 
                 /* write to the command register (offset 4) in the PCIe config space */
                 let command_register_offset = 4;
@@ -221,7 +230,9 @@ impl IxyDevice for IxgbeDevice {
                     size: 0,
                     offset: 0,
                 };
-                let ioctl_result = libc::ioctl(device_file_descriptor, VFIO_DEVICE_GET_REGION_INFO, &conf_reg);
+                if libc::ioctl(device_file_descriptor, VFIO_DEVICE_GET_REGION_INFO, &conf_reg) == -1 {
+                    eprintln!("[ERROR]Could not VFIO_DEVICE_GET_REGION_INFO for index VFIO_PCI_CONFIG_REGION_INDEX. Errno: {}", *libc::__errno_location());
+                }
 
                 /* set DMA bit */
                 let mut devicefile = File::from_raw_fd(device_file_descriptor);
@@ -243,7 +254,9 @@ impl IxyDevice for IxgbeDevice {
                     size: 0,
                     offset: 0,
                 };
-                let ioctl_result = libc::ioctl(device_file_descriptor, VFIO_DEVICE_GET_REGION_INFO, &bar0_reg);
+                if libc::ioctl(device_file_descriptor, VFIO_DEVICE_GET_REGION_INFO, &bar0_reg) == -1 {
+                    eprintln!("[ERROR]Could not VFIO_DEVICE_GET_REGION_INFO for index VFIO_PCI_BAR0_REGION_INDEX. Errno: {}", *libc::__errno_location());
+                }
 
                 len = bar0_reg.size as usize;
 
