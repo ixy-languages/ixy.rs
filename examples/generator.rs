@@ -6,7 +6,7 @@ use std::env;
 use std::process;
 use std::time::Instant;
 
-use ixy::memory::{alloc_pkt_batch, Packet, Mempool};
+use ixy::memory::{alloc_pkt_batch, Mempool, Packet};
 use ixy::*;
 
 // number of packets sent simultaneously by our driver

@@ -3,17 +3,14 @@ use std::collections::VecDeque;
 use std::error::Error;
 use std::fs;
 use std::fs::{File, OpenOptions};
-use std::io::{Seek, SeekFrom};
 use std::mem;
-use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::os::unix::io::RawFd;
+use std::os::unix::io::{AsRawFd, FromRawFd};
 use std::path::Path;
 use std::ptr;
 use std::rc::Rc;
 use std::thread;
 use std::time::{Duration, Instant};
-
-use byteorder::{NativeEndian, ReadBytesExt, WriteBytesExt};
 
 use constants::*;
 use memory::*;
@@ -36,8 +33,8 @@ const VFIO_CHECK_EXTENSION: u64 = 15205;
 const VFIO_SET_IOMMU: u64 = 15206;
 const VFIO_GROUP_GET_STATUS: u64 = 15207;
 const VFIO_GROUP_SET_CONTAINER: u64 = 15208;
-const VFIO_GROUP_GET_DEVICE_FD:u64 = 15210;
-const VFIO_DEVICE_GET_REGION_INFO:u64 = 15212;
+const VFIO_GROUP_GET_DEVICE_FD: u64 = 15210;
+const VFIO_DEVICE_GET_REGION_INFO: u64 = 15212;
 //const VFIO_IOMMU_GET_INFO: u64 = 15216;
 
 const VFIO_API_VERSION: i32 = 0;
@@ -48,12 +45,15 @@ const VFIO_PCI_CONFIG_REGION_INDEX: u32 = 7;
 const VFIO_PCI_BAR0_REGION_INDEX: u32 = 0;
 
 /* struct vfio_group_status, grabbed from linux/vfio.h */
+#[allow(non_camel_case_types)]
+#[repr(C)]
 struct vfio_group_status {
     argsz: u32,
     flags: u32,
 }
 
 /* struct vfio_region_info, grabbed from linux/vfio.h */
+#[allow(non_camel_case_types)]
 #[repr(C)]
 struct vfio_region_info {
     argsz: u32,
@@ -63,21 +63,6 @@ struct vfio_region_info {
     size: u64,
     offset: u64,
 }
-
-/* struct vfio_iommu_type1_info, grabbed from linux/vfio.h */
-// struct vfio_iommu_type1_info {
-//     argsz: u32,
-//     flags: u32,
-//     iova_pgsizes: u64,
-// }
-
-/* struct vfio_device_info, grabbed from linux/vfio.h */
-// struct vfio_device_info {
-//     argsz: u32,
-//     flags: u32,
-//     num_regions: u32,
-//     num_irqs: u32,
-// }
 
 fn wrap_ring(index: usize, ring_size: usize) -> usize {
     (index + 1) & (ring_size - 1)
@@ -118,7 +103,7 @@ struct IxgbeTxQueue {
 
 impl IxyDevice for IxgbeDevice {
     /// Returns an initialized `IxgbeDevice` on success.
-    /// 
+    ///
     /// # Panics
     /// Panics if `num_rx_queues` or `num_tx_queues` exceeds `MAX_QUEUES`.
     fn init(
@@ -156,20 +141,31 @@ impl IxyDevice for IxgbeDevice {
         let len: usize;
         if iommu {
             /* we also have to build these vfio structs... */
-            let group_status: vfio_group_status = vfio_group_status { argsz: mem::size_of::<vfio_group_status> as u32, flags: 0, };
+            let group_status: vfio_group_status = vfio_group_status {
+                argsz: mem::size_of::<vfio_group_status> as u32,
+                flags: 0,
+            };
             // let mut iommu_info: vfio_iommu_type1_info = vfio_iommu_type1_info { argsz: mem::size_of::<vfio_iommu_type1_info> as u32, flags: 0, iova_pgsizes: 0, };
             // let mut device_info: vfio_device_info = vfio_device_info { argsz: mem::size_of::<vfio_device_info> as u32, flags: 0, num_irqs: 0, num_regions: 0, };
 
             /* Open new VFIO Container */
             /* Caveat: OpenOptions(...).open(...).as_raw_fd() closes the file again instantly, staling the file descriptor! */
-            container_file = Some(OpenOptions::new()
-                .read(true)
-                .write(true)
-                .open("/dev/vfio/vfio")?);
+            container_file = Some(
+                OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .open("/dev/vfio/vfio")?,
+            );
 
             /* find vfio group for device */
             let link = fs::read_link(format!("/sys/bus/pci/devices/{}/iommu_group", pci_addr))?;
-            let group = link.file_name().unwrap().to_str().unwrap().parse::<i32>().unwrap();
+            let group = link
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .parse::<i32>()
+                .unwrap();
             unsafe {
                 cfd = get_raw_fd(&container_file);
                 /* check IOMMU API version */
@@ -183,15 +179,20 @@ impl IxyDevice for IxgbeDevice {
                 }
 
                 /* open the devices' group */
-                group_file = Some(OpenOptions::new()
-                    .read(true)
-                    .write(true)
-                    .open(format!("/dev/vfio/{}",group))?);
+                group_file = Some(
+                    OpenOptions::new()
+                        .read(true)
+                        .write(true)
+                        .open(format!("/dev/vfio/{}", group))?,
+                );
                 gfd = get_raw_fd(&group_file);
 
                 /* Test the group is viable and available */
                 if libc::ioctl(gfd, VFIO_GROUP_GET_STATUS, &group_status) == -1 {
-                    eprintln!("[ERROR]Could not VFIO_GROUP_GET_STATUS. Errno: {}", *libc::__errno_location());
+                    eprintln!(
+                        "[ERROR]Could not VFIO_GROUP_GET_STATUS. Errno: {}",
+                        *libc::__errno_location()
+                    );
                 }
                 if (group_status.flags & VFIO_GROUP_FLAGS_VIABLE) != 1 {
                     info!("Group is not viable (ie, not all devices bound for vfio). Application will probably crash soon(ish).");
@@ -199,12 +200,18 @@ impl IxyDevice for IxgbeDevice {
 
                 /* Add the group to the container */
                 if libc::ioctl(gfd, VFIO_GROUP_SET_CONTAINER, &cfd) == -1 {
-                    eprintln!("[ERROR]Could not VFIO_GROUP_SET_CONTAINER. Errno: {}", *libc::__errno_location());
+                    eprintln!(
+                        "[ERROR]Could not VFIO_GROUP_SET_CONTAINER. Errno: {}",
+                        *libc::__errno_location()
+                    );
                 }
 
                 /* Enable the IOMMU model we want */
                 if libc::ioctl(cfd, VFIO_SET_IOMMU, VFIO_TYPE1_IOMMU) == -1 {
-                    eprintln!("[ERROR]Could not VFIO_SET_IOMMU to VFIO_TYPE1_IOMMU. Errno: {}", *libc::__errno_location());
+                    eprintln!(
+                        "[ERROR]Could not VFIO_SET_IOMMU to VFIO_TYPE1_IOMMU. Errno: {}",
+                        *libc::__errno_location()
+                    );
                 }
 
                 /* Get addition IOMMU info */
@@ -213,14 +220,17 @@ impl IxyDevice for IxgbeDevice {
                 /* Get a file descriptor for the device */
                 device_file_descriptor = libc::ioctl(gfd, VFIO_GROUP_GET_DEVICE_FD, pci_addr);
                 if device_file_descriptor == -1 {
-                    eprintln!("[ERROR]Could not VFIO_GROUP_GET_DEVICE_FD. Errno: {}", *libc::__errno_location());
+                    eprintln!(
+                        "[ERROR]Could not VFIO_GROUP_GET_DEVICE_FD. Errno: {}",
+                        *libc::__errno_location()
+                    );
                 }
 
                 /* write to the command register (offset 4) in the PCIe config space */
                 let command_register_offset = 4;
                 /* bit 2 is "bus master enable", see PCIe 3.0 specification section 7.5.1.1 */
                 let bus_master_enable_bit = 2;
-                
+
                 /* map config space */
                 /* Get region info for config region */
                 let conf_reg: vfio_region_info = vfio_region_info {
@@ -231,12 +241,17 @@ impl IxyDevice for IxgbeDevice {
                     size: 0,
                     offset: 0,
                 };
-                if libc::ioctl(device_file_descriptor, VFIO_DEVICE_GET_REGION_INFO, &conf_reg) == -1 {
+                if libc::ioctl(
+                    device_file_descriptor,
+                    VFIO_DEVICE_GET_REGION_INFO,
+                    &conf_reg,
+                ) == -1
+                {
                     eprintln!("[ERROR]Could not VFIO_DEVICE_GET_REGION_INFO for index VFIO_PCI_CONFIG_REGION_INDEX. Errno: {}", *libc::__errno_location());
                 }
 
                 /* set DMA bit */
-                let mut devicefile = File::from_raw_fd(device_file_descriptor);
+                let devicefile = File::from_raw_fd(device_file_descriptor);
 
                 /* seek won't work in this magic device file, because of... reasons? */
                 // assert_eq!(devicefile.seek(SeekFrom::Start(conf_reg.offset + command_register_offset))?, conf_reg.offset + command_register_offset);
@@ -248,14 +263,18 @@ impl IxyDevice for IxgbeDevice {
                 // devicefile.write_u16::<NativeEndian>(dma)?;
 
                 let mut dma: u16 = 0;
-                let mut dma_ptr: *mut u16 = &mut dma;
+                let dma_ptr: *mut u16 = &mut dma;
                 if libc::pread(
                     device_file_descriptor,
                     dma_ptr as *mut libc::c_void,
                     2,
-                    (conf_reg.offset + command_register_offset) as i64 
-                ) == -1 {
-                    eprintln!("[ERROR]Could not pread. Errno: {}", *libc::__errno_location());
+                    (conf_reg.offset + command_register_offset) as i64,
+                ) == -1
+                {
+                    eprintln!(
+                        "[ERROR]Could not pread. Errno: {}",
+                        *libc::__errno_location()
+                    );
                 }
 
                 dma |= 1 << bus_master_enable_bit;
@@ -264,9 +283,13 @@ impl IxyDevice for IxgbeDevice {
                     device_file_descriptor,
                     dma_ptr as *mut libc::c_void,
                     2,
-                    (conf_reg.offset + command_register_offset) as i64 
-                ) == -1 {
-                    eprintln!("[ERROR]Could not pwrite. Errno: {}", *libc::__errno_location());
+                    (conf_reg.offset + command_register_offset) as i64,
+                ) == -1
+                {
+                    eprintln!(
+                        "[ERROR]Could not pwrite. Errno: {}",
+                        *libc::__errno_location()
+                    );
                 }
 
                 /* map BAR0 space */
@@ -278,20 +301,25 @@ impl IxyDevice for IxgbeDevice {
                     size: 0,
                     offset: 0,
                 };
-                if libc::ioctl(device_file_descriptor, VFIO_DEVICE_GET_REGION_INFO, &bar0_reg) == -1 {
+                if libc::ioctl(
+                    device_file_descriptor,
+                    VFIO_DEVICE_GET_REGION_INFO,
+                    &bar0_reg,
+                ) == -1
+                {
                     eprintln!("[ERROR]Could not VFIO_DEVICE_GET_REGION_INFO for index VFIO_PCI_BAR0_REGION_INDEX. Errno: {}", *libc::__errno_location());
                 }
 
                 len = bar0_reg.size as usize;
 
                 let ptr = libc::mmap(
-                        ptr::null_mut(),
-                        len,
-                        libc::PROT_READ | libc::PROT_WRITE,
-                        libc::MAP_SHARED,
-                        devicefile.as_raw_fd(),
-                        bar0_reg.offset as i64,
-                    ) as *mut u8;
+                    ptr::null_mut(),
+                    len,
+                    libc::PROT_READ | libc::PROT_WRITE,
+                    libc::MAP_SHARED,
+                    devicefile.as_raw_fd(),
+                    bar0_reg.offset as i64,
+                ) as *mut u8;
                 addr = ptr;
             }
         } else {
@@ -942,12 +970,9 @@ fn clean_tx_queue(queue: &mut IxgbeTxQueue) -> usize {
         if (status & IXGBE_ADVTXD_STAT_DD) != 0 {
             if let Some(ref p) = queue.pool {
                 if TX_CLEAN_BATCH as usize >= queue.bufs_in_use.len() {
-                    p.borrow_mut().free_stack.append(
-                        &mut queue
-                            .bufs_in_use
-                            .drain(..)
-                            .collect::<Vec<usize>>()
-                    )
+                    p.borrow_mut()
+                        .free_stack
+                        .append(&mut queue.bufs_in_use.drain(..).collect::<Vec<usize>>())
                 } else {
                     p.borrow_mut().free_stack.append(
                         &mut queue
@@ -970,7 +995,7 @@ fn clean_tx_queue(queue: &mut IxgbeTxQueue) -> usize {
 }
 
 fn get_raw_fd(f: &Option<File>) -> RawFd {
-    match f{
+    match f {
         &Some(ref x) => return x.as_raw_fd(),
         &None => return -1,
     }

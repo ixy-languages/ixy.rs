@@ -29,6 +29,8 @@ const VFIO_DMA_MAP_FLAG_WRITE: u32 = 2;
 const VFIO_IOMMU_MAP_DMA: u64 = 15217;
 
 /* struct vfio_iommu_type1_dma_map, grabbed from linux/vfio.h */
+#[allow(non_camel_case_types)]
+#[repr(C)]
 struct vfio_iommu_type1_dma_map {
     argsz: u32,
     flags: u32,
@@ -39,14 +41,18 @@ struct vfio_iommu_type1_dma_map {
 
 impl<T> Dma<T> {
     /// Allocates dma memory on a huge page.
-    pub fn allocate(size: usize, require_contigous: bool, dev: *const IxgbeDevice) -> Result<Dma<T>, Box<Error>> {
+    pub fn allocate(
+        size: usize,
+        require_contigous: bool,
+        dev: *const IxgbeDevice,
+    ) -> Result<Dma<T>, Box<Error>> {
         let size = if size % HUGE_PAGE_SIZE != 0 {
             ((size >> HUGE_PAGE_BITS) + 1) << HUGE_PAGE_BITS
         } else {
             size
         };
 
-        if ! unsafe{ (*dev).iommu } {
+        if !unsafe { (*dev).iommu } {
             // get an anonymous mapped memory space from kernel
             let ptr = unsafe {
                 libc::mmap(
@@ -63,18 +69,16 @@ impl<T> Dma<T> {
             if ptr.is_null() {
                 Err("failed to memory map ".into())
             } else {
-                let iommu_dma_map: vfio_iommu_type1_dma_map =
-                    vfio_iommu_type1_dma_map {
-                        argsz: mem::size_of::<vfio_iommu_type1_dma_map> as u32,
-                        vaddr: ptr as *mut u8,
-                        size: size,
-                        iova: ptr as *mut u8,
-                        flags: VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE,
-                    };
-
-                let ioctl_result = unsafe {
-                    libc::ioctl((*dev).cfd, VFIO_IOMMU_MAP_DMA, &iommu_dma_map)
+                let iommu_dma_map: vfio_iommu_type1_dma_map = vfio_iommu_type1_dma_map {
+                    argsz: mem::size_of::<vfio_iommu_type1_dma_map> as u32,
+                    vaddr: ptr as *mut u8,
+                    size: size,
+                    iova: ptr as *mut u8,
+                    flags: VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE,
                 };
+
+                let ioctl_result =
+                    unsafe { libc::ioctl((*dev).cfd, VFIO_IOMMU_MAP_DMA, &iommu_dma_map) };
                 if ioctl_result != -1 {
                     let memory = Dma {
                         virt: iommu_dma_map.vaddr as *mut T,
@@ -87,7 +91,6 @@ impl<T> Dma<T> {
                 }
             }
         } else {
-
             if require_contigous && size > HUGE_PAGE_SIZE {
                 return Err("could not map physically contigous memory".into());
             }
@@ -217,7 +220,11 @@ impl Mempool {
     /// # Panics
     ///
     /// Panics if `size` is not a divisor of the page size.
-    pub fn allocate(entries: usize, size: usize, dev: *const IxgbeDevice) -> Result<Rc<RefCell<Mempool>>, Box<Error>> {
+    pub fn allocate(
+        entries: usize,
+        size: usize,
+        dev: *const IxgbeDevice,
+    ) -> Result<Rc<RefCell<Mempool>>, Box<Error>> {
         let entry_size = match size {
             0 => 2048,
             x => x,
