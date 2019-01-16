@@ -157,8 +157,8 @@ impl IxyDevice for IxgbeDevice {
         if iommu {
             /* we also have to build these vfio structs... */
             let group_status: vfio_group_status = vfio_group_status { argsz: mem::size_of::<vfio_group_status> as u32, flags: 0, };
-            //let mut iommu_info: vfio_iommu_type1_info = vfio_iommu_type1_info { argsz: mem::size_of::<vfio_iommu_type1_info> as u32, flags: 0, iova_pgsizes: 0, };
-            //let mut device_info: vfio_device_info = vfio_device_info { argsz: mem::size_of::<vfio_device_info> as u32, flags: 0, num_irqs: 0, num_regions: 0, };
+            // let mut iommu_info: vfio_iommu_type1_info = vfio_iommu_type1_info { argsz: mem::size_of::<vfio_iommu_type1_info> as u32, flags: 0, iova_pgsizes: 0, };
+            // let mut device_info: vfio_device_info = vfio_device_info { argsz: mem::size_of::<vfio_device_info> as u32, flags: 0, num_irqs: 0, num_regions: 0, };
 
             /* Open new VFIO Container */
             /* Caveat: OpenOptions(...).open(...).as_raw_fd() closes the file again instantly, staling the file descriptor! */
@@ -208,7 +208,7 @@ impl IxyDevice for IxgbeDevice {
                 }
 
                 /* Get addition IOMMU info */
-                //libc::iocfiletl(vfio_cfd, VFIO_IOMMU_GET_INFO, &iommu_info);
+                // libc::iocfiletl(vfio_cfd, VFIO_IOMMU_GET_INFO, &iommu_info);
 
                 /* Get a file descriptor for the device */
                 device_file_descriptor = libc::ioctl(gfd, VFIO_GROUP_GET_DEVICE_FD, pci_addr);
@@ -238,13 +238,36 @@ impl IxyDevice for IxgbeDevice {
                 /* set DMA bit */
                 let mut devicefile = File::from_raw_fd(device_file_descriptor);
 
-                assert_eq!(devicefile.seek(SeekFrom::Start(conf_reg.offset + command_register_offset))?, conf_reg.offset + command_register_offset);
-                let mut dma = devicefile.read_u16::<NativeEndian>()?;
+                /* seek won't work in this magic device file, because of... reasons? */
+                // assert_eq!(devicefile.seek(SeekFrom::Start(conf_reg.offset + command_register_offset))?, conf_reg.offset + command_register_offset);
+                // let mut dma = devicefile.read_u16::<NativeEndian>()?;
+
+                // dma |= 1 << bus_master_enable_bit;
+
+                // assert_eq!(devicefile.seek(SeekFrom::Start(conf_reg.offset + command_register_offset))?, conf_reg.offset + command_register_offset);
+                // devicefile.write_u16::<NativeEndian>(dma)?;
+
+                let mut dma: u16 = 0;
+                let mut dma_ptr: *mut u16 = &mut dma;
+                if libc::pread(
+                    device_file_descriptor,
+                    dma_ptr as *mut libc::c_void,
+                    2,
+                    (conf_reg.offset + command_register_offset) as i64 
+                ) == -1 {
+                    eprintln!("[ERROR]Could not pread. Errno: {}", *libc::__errno_location());
+                }
 
                 dma |= 1 << bus_master_enable_bit;
 
-                assert_eq!(devicefile.seek(SeekFrom::Start(conf_reg.offset + command_register_offset))?, conf_reg.offset + command_register_offset);
-                devicefile.write_u16::<NativeEndian>(dma)?;
+                if libc::pwrite(
+                    device_file_descriptor,
+                    dma_ptr as *mut libc::c_void,
+                    2,
+                    (conf_reg.offset + command_register_offset) as i64 
+                ) == -1 {
+                    eprintln!("[ERROR]Could not pwrite. Errno: {}", *libc::__errno_location());
+                }
 
                 /* map BAR0 space */
                 let bar0_reg: vfio_region_info = vfio_region_info {
