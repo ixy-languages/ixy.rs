@@ -54,6 +54,7 @@ struct vfio_group_status {
 }
 
 /* struct vfio_region_info, grabbed from linux/vfio.h */
+#[repr(C)]
 struct vfio_region_info {
     argsz: u32,
     flags: u32,
