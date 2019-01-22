@@ -118,14 +118,14 @@ impl Packet {
         addr_virt: *mut u8,
         addr_phys: usize,
         len: usize,
-        pool: &Rc<RefCell<Mempool>>,
+        pool: Rc<RefCell<Mempool>>,
         pool_entry: usize,
     ) -> Packet {
         Packet {
             addr_virt,
             addr_phys,
             len,
-            pool: pool.clone(),
+            pool,
             pool_entry,
         }
     }
@@ -253,7 +253,7 @@ pub fn alloc_pkt(pool: &Rc<RefCell<Mempool>>, size: usize) -> Option<Packet> {
                 p.get_virt_addr(packet),
                 p.get_phys_addr(packet),
                 size,
-                &pool.clone(),
+                pool.clone(),
                 packet,
             ))
         },
