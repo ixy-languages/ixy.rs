@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::error::Error;
 use std::mem;
@@ -39,7 +38,7 @@ pub struct IxgbeDevice {
 struct IxgbeRxQueue {
     descriptors: *mut ixgbe_adv_rx_desc,
     num_descriptors: usize,
-    pool: Rc<RefCell<Mempool>>,
+    pool: Rc<Mempool>,
     bufs_in_use: Vec<usize>,
     rx_index: usize,
 }
@@ -47,7 +46,7 @@ struct IxgbeRxQueue {
 struct IxgbeTxQueue {
     descriptors: *mut ixgbe_adv_tx_desc,
     num_descriptors: usize,
-    pool: Option<Rc<RefCell<Mempool>>>,
+    pool: Option<Rc<Mempool>>,
     bufs_in_use: VecDeque<usize>,
     clean_index: usize,
     tx_index: usize,
@@ -135,7 +134,7 @@ impl IxyDevice for IxgbeDevice {
                         panic!("increase buffer size or decrease MTU")
                     }
 
-                    let mut pool = queue.pool.borrow_mut();
+                    let pool = &queue.pool;
 
                     // get a free buffer from the mempool
                     let buf = pool.alloc_buf().expect("no buffer available");
@@ -149,7 +148,7 @@ impl IxyDevice for IxgbeDevice {
                             addr_phys: pool.get_phys_addr(buf),
                             len: ptr::read_volatile(&(*desc).wb.upper.length as *const u16)
                                 as usize,
-                            pool: queue.pool.clone(),
+                            pool: pool.clone(),
                             pool_entry: buf,
                         }
                     };
@@ -198,9 +197,8 @@ impl IxyDevice for IxgbeDevice {
             }
 
             while let Some(packet) = packets.pop_front() {
-                assert_eq!(
-                    queue.pool.as_ref().unwrap().as_ptr(),
-                    packet.pool.as_ptr(),
+                assert!(
+                    Rc::ptr_eq(queue.pool.as_ref().unwrap(), &packet.pool),
                     "distinct memory pools for a single tx queue are not supported yet"
                 );
 
@@ -513,7 +511,7 @@ impl IxgbeDevice {
             for i in 0..queue.num_descriptors {
                 let pool = &queue.pool;
 
-                let mut buf = match pool.borrow_mut().alloc_buf() {
+                let mut buf = match pool.alloc_buf() {
                     Some(x) => x,
                     None => return Err("failed to allocate rx descriptor".into()),
                 };
@@ -521,7 +519,7 @@ impl IxgbeDevice {
                 unsafe {
                     ptr::write_volatile(
                         &mut (*queue.descriptors.add(i)).read.pkt_addr as *mut u64,
-                        pool.borrow_mut().get_phys_addr(buf) as u64,
+                        pool.get_phys_addr(buf) as u64,
                     );
 
                     ptr::write_volatile(
@@ -708,14 +706,14 @@ fn clean_tx_queue(queue: &mut IxgbeTxQueue) -> usize {
         if (status & IXGBE_ADVTXD_STAT_DD) != 0 {
             if let Some(ref p) = queue.pool {
                 if TX_CLEAN_BATCH as usize >= queue.bufs_in_use.len() {
-                    p.borrow_mut().free_stack.append(
+                    p.free_stack.borrow_mut().append(
                         &mut queue
                             .bufs_in_use
                             .drain(..)
                             .collect::<Vec<usize>>()
                     )
                 } else {
-                    p.borrow_mut().free_stack.append(
+                    p.free_stack.borrow_mut().append(
                         &mut queue
                             .bufs_in_use
                             .drain(..TX_CLEAN_BATCH)
