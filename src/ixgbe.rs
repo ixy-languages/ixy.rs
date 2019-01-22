@@ -706,19 +706,13 @@ fn clean_tx_queue(queue: &mut IxgbeTxQueue) -> usize {
         if (status & IXGBE_ADVTXD_STAT_DD) != 0 {
             if let Some(ref p) = queue.pool {
                 if TX_CLEAN_BATCH as usize >= queue.bufs_in_use.len() {
-                    p.free_stack.borrow_mut().append(
-                        &mut queue
-                            .bufs_in_use
-                            .drain(..)
-                            .collect::<Vec<usize>>()
-                    )
+                    p.free_stack
+                        .borrow_mut()
+                        .extend(queue.bufs_in_use.drain(..))
                 } else {
-                    p.free_stack.borrow_mut().append(
-                        &mut queue
-                            .bufs_in_use
-                            .drain(..TX_CLEAN_BATCH)
-                            .collect::<Vec<usize>>(),
-                    )
+                    p.free_stack
+                        .borrow_mut()
+                        .extend(queue.bufs_in_use.drain(..TX_CLEAN_BATCH))
                 }
             }
 
