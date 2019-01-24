@@ -147,7 +147,7 @@ pub struct Packet {
     pub(crate) addr_virt: *mut u8,
     pub(crate) addr_phys: usize,
     pub(crate) len: usize,
-    pub(crate) pool: Rc<RefCell<Mempool>>,
+    pub(crate) pool: Rc<Mempool>,
     pub(crate) pool_entry: usize,
 }
 
@@ -168,7 +168,7 @@ impl DerefMut for Packet {
 impl Drop for Packet {
     fn drop(&mut self) {
         //println!("drop");
-        self.pool.borrow_mut().free_buf(self.pool_entry);
+        self.pool.free_buf(self.pool_entry);
     }
 }
 
@@ -178,14 +178,14 @@ impl Packet {
         addr_virt: *mut u8,
         addr_phys: usize,
         len: usize,
-        pool: &Rc<RefCell<Mempool>>,
+        pool: Rc<Mempool>,
         pool_entry: usize,
     ) -> Packet {
         Packet {
             addr_virt,
             addr_phys,
             len,
-            pool: pool.clone(),
+            pool,
             pool_entry,
         }
     }
@@ -201,7 +201,7 @@ impl Packet {
     }
 
     /// Returns a reference to the packet`s pool.
-    pub fn get_pool(&self) -> &Rc<RefCell<Mempool>> {
+    pub fn get_pool(&self) -> &Rc<Mempool> {
         &self.pool
     }
 }
@@ -211,7 +211,7 @@ pub struct Mempool {
     num_entries: usize,
     entry_size: usize,
     phys_addresses: Vec<usize>,
-    pub(crate) free_stack: Vec<usize>,
+    pub(crate) free_stack: RefCell<Vec<usize>>,
 }
 
 impl Mempool {
@@ -224,7 +224,7 @@ impl Mempool {
         entries: usize,
         size: usize,
         dev: *const IxgbeDevice,
-    ) -> Result<Rc<RefCell<Mempool>>, Box<Error>> {
+    ) -> Result<Rc<Mempool>, Box<Error>> {
         let entry_size = match size {
             0 => 2048,
             x => x,
@@ -247,7 +247,7 @@ impl Mempool {
             num_entries: entries,
             entry_size,
             phys_addresses,
-            free_stack: Vec::with_capacity(entries),
+            free_stack: RefCell::new(Vec::with_capacity(entries)),
         };
 
         unsafe { memset(pool.base_addr, pool.num_entries * pool.entry_size, 0x00) }
@@ -256,23 +256,20 @@ impl Mempool {
             panic!("entry size must be a divisor of the page size");
         }
 
-        let pool = Rc::new(RefCell::new(pool));
-
-        for i in 0..entries {
-            pool.borrow_mut().free_stack.push(i);
-        }
+        let pool = Rc::new(pool);
+        pool.free_stack.borrow_mut().extend(0..entries);
 
         Ok(pool)
     }
 
     /// Removes a packet from the packet pool and returns it, or [`None`] if the pool is empty.
-    pub(crate) fn alloc_buf(&mut self) -> Option<usize> {
-        self.free_stack.pop()
+    pub(crate) fn alloc_buf(&self) -> Option<usize> {
+        self.free_stack.borrow_mut().pop()
     }
 
     /// Returns a packet to the packet pool.
-    pub(crate) fn free_buf(&mut self, id: usize) {
-        self.free_stack.push(id);
+    pub(crate) fn free_buf(&self, id: usize) {
+        self.free_stack.borrow_mut().push(id);
     }
 
     /// Returns a packet to the packet pool.
@@ -288,7 +285,7 @@ impl Mempool {
 
 /// Returns `num_packets` free packets from the `pool` with size `packet_size`.
 pub fn alloc_pkt_batch(
-    pool: &Rc<RefCell<Mempool>>,
+    pool: &Rc<Mempool>,
     buffer: &mut VecDeque<Packet>,
     num_packets: usize,
     packet_size: usize,
@@ -309,20 +306,18 @@ pub fn alloc_pkt_batch(
 
 /// Returns a free packet from the `pool`, or [`None`] if the requested packet size exceeds the
 /// maximum size for that pool or if the pool is empty.
-pub fn alloc_pkt(pool: &Rc<RefCell<Mempool>>, size: usize) -> Option<Packet> {
-    let mut p = pool.borrow_mut();
-
-    if size > p.entry_size {
+pub fn alloc_pkt(pool: &Rc<Mempool>, size: usize) -> Option<Packet> {
+    if size > pool.entry_size {
         return None;
     }
 
-    match p.alloc_buf() {
+    match pool.alloc_buf() {
         Some(packet) => unsafe {
             Some(Packet::new(
-                p.get_virt_addr(packet),
-                p.get_phys_addr(packet),
+                pool.get_virt_addr(packet),
+                pool.get_phys_addr(packet),
                 size,
-                &pool.clone(),
+                pool.clone(),
                 packet,
             ))
         },
