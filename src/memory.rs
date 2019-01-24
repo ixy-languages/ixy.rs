@@ -44,7 +44,7 @@ impl<T> Dma<T> {
     pub fn allocate(
         size: usize,
         require_contigous: bool,
-        dev: *const IxgbeDevice,
+        dev: &IxgbeDevice,
     ) -> Result<Dma<T>, Box<Error>> {
         let size = if size % HUGE_PAGE_SIZE != 0 {
             ((size >> HUGE_PAGE_BITS) + 1) << HUGE_PAGE_BITS
@@ -52,7 +52,7 @@ impl<T> Dma<T> {
             size
         };
 
-        if unsafe { (*dev).iommu } {
+        if dev.iommu {
             // get an anonymous mapped memory space from kernel
             let ptr = unsafe {
                 libc::mmap(
@@ -78,7 +78,7 @@ impl<T> Dma<T> {
                 };
 
                 let ioctl_result =
-                    unsafe { libc::ioctl((*dev).cfd, VFIO_IOMMU_MAP_DMA, &iommu_dma_map) };
+                    unsafe { libc::ioctl(dev.cfd, VFIO_IOMMU_MAP_DMA, &iommu_dma_map) };
                 if ioctl_result != -1 {
                     let memory = Dma {
                         virt: iommu_dma_map.vaddr as *mut T,
@@ -223,7 +223,7 @@ impl Mempool {
     pub fn allocate(
         entries: usize,
         size: usize,
-        dev: *const IxgbeDevice,
+        dev: &IxgbeDevice,
     ) -> Result<Rc<Mempool>, Box<Error>> {
         let entry_size = match size {
             0 => 2048,
@@ -234,7 +234,7 @@ impl Mempool {
         let mut phys_addresses = Vec::with_capacity(entries);
 
         for i in 0..entries {
-            if unsafe { (*dev).iommu } {
+            if dev.iommu {
                 phys_addresses.push(unsafe { dma.virt.add(i * entry_size) } as usize);
             } else {
                 phys_addresses

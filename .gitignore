@@ -12,3 +12,6 @@ Cargo.lock
 # IntellijIDEA files
 .idea/
 *.iml
+
+# Visual Studio Code files
+*.code-workspace

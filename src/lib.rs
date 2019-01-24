@@ -10,7 +10,7 @@ extern crate libc;
 extern crate log;
 
 mod constants;
-pub mod ixgbe;
+mod ixgbe;
 pub mod memory;
 mod pci;
 
@@ -92,10 +92,10 @@ pub trait IxyDevice {
     /// Resets the network card's stats registers.
     ///
     /// # Examples
-    ///IxyDevice
-    ///IxyDevice
-    ///IxyDevice
-    ///IxyDevice
+    ///
+    /// ```rust,no_run
+    /// use ixy::*;
+    ///
     /// let mut dev = ixy_init("0000:01:00.0", 1, 1).unwrap();
     /// dev.reset_stats();
     /// ```
