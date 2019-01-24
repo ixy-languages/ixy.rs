@@ -171,7 +171,11 @@ impl DeviceStats {
 /// Initializes the network card at `pci_addr`.
 ///
 /// `rx_queues` and `tx_queues` specify the number of queues that will be initialized and used.
-pub fn ixy_init(pci_addr: &str, rx_queues: u16, tx_queues: u16) -> Result<IxgbeDevice, Box<Error>> {
+pub fn ixy_init(
+    pci_addr: &str,
+    rx_queues: u16,
+    tx_queues: u16,
+) -> Result<IxgbeDevice, Box<Error>> {
     let mut config_file = pci_open_resource(pci_addr, "config").expect("wrong pci address");
 
     let vendor_id = read_io16(&mut config_file, 0)?;
