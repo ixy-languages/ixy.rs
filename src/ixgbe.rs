@@ -129,6 +129,7 @@ impl IxyDevice for IxgbeDevice {
         // iommu is activated if there is a iommu_group symlink in /sys/bus/pci/devices/$pci_addr
         let iommu = Path::new(&format!("/sys/bus/pci/devices/{}/iommu_group", pci_addr)).exists();
         // ToDo (stefan.huber@stusta.de): unload ixgbe driver, load vfio driver (nicetohave)
+        // ToDo (stefan.huber@stusta.de): at least give a error message when vfio is not loaded...
         let device_file_descriptor: RawFd;
         let group_file: Option<File>;
         let gfd: RawFd;
