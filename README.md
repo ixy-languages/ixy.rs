@@ -6,11 +6,12 @@
 ixy.rs is a Rust rewrite of the [ixy](https://github.com/emmericp/ixy) userspace network driver.
 It is designed to be readable, idiomatic Rust code.
 It supports Intel 82599 10GbE NICs (`ixgbe` family).
+Check out [our paper](https://www.net.in.tum.de/fileadmin/bibtex/publications/theses/2018-ixy-rust.pdf) to read about the details of our implementation.
 
 ## Features
 
 * less than 2000 lines of Rust code for the driver and two sample applications
-* simple API to use, see this README
+* simple API to use
 * super fast, can forward > 26 million packets per second on a single 3.3 GHz CPU core
 * documented code
 
@@ -31,14 +32,19 @@ cd ixy.rs
 sudo ./setup-hugetlbfs.sh
 ```
 
-You can then either build the binaries and run them manually or use `cargo` to build and run them at once (see **Usage**).
-To build the binaries run:
+To build the provided sample applications and execute them manually run:
 
 ```
 cargo build --release --all-targets
 ```
 
 The built binaries are located in `target/release/examples/`.
+
+To build and execute the examples at once see **Usage**.
+
+## Performance
+
+Have a look at our [performance results](https://github.com/ixy-languages/ixy-languages#Performance) in the ixy-languages repository.
 
 ## Usage
 
@@ -63,6 +69,10 @@ sudo cargo run --release --example forwarder 0000:AA:BB.C 0000:AA:BB.D
 
 `examples` contains all sample applications included in this crate.
 
+### Internals
+
+`src/ixgbe.rs` contains the core logic.
+
 ## Docs
 
 ixy.rs contains documentation that can be created and viewed by running
@@ -70,10 +80,6 @@ ixy.rs contains documentation that can be created and viewed by running
 ```
 cargo doc --open
 ```
-
-## Internals
-
-`src/ixgbe.rs` contains the core logic.
 
 ## License
 
@@ -88,3 +94,4 @@ DMA may corrupt memory.
 ## Other languages
 
 Check out the [other ixy implementations](https://github.com/ixy-languages).
+
