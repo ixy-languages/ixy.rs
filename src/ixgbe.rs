@@ -41,6 +41,9 @@ const VFIO_GROUP_FLAGS_VIABLE: u32 = 1;
 const VFIO_PCI_CONFIG_REGION_INDEX: u32 = 7;
 const VFIO_PCI_BAR0_REGION_INDEX: u32 = 0;
 
+static mut CONTAINER_FILE: Option<File> = None;
+static mut CFD: RawFd = 0;
+
 /* struct vfio_group_status, grabbed from linux/vfio.h */
 #[allow(non_camel_case_types)]
 #[repr(C)]
@@ -76,8 +79,7 @@ pub struct IxgbeDevice {
     pub iommu: bool,
     vfio_device_file_descriptor: RawFd,
     vfio_group_file: Option<File>,
-    pub gfd: RawFd,
-    pub vfio_container_file: Option<File>,
+    gfd: RawFd,
     pub cfd: RawFd,
 }
 
@@ -133,10 +135,9 @@ impl IxyDevice for IxgbeDevice {
         let device_file_descriptor: RawFd;
         let group_file: Option<File>;
         let gfd: RawFd;
-        let container_file: Option<File>;
-        let cfd: RawFd;
         let addr: *mut u8;
         let len: usize;
+        let mut cfd: RawFd = unsafe { CFD };
         if iommu {
             /* we also have to build these vfio structs... */
             let group_status: vfio_group_status = vfio_group_status {
@@ -144,13 +145,19 @@ impl IxyDevice for IxgbeDevice {
                 flags: 0,
             };
 
-            /* Open new VFIO Container */
-            container_file = Some(
-                OpenOptions::new()
-                    .read(true)
-                    .write(true)
-                    .open("/dev/vfio/vfio")?,
-            );
+            unsafe{
+                if CONTAINER_FILE.is_none() {
+                    /* Open new VFIO Container */
+                    CONTAINER_FILE = Some(
+                        OpenOptions::new()
+                            .read(true)
+                            .write(true)
+                            .open("/dev/vfio/vfio")?,
+                    );
+                    CFD = get_raw_fd(&CONTAINER_FILE);
+                    cfd = CFD;
+                }
+            }
 
             /* find vfio group for device */
             let link = fs::read_link(format!("/sys/bus/pci/devices/{}/iommu_group", pci_addr))?;
@@ -162,7 +169,7 @@ impl IxyDevice for IxgbeDevice {
                 .parse::<i32>()
                 .unwrap();
             unsafe {
-                cfd = get_raw_fd(&container_file);
+                
                 /* check IOMMU API version */
                 if libc::ioctl(cfd, VFIO_GET_API_VERSION) != VFIO_API_VERSION {
                     info!("Unknown VFIO API Version. Application will probably die soon(ish).");
@@ -309,8 +316,6 @@ impl IxyDevice for IxgbeDevice {
             device_file_descriptor = -1;
             group_file = None;
             gfd = -1;
-            container_file = None;
-            cfd = -1;
             let (addrtemp, lentemp) = pci_map_resource(pci_addr)?;
             addr = addrtemp;
             len = lentemp;
@@ -330,7 +335,6 @@ impl IxyDevice for IxgbeDevice {
             vfio_device_file_descriptor: device_file_descriptor,
             vfio_group_file: group_file,
             gfd: gfd,
-            vfio_container_file: container_file,
             cfd: cfd,
         };
 
