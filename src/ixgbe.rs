@@ -84,8 +84,8 @@ pub struct IxgbeDevice {
     rx_queues: Vec<IxgbeRxQueue>,
     tx_queues: Vec<IxgbeTxQueue>,
     pub iommu: bool,
-    vfio_device_file_descriptor: RawFd,
-    vfio_group_file: Option<File>,
+    dfd: RawFd,
+    group_file: Option<File>,
     gfd: RawFd,
     pub cfd: RawFd,
 }
@@ -139,7 +139,7 @@ impl IxyDevice for IxgbeDevice {
         let iommu = Path::new(&format!("/sys/bus/pci/devices/{}/iommu_group", pci_addr)).exists();
         // ToDo (stefan.huber@stusta.de): unload ixgbe driver, load vfio driver (nicetohave)
         // ToDo (stefan.huber@stusta.de): at least give a error message when vfio is not loaded...
-        let device_file_descriptor: RawFd;
+        let dfd: RawFd;
         let group_file: Option<File>;
         let gfd: RawFd;
         let addr: *mut u8;
@@ -229,8 +229,8 @@ impl IxyDevice for IxgbeDevice {
                 }
 
                 /* Get a file descriptor for the device */
-                device_file_descriptor = libc::ioctl(gfd, VFIO_GROUP_GET_DEVICE_FD, pci_addr);
-                if device_file_descriptor == -1 {
+                dfd = libc::ioctl(gfd, VFIO_GROUP_GET_DEVICE_FD, pci_addr);
+                if dfd == -1 {
                     error!(
                         "[ERROR]Could not VFIO_GROUP_GET_DEVICE_FD. Errno: {}",
                         *libc::__errno_location()
@@ -246,22 +246,17 @@ impl IxyDevice for IxgbeDevice {
                     size: 0,
                     offset: 0,
                 };
-                if libc::ioctl(
-                    device_file_descriptor,
-                    VFIO_DEVICE_GET_REGION_INFO,
-                    &conf_reg,
-                ) == -1
-                {
+                if libc::ioctl(dfd, VFIO_DEVICE_GET_REGION_INFO, &conf_reg) == -1 {
                     error!("[ERROR]Could not VFIO_DEVICE_GET_REGION_INFO for index VFIO_PCI_CONFIG_REGION_INDEX. Errno: {}", *libc::__errno_location());
                 }
 
                 /* set DMA bit */
-                let devicefile = File::from_raw_fd(device_file_descriptor);
+                let device_file = File::from_raw_fd(dfd);
 
                 let mut dma: u16 = 0;
                 let dma_ptr: *mut u16 = &mut dma;
                 if libc::pread(
-                    device_file_descriptor,
+                    dfd,
                     dma_ptr as *mut libc::c_void,
                     2,
                     (conf_reg.offset + COMMAND_REGISTER_OFFSET) as i64,
@@ -276,7 +271,7 @@ impl IxyDevice for IxgbeDevice {
                 dma |= 1 << BUS_MASTER_ENABLE_BIT;
 
                 if libc::pwrite(
-                    device_file_descriptor,
+                    dfd,
                     dma_ptr as *mut libc::c_void,
                     2,
                     (conf_reg.offset + COMMAND_REGISTER_OFFSET) as i64,
@@ -297,12 +292,7 @@ impl IxyDevice for IxgbeDevice {
                     size: 0,
                     offset: 0,
                 };
-                if libc::ioctl(
-                    device_file_descriptor,
-                    VFIO_DEVICE_GET_REGION_INFO,
-                    &bar0_reg,
-                ) == -1
-                {
+                if libc::ioctl(dfd, VFIO_DEVICE_GET_REGION_INFO, &bar0_reg) == -1 {
                     error!("[ERROR]Could not VFIO_DEVICE_GET_REGION_INFO for index VFIO_PCI_BAR0_REGION_INDEX. Errno: {}", *libc::__errno_location());
                 }
 
@@ -313,7 +303,7 @@ impl IxyDevice for IxgbeDevice {
                     len,
                     libc::PROT_READ | libc::PROT_WRITE,
                     libc::MAP_SHARED,
-                    devicefile.as_raw_fd(),
+                    device_file.as_raw_fd(),
                     bar0_reg.offset as i64,
                 );
                 if ptr == libc::MAP_FAILED {
@@ -325,7 +315,7 @@ impl IxyDevice for IxgbeDevice {
                 addr = ptr as *mut u8;
             }
         } else {
-            device_file_descriptor = -1;
+            dfd = -1;
             group_file = None;
             gfd = -1;
             let (addrtemp, lentemp) = pci_map_resource(pci_addr)?;
@@ -337,17 +327,17 @@ impl IxyDevice for IxgbeDevice {
         let tx_queues = Vec::with_capacity(num_tx_queues as usize);
         let mut dev = IxgbeDevice {
             pci_addr: pci_addr.to_string(),
-            addr: addr,
-            len: len,
-            num_rx_queues: num_rx_queues,
-            num_tx_queues: num_tx_queues,
-            rx_queues: rx_queues,
-            tx_queues: tx_queues,
-            iommu: iommu,
-            vfio_device_file_descriptor: device_file_descriptor,
-            vfio_group_file: group_file,
-            gfd: gfd,
-            cfd: cfd,
+            addr,
+            len,
+            num_rx_queues,
+            num_tx_queues,
+            rx_queues,
+            tx_queues,
+            iommu,
+            dfd,
+            group_file,
+            gfd,
+            cfd,
         };
 
         dev.reset_and_init(pci_addr)?;
@@ -933,10 +923,6 @@ impl IxgbeDevice {
             thread::sleep(Duration::from_millis(100));
         }
     }
-
-    pub fn is_vfio_device(&self) -> bool {
-        return self.iommu;
-    }
 }
 
 /// Removes multiples of `TX_CLEAN_BATCH` packets from `queue`.
@@ -990,8 +976,8 @@ fn clean_tx_queue(queue: &mut IxgbeTxQueue) -> usize {
 }
 
 fn get_raw_fd(f: &Option<File>) -> RawFd {
-    match f {
-        &Some(ref x) => return x.as_raw_fd(),
-        &None => return -1,
+    match *f {
+        Some(ref x) => x.as_raw_fd(),
+        None => -1,
     }
 }
