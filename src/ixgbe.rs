@@ -1,3 +1,10 @@
+/* actually, there is no "dead" code. The code considered "dead" is needed so
+ * the files will not be closed after leaving scope. */
+#![allow(dead_code)]
+/* actually, all the assignments are used, but in unsafe code, so they are not
+ * recognized */
+#![allow(unused_assignments)]
+
 use std::collections::VecDeque;
 use std::error::Error;
 use std::fs;
