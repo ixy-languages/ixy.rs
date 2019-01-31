@@ -145,8 +145,13 @@ impl IxyDevice for IxgbeDevice {
                 flags: 0,
             };
 
-            unsafe{
+            let mut first_time_setup = false;
+
+            unsafe {
+                /* if the VFIO container is not initialized yet... */
                 if CONTAINER_FILE.is_none() {
+                    /* ...initialize it */
+                    first_time_setup = true;
                     /* Open new VFIO Container */
                     CONTAINER_FILE = Some(
                         OpenOptions::new()
@@ -156,6 +161,15 @@ impl IxyDevice for IxgbeDevice {
                     );
                     CFD = get_raw_fd(&CONTAINER_FILE);
                     cfd = CFD;
+                    /* check IOMMU API version */
+                    if libc::ioctl(cfd, VFIO_GET_API_VERSION) != VFIO_API_VERSION {
+                        info!("Unknown VFIO API Version. Application will probably die soon(ish).");
+                    }
+
+                    /* check if device supports Type1 IOMMU */
+                    if libc::ioctl(cfd, VFIO_CHECK_EXTENSION, VFIO_TYPE1_IOMMU) != 1 {
+                        info!("Device doesn't support Type1 IOMMU. Application will probably crash soon(ish).");
+                    }
                 }
             }
 
@@ -169,17 +183,6 @@ impl IxyDevice for IxgbeDevice {
                 .parse::<i32>()
                 .unwrap();
             unsafe {
-                
-                /* check IOMMU API version */
-                if libc::ioctl(cfd, VFIO_GET_API_VERSION) != VFIO_API_VERSION {
-                    info!("Unknown VFIO API Version. Application will probably die soon(ish).");
-                }
-
-                /* check if device supports Type1 IOMMU */
-                if libc::ioctl(cfd, VFIO_CHECK_EXTENSION, VFIO_TYPE1_IOMMU) != 1 {
-                    info!("Device doesn't support Type1 IOMMU. Application will probably crash soon(ish).");
-                }
-
                 /* open the devices' group */
                 group_file = Some(
                     OpenOptions::new()
@@ -208,12 +211,14 @@ impl IxyDevice for IxgbeDevice {
                     );
                 }
 
-                /* Enable the IOMMU model we want */
-                if libc::ioctl(cfd, VFIO_SET_IOMMU, VFIO_TYPE1_IOMMU) == -1 {
-                    error!(
-                        "[ERROR]Could not VFIO_SET_IOMMU to VFIO_TYPE1_IOMMU. Errno: {}",
-                        *libc::__errno_location()
-                    );
+                if first_time_setup {
+                    /* Enable the IOMMU model we want */
+                    if libc::ioctl(cfd, VFIO_SET_IOMMU, VFIO_TYPE1_IOMMU) == -1 {
+                        error!(
+                            "[ERROR]Could not VFIO_SET_IOMMU to VFIO_TYPE1_IOMMU. Errno: {}",
+                            *libc::__errno_location()
+                        );
+                    }
                 }
 
                 /* Get a file descriptor for the device */
