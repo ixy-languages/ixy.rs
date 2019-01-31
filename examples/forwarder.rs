@@ -33,12 +33,6 @@ pub fn main() {
         }
     };
 
-    println!(
-        "{}\n{} {} {}",
-        "The forwarder is broken in the current implementation. Please use the echoer for performance tests:",
-        "cargo run --example echoer", pci_addr_1, pci_addr_2
-    );
-
     let mut dev1 = ixy_init(&pci_addr_1, 1, 1).unwrap();
     let mut dev2 = ixy_init(&pci_addr_2, 1, 1).unwrap();
 
