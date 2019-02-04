@@ -16,7 +16,7 @@ pub fn unbind_driver(pci_addr: &str) -> Result<(), Box<Error>> {
         Ok(mut f) => {
             write!(f, "{}", pci_addr)?;
             Ok(())
-        },
+        }
         Err(ref e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(Box::new(e)),
     }

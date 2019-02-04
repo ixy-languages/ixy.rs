@@ -6,14 +6,14 @@ use std::rc::Rc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use constants::*;
-use memory::*;
-use pci::*;
+use crate::constants::*;
+use crate::memory::*;
+use crate::pci::*;
 
+use crate::DeviceStats;
+use crate::IxyDevice;
+use crate::MAX_QUEUES;
 use libc;
-use DeviceStats;
-use IxyDevice;
-use MAX_QUEUES;
 
 const DRIVER_NAME: &str = "ixy-ixgbe";
 
@@ -140,7 +140,7 @@ impl IxyDevice for IxgbeDevice {
                     let buf = pool.alloc_buf().expect("no buffer available");
 
                     // replace currently used buffer with new buffer
-                    let mut buf = mem::replace(&mut queue.bufs_in_use[rx_index], buf);
+                    let buf = mem::replace(&mut queue.bufs_in_use[rx_index], buf);
 
                     let p = unsafe {
                         Packet {
@@ -511,7 +511,7 @@ impl IxgbeDevice {
             for i in 0..queue.num_descriptors {
                 let pool = &queue.pool;
 
-                let mut buf = match pool.alloc_buf() {
+                let buf = match pool.alloc_buf() {
                     Some(x) => x,
                     None => return Err("failed to allocate rx descriptor".into()),
                 };
@@ -726,4 +726,3 @@ fn clean_tx_queue(queue: &mut IxgbeTxQueue) -> usize {
 
     clean_index
 }
-
