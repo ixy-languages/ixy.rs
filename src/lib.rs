@@ -11,15 +11,19 @@ extern crate log;
 
 mod constants;
 mod ixgbe;
+mod ixgbeiommu;
 pub mod memory;
 mod pci;
 
 use self::ixgbe::*;
+use self::ixgbeiommu::*;
 use self::memory::*;
 use self::pci::*;
 
 use std::collections::VecDeque;
 use std::error::Error;
+use std::os::unix::io::RawFd;
+use std::path::Path;
 
 const MAX_QUEUES: u16 = 64;
 
@@ -32,6 +36,13 @@ pub trait IxyDevice {
 
     /// Returns the driver's name.
     fn get_driver_name(&self) -> &str;
+
+    /// Returns the driver's iommu capability.
+    fn is_driver_iommu_capable(&self) -> bool;
+
+    /// Returns the VFIO container file descriptor.
+    /// When implementing non-VFIO / IOMMU devices, just return 0.
+    fn get_vfio_container(&self) -> RawFd;
 
     /// Returns the network card's pci address.
     fn get_pci_addr(&self) -> &str;
@@ -175,12 +186,13 @@ pub fn ixy_init(
     pci_addr: &str,
     rx_queues: u16,
     tx_queues: u16,
-) -> Result<IxgbeDevice, Box<Error>> {
+) -> Result<impl IxyDevice, Box<Error>> {
     let mut config_file = pci_open_resource(pci_addr, "config").expect("wrong pci address");
 
     let vendor_id = read_io16(&mut config_file, 0)?;
     let device_id = read_io16(&mut config_file, 2)?;
     let class_id = read_io32(&mut config_file, 8)? >> 24;
+    let iommu = Path::new(&format!("/sys/bus/pci/devices/{}/iommu_group", pci_addr)).exists();
 
     if class_id != 2 {
         return Err(format!("device {} is not a network card", pci_addr).into());
@@ -190,7 +202,12 @@ pub fn ixy_init(
         unimplemented!("virtio driver is not implemented yet");
     } else {
         // let's give it a try with ixgbe
-        let device: IxgbeDevice = IxyDevice::init(pci_addr, rx_queues, tx_queues)?;
-        Ok(device)
+        if iommu {
+            let device: IxgbeIommuDevice = IxgbeIommuDevice::init(pci_addr, rx_queues, tx_queues)?;
+            Ok(device)
+        } else {
+            let device: IxgbeDevice = IxgbeDevice::init(pci_addr, rx_queues, tx_queues)?;
+            Ok(device)
+        }
     }
 }

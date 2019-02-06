@@ -11,8 +11,8 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
 use std::{ptr, slice};
 
+use crate::IxyDevice;
 use libc;
-use IxgbeDevice;
 
 const HUGE_PAGE_BITS: u32 = 21;
 const HUGE_PAGE_SIZE: usize = 1 << HUGE_PAGE_BITS;
@@ -44,7 +44,7 @@ impl<T> Dma<T> {
     pub fn allocate(
         size: usize,
         require_contigous: bool,
-        dev: &IxgbeDevice,
+        dev: &IxyDevice,
     ) -> Result<Dma<T>, Box<Error>> {
         let size = if size % HUGE_PAGE_SIZE != 0 {
             ((size >> HUGE_PAGE_BITS) + 1) << HUGE_PAGE_BITS
@@ -52,7 +52,7 @@ impl<T> Dma<T> {
             size
         };
 
-        if dev.iommu {
+        if dev.is_driver_iommu_capable() {
             // get an anonymous mapped memory space from kernel
             let ptr = unsafe {
                 libc::mmap(
@@ -72,13 +72,14 @@ impl<T> Dma<T> {
                 let iommu_dma_map: vfio_iommu_type1_dma_map = vfio_iommu_type1_dma_map {
                     argsz: mem::size_of::<vfio_iommu_type1_dma_map> as u32,
                     vaddr: ptr as *mut u8,
-                    size: size,
+                    size,
                     iova: ptr as *mut u8,
                     flags: VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE,
                 };
 
-                let ioctl_result =
-                    unsafe { libc::ioctl(dev.cfd, VFIO_IOMMU_MAP_DMA, &iommu_dma_map) };
+                let ioctl_result = unsafe {
+                    libc::ioctl(dev.get_vfio_container(), VFIO_IOMMU_MAP_DMA, &iommu_dma_map)
+                };
                 if ioctl_result != -1 {
                     let memory = Dma {
                         virt: iommu_dma_map.vaddr as *mut T,
@@ -231,7 +232,7 @@ impl Mempool {
     pub fn allocate(
         entries: usize,
         size: usize,
-        dev: &IxgbeDevice,
+        dev: &IxyDevice,
     ) -> Result<Rc<Mempool>, Box<Error>> {
         let entry_size = match size {
             0 => 2048,
@@ -242,7 +243,7 @@ impl Mempool {
         let mut phys_addresses = Vec::with_capacity(entries);
 
         for i in 0..entries {
-            if dev.iommu {
+            if dev.is_driver_iommu_capable() {
                 phys_addresses.push(unsafe { dma.virt.add(i * entry_size) } as usize);
             } else {
                 phys_addresses
