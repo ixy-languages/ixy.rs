@@ -142,13 +142,21 @@ impl<T> Dma<T> {
     }
 }
 
-#[derive(Clone)]
 pub struct Packet {
     pub(crate) addr_virt: *mut u8,
     pub(crate) addr_phys: usize,
     pub(crate) len: usize,
     pub(crate) pool: Rc<Mempool>,
     pub(crate) pool_entry: usize,
+}
+
+impl Clone for Packet {
+    fn clone(&self) -> Self {
+        let mut p = alloc_pkt(&self.pool, self.len).expect("no buffer available");
+        p.clone_from_slice(&self);
+
+        p
+    }
 }
 
 impl Deref for Packet {
