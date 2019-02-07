@@ -83,7 +83,6 @@ impl IxyDevice for IxgbeDevice {
         );
 
         let (addr, len) = pci_map_resource(pci_addr)?;
-
         let rx_queues = Vec::with_capacity(num_rx_queues as usize);
         let tx_queues = Vec::with_capacity(num_tx_queues as usize);
         let mut dev = IxgbeDevice {
@@ -305,7 +304,7 @@ impl IxyDevice for IxgbeDevice {
 
 impl IxgbeDevice {
     /// Resets and initializes this device.
-    pub fn reset_and_init(&mut self, pci_addr: &str) -> Result<(), Box<Error>> {
+    pub (crate) fn reset_and_init(&mut self, pci_addr: &str) -> Result<(), Box<Error>> {
         info!("resetting device {}", pci_addr);
         // section 4.6.3.1 - disable all interrupts
         self.set_reg32(IXGBE_EIMC, 0x7fff_ffff);
