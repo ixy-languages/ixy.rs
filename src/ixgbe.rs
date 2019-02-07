@@ -36,6 +36,7 @@ pub struct IxgbeDevice {
     pub rx_queues: Vec<IxgbeRxQueue>,
     pub tx_queues: Vec<IxgbeTxQueue>,
     pub iommu: bool,
+    pub vfio_container: RawFd,
 }
 
 pub struct IxgbeRxQueue {
@@ -95,6 +96,7 @@ impl IxyDevice for IxgbeDevice {
             rx_queues,
             tx_queues,
             iommu: false,
+            vfio_container: 0,
         };
 
         dev.reset_and_init(pci_addr)?;
@@ -115,7 +117,7 @@ impl IxyDevice for IxgbeDevice {
     /// Returns the VFIO container file descriptor.
     /// When implementing non-VFIO / IOMMU devices, just return 0.
     fn get_vfio_container(&self) -> RawFd {
-        0
+        self.vfio_container
     }
 
     /// Returns the pci address of this device.

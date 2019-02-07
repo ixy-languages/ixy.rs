@@ -294,6 +294,7 @@ impl IxyDevice for IxgbeIommuDevice {
             rx_queues,
             tx_queues,
             iommu: true,
+            vfio_container: cfd,
         };
 
         ixgbedev.reset_and_init(pci_addr)?;
