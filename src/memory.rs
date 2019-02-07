@@ -70,7 +70,7 @@ impl<T> Dma<T> {
                 Err("failed to memory map ".into())
             } else {
                 let iommu_dma_map: vfio_iommu_type1_dma_map = vfio_iommu_type1_dma_map {
-                    argsz: mem::size_of::<vfio_iommu_type1_dma_map> as u32,
+                    argsz: mem::size_of::<vfio_iommu_type1_dma_map> as usize as u32,
                     vaddr: ptr as *mut u8,
                     size,
                     iova: ptr as *mut u8,
@@ -78,7 +78,11 @@ impl<T> Dma<T> {
                 };
 
                 let ioctl_result = unsafe {
-                    libc::ioctl(dev.get_vfio_container(), VFIO_IOMMU_MAP_DMA, &iommu_dma_map)
+                    libc::ioctl(
+                        dev.get_vfio_container().unwrap(),
+                        VFIO_IOMMU_MAP_DMA,
+                        &iommu_dma_map,
+                    )
                 };
                 if ioctl_result != -1 {
                     let memory = Dma {

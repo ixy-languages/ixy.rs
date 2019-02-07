@@ -65,7 +65,7 @@ pub struct IxgbeIommuDevice {
 }
 
 impl IxyDevice for IxgbeIommuDevice {
-    /// Returns an initialized `IxgbeDevice` on success.
+    /// Returns an initialized `IxgbeIommuDevice` on success.
     ///
     /// # Panics
     /// Panics if `num_rx_queues` or `num_tx_queues` exceeds `MAX_QUEUES`.
@@ -99,7 +99,7 @@ impl IxyDevice for IxgbeIommuDevice {
         let mut cfd: RawFd = unsafe { CFD };
         /* we also have to build this vfio struct... */
         let group_status: vfio_group_status = vfio_group_status {
-            argsz: mem::size_of::<vfio_group_status> as u32,
+            argsz: mem::size_of::<vfio_group_status> as usize as u32,
             flags: 0,
         };
 
@@ -192,7 +192,7 @@ impl IxyDevice for IxgbeIommuDevice {
 
         /* map BAR0 space */
         let bar0_reg: vfio_region_info = vfio_region_info {
-            argsz: mem::size_of::<vfio_region_info> as u32,
+            argsz: mem::size_of::<vfio_region_info> as usize as u32,
             flags: 0,
             index: VFIO_PCI_BAR0_REGION_INDEX,
             cap_offset: 0,
@@ -259,8 +259,8 @@ impl IxyDevice for IxgbeIommuDevice {
 
     /// Returns the VFIO container file descriptor.
     /// When implementing non-VFIO / IOMMU devices, just return 0.
-    fn get_vfio_container(&self) -> RawFd {
-        self.dev.vfio_container
+    fn get_vfio_container(&self) -> Option<RawFd> {
+        Some(self.dev.vfio_container)
     }
 
     /// Returns the pci address of this device.
@@ -303,7 +303,7 @@ impl IxyDevice for IxgbeIommuDevice {
 fn enable_dma(device_file_descriptor: RawFd) {
     /* Get region info for config region */
     let conf_reg: vfio_region_info = vfio_region_info {
-        argsz: mem::size_of::<vfio_region_info> as u32,
+        argsz: mem::size_of::<vfio_region_info> as usize as u32,
         flags: 0,
         index: VFIO_PCI_CONFIG_REGION_INDEX,
         cap_offset: 0,

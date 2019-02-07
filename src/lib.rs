@@ -42,7 +42,7 @@ pub trait IxyDevice {
 
     /// Returns the VFIO container file descriptor.
     /// When implementing non-VFIO / IOMMU devices, just return 0.
-    fn get_vfio_container(&self) -> RawFd;
+    fn get_vfio_container(&self) -> Option<RawFd>;
 
     /// Returns the network card's pci address.
     fn get_pci_addr(&self) -> &str;

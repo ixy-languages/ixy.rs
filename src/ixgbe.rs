@@ -27,15 +27,15 @@ fn wrap_ring(index: usize, ring_size: usize) -> usize {
 }
 
 pub struct IxgbeDevice {
-    pub (crate) pci_addr: String,
-    pub (crate) addr: *mut u8,
-    pub (crate) len: usize,
-    pub (crate) num_rx_queues: u16,
-    pub (crate) num_tx_queues: u16,
-    pub (crate) rx_queues: Vec<IxgbeRxQueue>,
-    pub (crate) tx_queues: Vec<IxgbeTxQueue>,
-    pub (crate) iommu: bool,
-    pub (crate) vfio_container: RawFd,
+    pub(crate) pci_addr: String,
+    pub(crate) addr: *mut u8,
+    pub(crate) len: usize,
+    pub(crate) num_rx_queues: u16,
+    pub(crate) num_tx_queues: u16,
+    pub(crate) rx_queues: Vec<IxgbeRxQueue>,
+    pub(crate) tx_queues: Vec<IxgbeTxQueue>,
+    pub(crate) iommu: bool,
+    pub(crate) vfio_container: RawFd,
 }
 
 pub struct IxgbeRxQueue {
@@ -114,8 +114,12 @@ impl IxyDevice for IxgbeDevice {
 
     /// Returns the VFIO container file descriptor.
     /// When implementing non-VFIO / IOMMU devices, just return 0.
-    fn get_vfio_container(&self) -> RawFd {
-        self.vfio_container
+    fn get_vfio_container(&self) -> Option<RawFd> {
+        if self.iommu {
+            Some(self.vfio_container)
+        } else {
+            None
+        }
     }
 
     /// Returns the pci address of this device.
@@ -304,7 +308,7 @@ impl IxyDevice for IxgbeDevice {
 
 impl IxgbeDevice {
     /// Resets and initializes this device.
-    pub (crate) fn reset_and_init(&mut self, pci_addr: &str) -> Result<(), Box<Error>> {
+    pub(crate) fn reset_and_init(&mut self, pci_addr: &str) -> Result<(), Box<Error>> {
         info!("resetting device {}", pci_addr);
         // section 4.6.3.1 - disable all interrupts
         self.set_reg32(IXGBE_EIMC, 0x7fff_ffff);
