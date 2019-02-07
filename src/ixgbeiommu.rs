@@ -7,8 +7,7 @@ use std::error::Error;
 use std::fs;
 use std::fs::{File, OpenOptions};
 use std::mem;
-use std::os::unix::io::RawFd;
-use std::os::unix::io::{AsRawFd, FromRawFd};
+use std::os::unix::io::{AsRawFd, RawFd};
 use std::ptr;
 
 use crate::ixgbe::IxgbeDevice;
@@ -63,10 +62,6 @@ struct vfio_region_info {
 
 pub struct IxgbeIommuDevice {
     dev: IxgbeDevice,
-    //dfd: RawFd,
-    //group_file: Option<File>,
-    //gfd: RawFd,
-    pub cfd: RawFd,
 }
 
 impl IxyDevice for IxgbeIommuDevice {
@@ -96,9 +91,6 @@ impl IxyDevice for IxgbeIommuDevice {
             MAX_QUEUES
         );
 
-        // check if iommu is activated
-        // ToDo (stefan.huber@stusta.de): unload ixgbe driver, load vfio driver (nicetohave)
-        // ToDo (stefan.huber@stusta.de): at least give a error message when vfio is not loaded...
         let dfd: RawFd;
         let group_file: Option<File>;
         let gfd: RawFd;
@@ -113,29 +105,29 @@ impl IxyDevice for IxgbeIommuDevice {
 
         let mut first_time_setup = false;
 
-        unsafe {
-            /* if the VFIO container is not initialized yet... */
-            if CONTAINER_FILE.is_none() {
-                /* ...initialize it */
-                first_time_setup = true;
-                /* Open new VFIO Container */
+        /* if the VFIO container is not initialized yet... */
+        if unsafe { CONTAINER_FILE.is_none() } {
+            /* ...initialize it */
+            first_time_setup = true;
+            /* Open new VFIO Container */
+            unsafe {
                 CONTAINER_FILE = Some(
                     OpenOptions::new()
                         .read(true)
                         .write(true)
                         .open("/dev/vfio/vfio")?,
                 );
-                CFD = get_raw_fd(&CONTAINER_FILE);
-                cfd = CFD;
-                /* check IOMMU API version */
-                if libc::ioctl(cfd, VFIO_GET_API_VERSION) != VFIO_API_VERSION {
-                    info!("Unknown VFIO API Version. Application will probably die soon(ish).");
-                }
+            }
+            unsafe { CFD = get_raw_fd(&CONTAINER_FILE) };
+            cfd = unsafe { CFD };
+            /* check IOMMU API version */
+            if unsafe { libc::ioctl(cfd, VFIO_GET_API_VERSION) } != VFIO_API_VERSION {
+                info!("Unknown VFIO API Version. Application will probably die soon(ish).");
+            }
 
-                /* check if device supports Type1 IOMMU */
-                if libc::ioctl(cfd, VFIO_CHECK_EXTENSION, VFIO_TYPE1_IOMMU) != 1 {
-                    info!("Device doesn't support Type1 IOMMU. Application will probably crash soon(ish).");
-                }
+            /* check if device supports Type1 IOMMU */
+            if unsafe { libc::ioctl(cfd, VFIO_CHECK_EXTENSION, VFIO_TYPE1_IOMMU) } != 1 {
+                info!("Device doesn't support Type1 IOMMU. Application will probably crash soon(ish).");
             }
         }
 
@@ -196,56 +188,7 @@ impl IxyDevice for IxgbeIommuDevice {
             );
         }
 
-        /* Get region info for config region */
-        let conf_reg: vfio_region_info = vfio_region_info {
-            argsz: mem::size_of::<vfio_region_info> as u32,
-            flags: 0,
-            index: VFIO_PCI_CONFIG_REGION_INDEX,
-            cap_offset: 0,
-            size: 0,
-            offset: 0,
-        };
-        if unsafe { libc::ioctl(dfd, VFIO_DEVICE_GET_REGION_INFO, &conf_reg) } == -1 {
-            error!(
-                    "[ERROR]Could not VFIO_DEVICE_GET_REGION_INFO for index VFIO_PCI_CONFIG_REGION_INDEX. Errno: {}",
-                    unsafe { *libc::__errno_location() }
-                );
-        }
-
-        /* set DMA bit */
-        let device_file = unsafe { File::from_raw_fd(dfd) };
-
-        let mut dma: u16 = 0;
-        let dma_ptr: *mut u16 = &mut dma;
-        if unsafe {
-            libc::pread(
-                dfd,
-                dma_ptr as *mut libc::c_void,
-                2,
-                (conf_reg.offset + COMMAND_REGISTER_OFFSET) as i64,
-            )
-        } == -1
-        {
-            error!("[ERROR]Could not pread. Errno: {}", unsafe {
-                *libc::__errno_location()
-            });
-        }
-
-        dma |= 1 << BUS_MASTER_ENABLE_BIT;
-
-        if unsafe {
-            libc::pwrite(
-                dfd,
-                dma_ptr as *mut libc::c_void,
-                2,
-                (conf_reg.offset + COMMAND_REGISTER_OFFSET) as i64,
-            )
-        } == -1
-        {
-            error!("[ERROR]Could not pwrite. Errno: {}", unsafe {
-                *libc::__errno_location()
-            });
-        }
+        enable_dma(dfd);
 
         /* map BAR0 space */
         let bar0_reg: vfio_region_info = vfio_region_info {
@@ -271,7 +214,7 @@ impl IxyDevice for IxgbeIommuDevice {
                 len,
                 libc::PROT_READ | libc::PROT_WRITE,
                 libc::MAP_SHARED,
-                device_file.as_raw_fd(),
+                dfd,
                 bar0_reg.offset as i64,
             )
         };
@@ -299,13 +242,7 @@ impl IxyDevice for IxgbeIommuDevice {
 
         ixgbedev.reset_and_init(pci_addr)?;
 
-        let dev = IxgbeIommuDevice {
-            dev: ixgbedev,
-            //dfd,
-            //group_file,
-            //gfd,
-            cfd,
-        };
+        let dev = IxgbeIommuDevice { dev: ixgbedev };
 
         Ok(dev)
     }
@@ -323,7 +260,7 @@ impl IxyDevice for IxgbeIommuDevice {
     /// Returns the VFIO container file descriptor.
     /// When implementing non-VFIO / IOMMU devices, just return 0.
     fn get_vfio_container(&self) -> RawFd {
-        unsafe { CFD }
+        self.dev.vfio_container
     }
 
     /// Returns the pci address of this device.
@@ -359,6 +296,64 @@ impl IxyDevice for IxgbeIommuDevice {
     /// Returns the link speed of this device.
     fn get_link_speed(&self) -> u16 {
         self.dev.get_link_speed()
+    }
+}
+
+/// Enables DMA Bit for VFIO devices
+fn enable_dma(device_file_descriptor: RawFd) {
+    /* Get region info for config region */
+    let conf_reg: vfio_region_info = vfio_region_info {
+        argsz: mem::size_of::<vfio_region_info> as u32,
+        flags: 0,
+        index: VFIO_PCI_CONFIG_REGION_INDEX,
+        cap_offset: 0,
+        size: 0,
+        offset: 0,
+    };
+    if unsafe {
+        libc::ioctl(
+            device_file_descriptor,
+            VFIO_DEVICE_GET_REGION_INFO,
+            &conf_reg,
+        )
+    } == -1
+    {
+        error!(
+                "[ERROR]Could not VFIO_DEVICE_GET_REGION_INFO for index VFIO_PCI_CONFIG_REGION_INDEX. Errno: {}",
+                unsafe { *libc::__errno_location() }
+            );
+    }
+
+    let mut dma: u16 = 0;
+    let dma_ptr: *mut u16 = &mut dma;
+    if unsafe {
+        libc::pread(
+            device_file_descriptor,
+            dma_ptr as *mut libc::c_void,
+            2,
+            (conf_reg.offset + COMMAND_REGISTER_OFFSET) as i64,
+        )
+    } == -1
+    {
+        error!("[ERROR]Could not pread. Errno: {}", unsafe {
+            *libc::__errno_location()
+        });
+    }
+
+    dma |= 1 << BUS_MASTER_ENABLE_BIT;
+
+    if unsafe {
+        libc::pwrite(
+            device_file_descriptor,
+            dma_ptr as *mut libc::c_void,
+            2,
+            (conf_reg.offset + COMMAND_REGISTER_OFFSET) as i64,
+        )
+    } == -1
+    {
+        error!("[ERROR]Could not pwrite. Errno: {}", unsafe {
+            *libc::__errno_location()
+        });
     }
 }
 

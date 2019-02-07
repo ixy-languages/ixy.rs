@@ -121,5 +121,5 @@ fn calc_ip_checksum(packet: &mut Packet, offset: usize, len: usize) -> u16 {
             checksum = (checksum & 0xfff) + 1;
         }
     }
-    return !(checksum as u16);
+    !(checksum as u16)
 }
