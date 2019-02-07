@@ -81,9 +81,9 @@ pub fn main() {
 
 fn forward(
     buffer: &mut VecDeque<Packet>,
-    rx_dev: &mut impl IxyDevice,
+    rx_dev: &mut Box<IxyDevice>,
     rx_queue: u32,
-    tx_dev: &mut impl IxyDevice,
+    tx_dev: &mut Box<IxyDevice>,
     tx_queue: u32,
 ) {
     let num_rx = rx_dev.rx_batch(rx_queue, buffer, BATCH_SIZE);

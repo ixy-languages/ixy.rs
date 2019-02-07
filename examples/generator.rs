@@ -51,7 +51,7 @@ pub fn main() {
         // rest of the payload is zero-filled because mempools guarantee empty bufs
     ];
 
-    let pool = Mempool::allocate(NUM_PACKETS, 0, &dev).unwrap();
+    let pool = Mempool::allocate(NUM_PACKETS, 0, &*dev).unwrap();
 
     // pre-fill all packet buffer in the pool with data and return them to the packet pool
     {

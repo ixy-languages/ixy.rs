@@ -27,17 +27,18 @@ fn wrap_ring(index: usize, ring_size: usize) -> usize {
     (index + 1) & (ring_size - 1)
 }
 
+// ToDo(stefan.huber@stusta.de): Make this stuff crate visible as soon as it is stable
 pub struct IxgbeDevice {
-    pci_addr: String,
-    addr: *mut u8,
-    len: usize,
-    num_rx_queues: u16,
-    num_tx_queues: u16,
-    rx_queues: Vec<IxgbeRxQueue>,
-    tx_queues: Vec<IxgbeTxQueue>,
+    pub pci_addr: String,
+    pub addr: *mut u8,
+    pub len: usize,
+    pub num_rx_queues: u16,
+    pub num_tx_queues: u16,
+    pub rx_queues: Vec<IxgbeRxQueue>,
+    pub tx_queues: Vec<IxgbeTxQueue>,
 }
 
-struct IxgbeRxQueue {
+pub struct IxgbeRxQueue {
     descriptors: *mut ixgbe_adv_rx_desc,
     num_descriptors: usize,
     pool: Rc<Mempool>,
@@ -45,7 +46,7 @@ struct IxgbeRxQueue {
     rx_index: usize,
 }
 
-struct IxgbeTxQueue {
+pub struct IxgbeTxQueue {
     descriptors: *mut ixgbe_adv_tx_desc,
     num_descriptors: usize,
     pool: Option<Rc<Mempool>>,

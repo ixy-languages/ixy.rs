@@ -151,7 +151,7 @@ impl IxyDevice for IxgbeIommuDevice {
             .unwrap()
             .parse::<i32>()
             .unwrap();
-        unsafe {
+        
             /* open the devices' group */
             group_file = Some(
                 OpenOptions::new()
@@ -162,10 +162,10 @@ impl IxyDevice for IxgbeIommuDevice {
             gfd = get_raw_fd(&group_file);
 
             /* Test the group is viable and available */
-            if libc::ioctl(gfd, VFIO_GROUP_GET_STATUS, &group_status) == -1 {
+            if unsafe { libc::ioctl(gfd, VFIO_GROUP_GET_STATUS, &group_status) } == -1 {
                 error!(
                     "[ERROR]Could not VFIO_GROUP_GET_STATUS. Errno: {}",
-                    *libc::__errno_location()
+                    unsafe { *libc::__errno_location() }
                 );
             }
             if (group_status.flags & VFIO_GROUP_FLAGS_VIABLE) != 1 {
@@ -173,29 +173,29 @@ impl IxyDevice for IxgbeIommuDevice {
             }
 
             /* Add the group to the container */
-            if libc::ioctl(gfd, VFIO_GROUP_SET_CONTAINER, &cfd) == -1 {
+            if unsafe { libc::ioctl(gfd, VFIO_GROUP_SET_CONTAINER, &cfd) } == -1 {
                 error!(
                     "[ERROR]Could not VFIO_GROUP_SET_CONTAINER. Errno: {}",
-                    *libc::__errno_location()
+                    unsafe { *libc::__errno_location() }
                 );
             }
 
             if first_time_setup {
                 /* Enable the IOMMU model we want */
-                if libc::ioctl(cfd, VFIO_SET_IOMMU, VFIO_TYPE1_IOMMU) == -1 {
+                if unsafe { libc::ioctl(cfd, VFIO_SET_IOMMU, VFIO_TYPE1_IOMMU) } == -1 {
                     error!(
                         "[ERROR]Could not VFIO_SET_IOMMU to VFIO_TYPE1_IOMMU. Errno: {}",
-                        *libc::__errno_location()
+                        unsafe { *libc::__errno_location() }
                     );
                 }
             }
 
             /* Get a file descriptor for the device */
-            dfd = libc::ioctl(gfd, VFIO_GROUP_GET_DEVICE_FD, pci_addr);
+            dfd = unsafe { libc::ioctl(gfd, VFIO_GROUP_GET_DEVICE_FD, pci_addr) };
             if dfd == -1 {
                 error!(
                     "[ERROR]Could not VFIO_GROUP_GET_DEVICE_FD. Errno: {}",
-                    *libc::__errno_location()
+                    unsafe { *libc::__errno_location() }
                 );
             }
 
@@ -208,40 +208,43 @@ impl IxyDevice for IxgbeIommuDevice {
                 size: 0,
                 offset: 0,
             };
-            if libc::ioctl(dfd, VFIO_DEVICE_GET_REGION_INFO, &conf_reg) == -1 {
-                error!("[ERROR]Could not VFIO_DEVICE_GET_REGION_INFO for index VFIO_PCI_CONFIG_REGION_INDEX. Errno: {}", *libc::__errno_location());
+            if unsafe { libc::ioctl(dfd, VFIO_DEVICE_GET_REGION_INFO, &conf_reg) } == -1 {
+                error!(
+                    "[ERROR]Could not VFIO_DEVICE_GET_REGION_INFO for index VFIO_PCI_CONFIG_REGION_INDEX. Errno: {}",
+                    unsafe { *libc::__errno_location() }
+                );
             }
 
             /* set DMA bit */
-            let device_file = File::from_raw_fd(dfd);
+            let device_file = unsafe { File::from_raw_fd(dfd) };
 
             let mut dma: u16 = 0;
             let dma_ptr: *mut u16 = &mut dma;
-            if libc::pread(
+            if unsafe { libc::pread(
                 dfd,
                 dma_ptr as *mut libc::c_void,
                 2,
                 (conf_reg.offset + COMMAND_REGISTER_OFFSET) as i64,
-            ) == -1
+            ) } == -1
             {
                 error!(
                     "[ERROR]Could not pread. Errno: {}",
-                    *libc::__errno_location()
+                    unsafe { *libc::__errno_location() }
                 );
             }
 
             dma |= 1 << BUS_MASTER_ENABLE_BIT;
 
-            if libc::pwrite(
+            if unsafe { libc::pwrite(
                 dfd,
                 dma_ptr as *mut libc::c_void,
                 2,
                 (conf_reg.offset + COMMAND_REGISTER_OFFSET) as i64,
-            ) == -1
+            ) } == -1
             {
                 error!(
                     "[ERROR]Could not pwrite. Errno: {}",
-                    *libc::__errno_location()
+                    unsafe { *libc::__errno_location() }
                 );
             }
 
@@ -254,28 +257,31 @@ impl IxyDevice for IxgbeIommuDevice {
                 size: 0,
                 offset: 0,
             };
-            if libc::ioctl(dfd, VFIO_DEVICE_GET_REGION_INFO, &bar0_reg) == -1 {
-                error!("[ERROR]Could not VFIO_DEVICE_GET_REGION_INFO for index VFIO_PCI_BAR0_REGION_INDEX. Errno: {}", *libc::__errno_location());
+            if unsafe { libc::ioctl(dfd, VFIO_DEVICE_GET_REGION_INFO, &bar0_reg) } == -1 {
+                error!(
+                    "[ERROR]Could not VFIO_DEVICE_GET_REGION_INFO for index VFIO_PCI_BAR0_REGION_INDEX. Errno: {}",
+                    unsafe { *libc::__errno_location() }
+                ) ;
             }
 
             len = bar0_reg.size as usize;
 
-            let ptr = libc::mmap(
+            let ptr = unsafe { libc::mmap(
                 ptr::null_mut(),
                 len,
                 libc::PROT_READ | libc::PROT_WRITE,
                 libc::MAP_SHARED,
                 device_file.as_raw_fd(),
                 bar0_reg.offset as i64,
-            );
+            ) };
             if ptr == libc::MAP_FAILED {
                 error!(
                     "[ERROR]Could not mmap bar0. Errno: {}",
-                    *libc::__errno_location()
+                    unsafe { *libc::__errno_location() }
                 );
             }
             addr = ptr as *mut u8;
-        }
+        
 
         let rx_queues = Vec::with_capacity(num_rx_queues as usize);
         let tx_queues = Vec::with_capacity(num_tx_queues as usize);
@@ -292,7 +298,7 @@ impl IxyDevice for IxgbeIommuDevice {
 
         ixgbedev.reset_and_init(pci_addr)?;
 
-        let mut dev = IxgbeIommuDevice {
+        let dev = IxgbeIommuDevice {
             dev: ixgbedev,
             dfd,
             group_file,
@@ -316,7 +322,7 @@ impl IxyDevice for IxgbeIommuDevice {
     /// Returns the VFIO container file descriptor.
     /// When implementing non-VFIO / IOMMU devices, just return 0.
     fn get_vfio_container(&self) -> RawFd {
-        CFD
+        unsafe {CFD}
     }
 
     /// Returns the pci address of this device.

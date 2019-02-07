@@ -81,7 +81,7 @@ pub fn main() {
 
 fn echo(
     buffer: &mut VecDeque<Packet>,
-    dev: &mut impl IxyDevice,
+    dev: &mut Box<IxyDevice>,
     rx_queue: u32,
     tx_queue: u32,
 ) {
