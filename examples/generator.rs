@@ -101,7 +101,7 @@ pub fn main() {
             // every second
             if nanos > 1_000_000_000 {
                 dev.read_stats(&mut dev_stats);
-                dev_stats.print_stats_diff(&dev, &dev_stats_old, nanos);
+                dev_stats.print_stats_diff(&*dev, &dev_stats_old, nanos);
                 dev_stats_old = dev_stats;
 
                 time = Instant::now();

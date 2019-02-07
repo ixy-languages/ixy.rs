@@ -54,8 +54,8 @@ pub fn main() {
     let mut counter = 0;
 
     loop {
-        forward(&mut buffer, &mut dev1, 0, &mut dev2, 0);
-        forward(&mut buffer, &mut dev2, 0, &mut dev1, 0);
+        forward(&mut buffer, &mut *dev1, 0, &mut *dev2, 0);
+        forward(&mut buffer, &mut *dev2, 0, &mut *dev1, 0);
 
         // don't poll the time unnecessarily
         if counter & 0xfff == 0 {
@@ -64,11 +64,11 @@ pub fn main() {
             // every second
             if nanos > 1_000_000_000 {
                 dev1.read_stats(&mut dev1_stats);
-                dev1_stats.print_stats_diff(&dev1, &dev1_stats_old, nanos);
+                dev1_stats.print_stats_diff(&*dev1, &dev1_stats_old, nanos);
                 dev1_stats_old = dev1_stats;
 
                 dev2.read_stats(&mut dev2_stats);
-                dev2_stats.print_stats_diff(&dev2, &dev2_stats_old, nanos);
+                dev2_stats.print_stats_diff(&*dev2, &dev2_stats_old, nanos);
                 dev2_stats_old = dev2_stats;
 
                 time = Instant::now();
@@ -81,9 +81,9 @@ pub fn main() {
 
 fn forward(
     buffer: &mut VecDeque<Packet>,
-    rx_dev: &mut Box<IxyDevice>,
+    rx_dev: &mut IxyDevice,
     rx_queue: u32,
-    tx_dev: &mut Box<IxyDevice>,
+    tx_dev: &mut IxyDevice,
     tx_queue: u32,
 ) {
     let num_rx = rx_dev.rx_batch(rx_queue, buffer, BATCH_SIZE);
