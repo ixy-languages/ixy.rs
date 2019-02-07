@@ -17,7 +17,6 @@ use crate::MAX_QUEUES;
 use libc;
 
 const DRIVER_NAME: &str = "ixy-ixgbe";
-const DRIVER_IOMMU: bool = false;
 
 const NUM_RX_QUEUE_ENTRIES: usize = 512;
 const NUM_TX_QUEUE_ENTRIES: usize = 512;
@@ -36,6 +35,7 @@ pub struct IxgbeDevice {
     pub num_tx_queues: u16,
     pub rx_queues: Vec<IxgbeRxQueue>,
     pub tx_queues: Vec<IxgbeTxQueue>,
+    pub iommu: bool,
 }
 
 pub struct IxgbeRxQueue {
@@ -94,6 +94,7 @@ impl IxyDevice for IxgbeDevice {
             num_tx_queues,
             rx_queues,
             tx_queues,
+            iommu: false,
         };
 
         dev.reset_and_init(pci_addr)?;
@@ -107,8 +108,8 @@ impl IxyDevice for IxgbeDevice {
     }
 
     /// Returns the driver's iommu capability.
-    fn is_driver_iommu_capable(&self) -> bool {
-        DRIVER_IOMMU
+    fn is_card_iommu_capable(&self) -> bool {
+        self.iommu
     }
 
     /// Returns the VFIO container file descriptor.

@@ -52,7 +52,7 @@ impl<T> Dma<T> {
             size
         };
 
-        if dev.is_driver_iommu_capable() {
+        if dev.is_card_iommu_capable() {
             // get an anonymous mapped memory space from kernel
             let ptr = unsafe {
                 libc::mmap(
@@ -243,7 +243,7 @@ impl Mempool {
         let mut phys_addresses = Vec::with_capacity(entries);
 
         for i in 0..entries {
-            if dev.is_driver_iommu_capable() {
+            if dev.is_card_iommu_capable() {
                 phys_addresses.push(unsafe { dma.virt.add(i * entry_size) } as usize);
             } else {
                 phys_addresses

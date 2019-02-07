@@ -37,8 +37,8 @@ pub trait IxyDevice {
     /// Returns the driver's name.
     fn get_driver_name(&self) -> &str;
 
-    /// Returns the driver's iommu capability.
-    fn is_driver_iommu_capable(&self) -> bool;
+    /// Returns the card's iommu capability.
+    fn is_card_iommu_capable(&self) -> bool;
 
     /// Returns the VFIO container file descriptor.
     /// When implementing non-VFIO / IOMMU devices, just return 0.
