@@ -18,6 +18,7 @@ use libc;
 
 const DRIVER_NAME: &str = "ixy-ixgbe";
 
+const MIN_MEMPOOL_SIZE: usize = 4096;
 const NUM_RX_QUEUE_ENTRIES: usize = 512;
 const NUM_TX_QUEUE_ENTRIES: usize = 512;
 const TX_CLEAN_BATCH: usize = 32;
@@ -417,8 +418,8 @@ impl IxgbeDevice {
             self.set_reg32(IXGBE_RDH(u32::from(i)), 0);
             self.set_reg32(IXGBE_RDT(u32::from(i)), 0);
 
-            let mempool_size = if NUM_RX_QUEUE_ENTRIES + NUM_TX_QUEUE_ENTRIES < 4096 {
-                4096
+            let mempool_size = if NUM_RX_QUEUE_ENTRIES + NUM_TX_QUEUE_ENTRIES < MIN_MEMPOOL_SIZE {
+                MIN_MEMPOOL_SIZE
             } else {
                 NUM_RX_QUEUE_ENTRIES + NUM_TX_QUEUE_ENTRIES
             };
