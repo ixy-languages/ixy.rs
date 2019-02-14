@@ -20,7 +20,7 @@ pub fn main() {
     let pci_addr_1 = match args.next() {
         Some(arg) => arg,
         None => {
-            eprintln!("Usage: cargo run --example forwarder <pci bus id1> <pci bus id2>");
+            eprintln!("Usage: cargo run --example echoer <pci bus id1> <pci bus id2>");
             process::exit(1);
         }
     };
@@ -28,7 +28,7 @@ pub fn main() {
     let pci_addr_2 = match args.next() {
         Some(arg) => arg,
         None => {
-            eprintln!("Usage: cargo run --example forwarder <pci bus id1> <pci bus id2>");
+            eprintln!("Usage: cargo run --example echoer <pci bus id1> <pci bus id2>");
             process::exit(1);
         }
     };
@@ -54,8 +54,8 @@ pub fn main() {
     let mut counter = 0;
 
     loop {
-        forward(&mut buffer, &mut *dev1, 0, &mut *dev2, 0);
-        forward(&mut buffer, &mut *dev2, 0, &mut *dev1, 0);
+        echo(&mut buffer, &mut *dev1, 0, 0);
+        echo(&mut buffer, &mut *dev2, 0, 0);
 
         // don't poll the time unnecessarily
         if counter & 0xfff == 0 {
@@ -79,14 +79,8 @@ pub fn main() {
     }
 }
 
-fn forward(
-    buffer: &mut VecDeque<Packet>,
-    rx_dev: &mut IxyDevice,
-    rx_queue: u32,
-    tx_dev: &mut IxyDevice,
-    tx_queue: u32,
-) {
-    let num_rx = rx_dev.rx_batch(rx_queue, buffer, BATCH_SIZE);
+fn echo(buffer: &mut VecDeque<Packet>, dev: &mut IxyDevice, rx_queue: u32, tx_queue: u32) {
+    let num_rx = dev.rx_batch(rx_queue, buffer, BATCH_SIZE);
 
     if num_rx > 0 {
         // touch all packets for a realistic workload
@@ -94,7 +88,7 @@ fn forward(
             p[48] += 1;
         }
 
-        tx_dev.tx_batch(tx_queue, buffer);
+        dev.tx_batch(tx_queue, buffer);
 
         // drop packets if they haven't been sent out
         buffer.drain(..);
