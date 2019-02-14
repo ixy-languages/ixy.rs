@@ -20,6 +20,7 @@ use self::pci::*;
 
 use std::collections::VecDeque;
 use std::error::Error;
+use std::os::unix::io::RawFd;
 
 const MAX_QUEUES: u16 = 64;
 
@@ -32,6 +33,12 @@ pub trait IxyDevice {
 
     /// Returns the driver's name.
     fn get_driver_name(&self) -> &str;
+
+    /// Returns the card's iommu capability.
+    fn is_card_iommu_capable(&self) -> bool;
+
+    /// Returns VFIO container file descriptor or [`None`] if IOMMU is not available.
+    fn get_vfio_container(&self) -> Option<RawFd>;
 
     /// Returns the network card's pci address.
     fn get_pci_addr(&self) -> &str;
@@ -125,7 +132,7 @@ pub struct DeviceStats {
 
 impl DeviceStats {
     ///  Prints the stats differences between `stats_old` and `self`.
-    pub fn print_stats_diff(&self, dev: &impl IxyDevice, stats_old: &DeviceStats, nanos: u32) {
+    pub fn print_stats_diff(&self, dev: &IxyDevice, stats_old: &DeviceStats, nanos: u32) {
         let pci_addr = dev.get_pci_addr();
         let mbits = self.diff_mbit(
             self.rx_bytes,
@@ -175,7 +182,7 @@ pub fn ixy_init(
     pci_addr: &str,
     rx_queues: u16,
     tx_queues: u16,
-) -> Result<impl IxyDevice, Box<Error>> {
+) -> Result<Box<IxyDevice>, Box<Error>> {
     let mut config_file = pci_open_resource(pci_addr, "config").expect("wrong pci address");
 
     let vendor_id = read_io16(&mut config_file, 0)?;
@@ -190,7 +197,7 @@ pub fn ixy_init(
         unimplemented!("virtio driver is not implemented yet");
     } else {
         // let's give it a try with ixgbe
-        let device: IxgbeDevice = IxyDevice::init(pci_addr, rx_queues, tx_queues)?;
-        Ok(device)
+        let device: IxgbeDevice = IxgbeDevice::init(pci_addr, rx_queues, tx_queues)?;
+        Ok(Box::new(device))
     }
 }

@@ -51,7 +51,7 @@ pub fn main() {
         // rest of the payload is zero-filled because mempools guarantee empty bufs
     ];
 
-    let pool = Mempool::allocate(NUM_PACKETS, 0).unwrap();
+    let pool = Mempool::allocate(NUM_PACKETS, 0, &*dev).unwrap();
 
     // pre-fill all packet buffer in the pool with data and return them to the packet pool
     {
@@ -101,7 +101,7 @@ pub fn main() {
             // every second
             if nanos > 1_000_000_000 {
                 dev.read_stats(&mut dev_stats);
-                dev_stats.print_stats_diff(&dev, &dev_stats_old, nanos);
+                dev_stats.print_stats_diff(&*dev, &dev_stats_old, nanos);
                 dev_stats_old = dev_stats;
 
                 time = Instant::now();
@@ -121,5 +121,5 @@ fn calc_ip_checksum(packet: &mut Packet, offset: usize, len: usize) -> u16 {
             checksum = (checksum & 0xfff) + 1;
         }
     }
-    return !(checksum as u16);
+    !(checksum as u16)
 }

@@ -11,6 +11,7 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
 use std::{ptr, slice};
 
+use crate::IxyDevice;
 use libc;
 
 const HUGE_PAGE_BITS: u32 = 21;
@@ -23,61 +24,125 @@ pub struct Dma<T> {
     pub phys: usize,
 }
 
+const VFIO_DMA_MAP_FLAG_READ: u32 = 1;
+const VFIO_DMA_MAP_FLAG_WRITE: u32 = 2;
+const VFIO_IOMMU_MAP_DMA: u64 = 15217;
+
+// struct vfio_iommu_type1_dma_map, grabbed from linux/vfio.h
+#[allow(non_camel_case_types)]
+#[repr(C)]
+struct vfio_iommu_type1_dma_map {
+    argsz: u32,
+    flags: u32,
+    vaddr: *mut u8,
+    iova: *mut u8,
+    size: usize,
+}
+
 impl<T> Dma<T> {
     /// Allocates dma memory on a huge page.
-    pub fn allocate(size: usize, require_contigous: bool) -> Result<Dma<T>, Box<Error>> {
+    pub fn allocate(
+        size: usize,
+        require_contigous: bool,
+        dev: &IxyDevice,
+    ) -> Result<Dma<T>, Box<Error>> {
         let size = if size % HUGE_PAGE_SIZE != 0 {
             ((size >> HUGE_PAGE_BITS) + 1) << HUGE_PAGE_BITS
         } else {
             size
         };
 
-        if require_contigous && size > HUGE_PAGE_SIZE {
-            return Err("could not map physically contigous memory".into());
-        }
+        if dev.is_card_iommu_capable() {
+            // get an anonymous mapped memory space from kernel
+            let ptr = unsafe {
+                libc::mmap(
+                    ptr::null_mut(),
+                    size,
+                    libc::PROT_READ | libc::PROT_WRITE,
+                    libc::MAP_PRIVATE | libc::MAP_ANONYMOUS,
+                    0,
+                    0,
+                )
+            };
 
-        let id = HUGEPAGE_ID.fetch_add(1, Ordering::SeqCst);
-        let path = format!("/mnt/huge/ixy-{}-{}", process::id(), id);
-
-        match fs::OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .open(path.clone())
-        {
-            Ok(f) => {
-                let ptr = unsafe {
-                    libc::mmap(
-                        ptr::null_mut(),
-                        size,
-                        libc::PROT_READ | libc::PROT_WRITE,
-                        libc::MAP_SHARED | libc::MAP_HUGETLB,
-                        f.as_raw_fd(),
-                        0,
-                    ) as *mut T
+            // This is the main IOMMU work: IOMMU DMA MAP the memory...
+            if ptr == libc::MAP_FAILED {
+                Err("failed to memory map ".into())
+            } else {
+                let iommu_dma_map: vfio_iommu_type1_dma_map = vfio_iommu_type1_dma_map {
+                    argsz: mem::size_of::<vfio_iommu_type1_dma_map> as usize as u32,
+                    vaddr: ptr as *mut u8,
+                    size,
+                    iova: ptr as *mut u8,
+                    flags: VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE,
                 };
 
-                if ptr.is_null() {
-                    Err("failed to memory map hugepage - hugepages enabled and free?".into())
-                } else if unsafe { libc::mlock(ptr as *mut libc::c_void, size) } == 0 {
+                let ioctl_result = unsafe {
+                    libc::ioctl(
+                        dev.get_vfio_container().unwrap(),
+                        VFIO_IOMMU_MAP_DMA,
+                        &iommu_dma_map,
+                    )
+                };
+                if ioctl_result != -1 {
                     let memory = Dma {
-                        virt: ptr,
-                        phys: virt_to_phys(ptr as usize)?,
+                        virt: iommu_dma_map.vaddr as *mut T,
+                        phys: iommu_dma_map.iova as usize,
                     };
 
                     Ok(memory)
                 } else {
-                    Err("failed to memory lock hugepage".into())
+                    Err("failed to map the DMA memory - ulimit set for this user?".into())
                 }
             }
-            Err(ref e) if e.kind() == io::ErrorKind::NotFound => Err(Box::new(io::Error::new(
-                io::ErrorKind::NotFound,
-                format!(
-                    "hugepage {} could not be created - hugepages enabled?",
-                    path
-                ),
-            ))),
-            Err(e) => Err(Box::new(e)),
+        } else {
+            if require_contigous && size > HUGE_PAGE_SIZE {
+                return Err("failed to map physically contigous memory".into());
+            }
+
+            let id = HUGEPAGE_ID.fetch_add(1, Ordering::SeqCst);
+            let path = format!("/mnt/huge/ixy-{}-{}", process::id(), id);
+
+            match fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create(true)
+                .open(path.clone())
+            {
+                Ok(f) => {
+                    let ptr = unsafe {
+                        libc::mmap(
+                            ptr::null_mut(),
+                            size,
+                            libc::PROT_READ | libc::PROT_WRITE,
+                            libc::MAP_SHARED | libc::MAP_HUGETLB,
+                            f.as_raw_fd(),
+                            0,
+                        ) as *mut T
+                    };
+
+                    if ptr.is_null() {
+                        Err("failed to memory map hugepage - hugepages enabled and free?".into())
+                    } else if unsafe { libc::mlock(ptr as *mut libc::c_void, size) } == 0 {
+                        let memory = Dma {
+                            virt: ptr,
+                            phys: virt_to_phys(ptr as usize)?,
+                        };
+
+                        Ok(memory)
+                    } else {
+                        Err("failed to memory lock hugepage".into())
+                    }
+                }
+                Err(ref e) if e.kind() == io::ErrorKind::NotFound => Err(Box::new(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!(
+                        "hugepage {} could not be created - hugepages enabled?",
+                        path
+                    ),
+                ))),
+                Err(e) => Err(Box::new(e)),
+            }
         }
     }
 }
@@ -168,17 +233,26 @@ impl Mempool {
     /// # Panics
     ///
     /// Panics if `size` is not a divisor of the page size.
-    pub fn allocate(entries: usize, size: usize) -> Result<Rc<Mempool>, Box<Error>> {
+    pub fn allocate(
+        entries: usize,
+        size: usize,
+        dev: &IxyDevice,
+    ) -> Result<Rc<Mempool>, Box<Error>> {
         let entry_size = match size {
             0 => 2048,
             x => x,
         };
 
-        let dma: Dma<u8> = Dma::allocate(entries * entry_size, false)?;
+        let dma: Dma<u8> = Dma::allocate(entries * entry_size, false, dev)?;
         let mut phys_addresses = Vec::with_capacity(entries);
 
         for i in 0..entries {
-            phys_addresses.push(unsafe { virt_to_phys(dma.virt.add(i * entry_size) as usize)? });
+            if dev.is_card_iommu_capable() {
+                phys_addresses.push(unsafe { dma.virt.add(i * entry_size) } as usize);
+            } else {
+                phys_addresses
+                    .push(unsafe { virt_to_phys(dma.virt.add(i * entry_size) as usize)? });
+            }
         }
 
         let pool = Mempool {
