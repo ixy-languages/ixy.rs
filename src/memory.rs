@@ -27,6 +27,7 @@ pub struct Dma<T> {
 const VFIO_DMA_MAP_FLAG_READ: u32 = 1;
 const VFIO_DMA_MAP_FLAG_WRITE: u32 = 2;
 const VFIO_IOMMU_MAP_DMA: u64 = 15217;
+const MAP_HUGE_2MB: i32 = 0x54000000; // 21 << 26
 
 // struct vfio_iommu_type1_dma_map, grabbed from linux/vfio.h
 #[allow(non_camel_case_types)]
@@ -59,7 +60,7 @@ impl<T> Dma<T> {
                     ptr::null_mut(),
                     size,
                     libc::PROT_READ | libc::PROT_WRITE,
-                    libc::MAP_PRIVATE | libc::MAP_ANONYMOUS,
+                    libc::MAP_PRIVATE | libc::MAP_ANONYMOUS | libc::MAP_HUGETLB | MAP_HUGE_2MB,
                     0,
                     0,
                 )
