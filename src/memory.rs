@@ -308,6 +308,10 @@ impl Mempool {
     pub(crate) unsafe fn get_phys_addr(&self, id: usize) -> usize {
         self.phys_addresses[id]
     }
+
+    pub fn entry_size(&self) -> usize {
+        self.entry_size
+    }
 }
 
 /// Returns `num_packets` free packets from the `pool` with size `packet_size`.
