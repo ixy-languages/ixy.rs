@@ -219,6 +219,16 @@ impl Packet {
             }
         }
     }
+
+    /// Shorten the packet.
+    ///
+    /// Can be used to shorten an already allocated packet, for example when packets were
+    /// preallocated in bulk. If len is greater than the packet's current length, this has no
+    /// effect.
+    pub fn truncate(&mut self, len: usize) {
+        // Validity invariant: the referred to memory range is a proper subset of the previous one.
+        self.len = self.len.min(len)
+    }
 }
 
 /// Common representation for prefetch strategies.
