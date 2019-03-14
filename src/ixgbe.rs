@@ -282,6 +282,9 @@ impl IxyDevice for IxgbeDevice {
                 let next_index = wrap_ring(cur_index, queue.num_descriptors);
 
                 if clean_index == next_index {
+                    // tx queue of device is full, push packet back onto the
+                    // queue of to-be-sent packets
+                    packets.push_front(packet);
                     break;
                 }
 
