@@ -40,8 +40,14 @@ pub trait IxyDevice {
     /// Returns VFIO container file descriptor or [`None`] if IOMMU is not available.
     fn get_vfio_container(&self) -> Option<RawFd>;
 
-    /// Returns the network card's pci address.
+    /// Returns the pci address of this device.
     fn get_pci_addr(&self) -> &str;
+
+    /// Returns the layer 2 address of this device.
+    fn get_mac_addr(&self) -> [u8; 6];
+
+    /// Sets the layer 2 address of this device.
+    fn set_mac_addr(&self, mac: [u8; 6]);
 
     /// Pushes up to `num_packets` `Packet`s onto `buffer` depending on the amount of
     /// received packets by the network card. Returns the number of received packets.

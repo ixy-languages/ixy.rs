@@ -184,6 +184,33 @@ impl IxyDevice for IxgbeDevice {
         &self.pci_addr
     }
 
+    /// Returns the mac address of this device.
+    fn get_mac_addr(&self) -> [u8; 6] {
+        let low = self.get_reg32(IXGBE_RAL(0));
+        let high = self.get_reg32(IXGBE_RAH(0));
+
+        [
+            (low & 0xff) as u8,
+            (low >> 8 & 0xff) as u8,
+            (low >> 16 & 0xff) as u8,
+            (low >> 24) as u8,
+            (high & 0xff) as u8,
+            (high >> 8 & 0xff) as u8,
+        ]
+    }
+
+    /// Sets the mac address of this device.
+    fn set_mac_addr(&self, mac: [u8; 6]) {
+        let low: u32 = u32::from(mac[0])
+            + (u32::from(mac[1]) << 8)
+            + (u32::from(mac[2]) << 16)
+            + (u32::from(mac[3]) << 24);
+        let high: u32 = u32::from(mac[4]) + (u32::from(mac[5]) << 8);
+
+        self.set_reg32(IXGBE_RAL(0), low);
+        self.set_reg32(IXGBE_RAH(0), high);
+    }
+
     /// Pushes up to `num_packets` received `Packet`s onto `buffer`.
     fn rx_batch(
         &mut self,
@@ -381,7 +408,12 @@ impl IxgbeDevice {
         // section 4.6.3.1 - disable interrupts again after reset
         self.set_reg32(IXGBE_EIMC, 0x7fff_ffff);
 
+        let mac = self.get_mac_addr();
         info!("initializing device {}", pci_addr);
+        info!(
+            "mac address: {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}",
+            mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]
+        );
 
         // section 4.6.3 - wait for EEPROM auto read completion
         self.wait_set_reg32(IXGBE_EEC, IXGBE_EEC_ARD);
