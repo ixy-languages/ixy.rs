@@ -838,7 +838,7 @@ fn clean_tx_queue(queue: &mut IxgbeTxQueue) -> usize {
 /// Initializes the IOMMU for a given PCI device. The device must be bound to the VFIO driver.
 fn init_iommu(pci_addr: &str) -> Result<RawFd, Box<dyn Error>> {
     let dfd: RawFd;
-    let group_file: Option<File>;
+    let group_file: File;
     let gfd: RawFd;
     let mut cfd: RawFd = unsafe { CFD };
     // we also have to build this vfio struct...
@@ -854,17 +854,16 @@ fn init_iommu(pci_addr: &str) -> Result<RawFd, Box<dyn Error>> {
         // ...initialize it
         first_time_setup = true;
         // Open new VFIO Container
+        let container_file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open("/dev/vfio/vfio")
+            .unwrap();
+        cfd = container_file.as_raw_fd();
         unsafe {
-            CONTAINER_FILE = Some(
-                OpenOptions::new()
-                    .read(true)
-                    .write(true)
-                    .open("/dev/vfio/vfio")
-                    .unwrap(),
-            );
+            CONTAINER_FILE = Some(container_file);
+            CFD = cfd;
         }
-        unsafe { CFD = get_raw_fd(&CONTAINER_FILE) };
-        cfd = unsafe { CFD };
         // check IOMMU API version
         if unsafe { libc::ioctl(cfd, VFIO_GET_API_VERSION) } != VFIO_API_VERSION {
             return Err("unknown VFIO API Version".into());
@@ -887,14 +886,12 @@ fn init_iommu(pci_addr: &str) -> Result<RawFd, Box<dyn Error>> {
         .unwrap();
 
     // open the devices' group
-    group_file = Some(
-        OpenOptions::new()
-            .read(true)
-            .write(true)
-            .open(format!("/dev/vfio/{}", group))
-            .unwrap(),
-    );
-    gfd = get_raw_fd(&group_file);
+    group_file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(format!("/dev/vfio/{}", group))
+        .unwrap();
+    gfd = group_file.as_raw_fd();
 
     // Test the group is viable and available
     if unsafe { libc::ioctl(gfd, VFIO_GROUP_GET_STATUS, &group_status) } == -1 {
@@ -1048,12 +1045,4 @@ fn vfio_map_resource(fd: RawFd, index: u32) -> Result<(*mut u8, usize), Box<dyn 
     let addr = ptr as *mut u8;
 
     Ok((addr, len))
-}
-
-/// Returns the RawFd for the given file
-fn get_raw_fd(f: &Option<File>) -> RawFd {
-    match *f {
-        Some(ref x) => x.as_raw_fd(),
-        None => -1,
-    }
 }
