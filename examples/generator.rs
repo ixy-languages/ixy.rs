@@ -29,6 +29,7 @@ pub fn main() {
 
     let mut dev = ixy_init(&pci_addr, 1, 1).unwrap();
 
+    #[rustfmt::skip]
     let pkt_data = [
         0x01, 0x02, 0x03, 0x04, 0x05, 0x06,         // dst MAC
         0x11, 0x12, 0x13, 0x14, 0x15, 0x16,         // src MAC

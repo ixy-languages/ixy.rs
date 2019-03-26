@@ -9,6 +9,7 @@
 #[macro_use]
 extern crate log;
 
+#[rustfmt::skip]
 mod constants;
 mod ixgbe;
 pub mod memory;
