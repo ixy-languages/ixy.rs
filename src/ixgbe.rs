@@ -1,6 +1,3 @@
-// actually, the dma assignment is used, but in unsafe code, so it is not recognized
-#![allow(unused_assignments)]
-
 use std::collections::VecDeque;
 use std::error::Error;
 use std::fs;
@@ -977,11 +974,10 @@ fn vfio_enable_dma(device_file_descriptor: RawFd) -> Result<(), Box<dyn Error>> 
     }
 
     let mut dma: u16 = 0;
-    let dma_ptr: *mut u16 = &mut dma;
     if unsafe {
         libc::pread(
             device_file_descriptor,
-            dma_ptr as *mut libc::c_void,
+            &mut dma as *mut _ as *mut libc::c_void,
             2,
             (conf_reg.offset + COMMAND_REGISTER_OFFSET) as i64,
         )
@@ -998,7 +994,7 @@ fn vfio_enable_dma(device_file_descriptor: RawFd) -> Result<(), Box<dyn Error>> 
     if unsafe {
         libc::pwrite(
             device_file_descriptor,
-            dma_ptr as *mut libc::c_void,
+            &mut dma as *mut _ as *mut libc::c_void,
             2,
             (conf_reg.offset + COMMAND_REGISTER_OFFSET) as i64,
         )
