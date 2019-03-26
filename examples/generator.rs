@@ -1,6 +1,3 @@
-extern crate ixy;
-extern crate simple_logger;
-
 use std::collections::VecDeque;
 use std::env;
 use std::process;

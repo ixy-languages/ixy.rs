@@ -14,7 +14,7 @@ pub const COMMAND_REGISTER_OFFSET: u64 = 4;
 pub const BUS_MASTER_ENABLE_BIT: u64 = 2;
 
 /// Unbinds the driver from the device at `pci_addr`.
-pub fn unbind_driver(pci_addr: &str) -> Result<(), Box<Error>> {
+pub fn unbind_driver(pci_addr: &str) -> Result<(), Box<dyn Error>> {
     let path = format!("/sys/bus/pci/devices/{}/driver/unbind", pci_addr);
 
     match fs::OpenOptions::new().write(true).open(path) {
@@ -28,7 +28,7 @@ pub fn unbind_driver(pci_addr: &str) -> Result<(), Box<Error>> {
 }
 
 /// Enables direct memory access for the device at `pci_addr`.
-pub fn enable_dma(pci_addr: &str) -> Result<(), Box<Error>> {
+pub fn enable_dma(pci_addr: &str) -> Result<(), Box<dyn Error>> {
     let path = format!("/sys/bus/pci/devices/{}/config", pci_addr);
     let mut file = fs::OpenOptions::new().read(true).write(true).open(&path)?;
 
@@ -50,7 +50,7 @@ pub fn enable_dma(pci_addr: &str) -> Result<(), Box<Error>> {
 }
 
 /// Mmaps a pci resource and returns a pointer to the mapped memory.
-pub fn pci_map_resource(pci_addr: &str) -> Result<(*mut u8, usize), Box<Error>> {
+pub fn pci_map_resource(pci_addr: &str) -> Result<(*mut u8, usize), Box<dyn Error>> {
     let path = format!("/sys/bus/pci/devices/{}/resource0", pci_addr);
 
     unbind_driver(pci_addr)?;
@@ -78,19 +78,19 @@ pub fn pci_map_resource(pci_addr: &str) -> Result<(*mut u8, usize), Box<Error>> 
 }
 
 /// Opens a pci resource file at the given address.
-pub fn pci_open_resource(pci_addr: &str, resource: &str) -> Result<File, Box<Error>> {
+pub fn pci_open_resource(pci_addr: &str, resource: &str) -> Result<File, Box<dyn Error>> {
     let path = format!("/sys/bus/pci/devices/{}/{}", pci_addr, resource);
     Ok(File::open(path)?)
 }
 
 /// Reads and returns an u16 at `offset` in `file`.
-pub fn read_io16(file: &mut File, offset: usize) -> Result<u16, Box<Error>> {
+pub fn read_io16(file: &mut File, offset: usize) -> Result<u16, Box<dyn Error>> {
     file.seek(SeekFrom::Start(offset as u64))?;
     Ok(file.read_u16::<NativeEndian>()?)
 }
 
 /// Reads and returns an u32 at `offset` in `file`.
-pub fn read_io32(file: &mut File, offset: usize) -> Result<u32, Box<Error>> {
+pub fn read_io32(file: &mut File, offset: usize) -> Result<u32, Box<dyn Error>> {
     file.seek(SeekFrom::Start(offset as u64))?;
     Ok(file.read_u32::<NativeEndian>()?)
 }

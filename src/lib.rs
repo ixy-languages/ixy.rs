@@ -4,8 +4,8 @@
 //! It is designed to be readable, idiomatic Rust code.
 //! It supports Intel 82599 10GbE NICs (ixgbe family).
 
-extern crate byteorder;
-extern crate libc;
+#![warn(rust_2018_idioms)]
+
 #[macro_use]
 extern crate log;
 
@@ -27,7 +27,7 @@ const MAX_QUEUES: u16 = 64;
 /// Used for implementing an ixy device driver like ixgbe or virtio.
 pub trait IxyDevice {
     /// Initializes an intel 82599 network card.
-    fn init(pci_addr: &str, num_rx_queues: u16, num_tx_queues: u16) -> Result<Self, Box<Error>>
+    fn init(pci_addr: &str, num_rx_queues: u16, num_tx_queues: u16) -> Result<Self, Box<dyn Error>>
     where
         Self: Sized;
 
@@ -138,7 +138,7 @@ pub struct DeviceStats {
 
 impl DeviceStats {
     ///  Prints the stats differences between `stats_old` and `self`.
-    pub fn print_stats_diff(&self, dev: &IxyDevice, stats_old: &DeviceStats, nanos: u32) {
+    pub fn print_stats_diff(&self, dev: &dyn IxyDevice, stats_old: &DeviceStats, nanos: u32) {
         let pci_addr = dev.get_pci_addr();
         let mbits = self.diff_mbit(
             self.rx_bytes,
@@ -188,7 +188,7 @@ pub fn ixy_init(
     pci_addr: &str,
     rx_queues: u16,
     tx_queues: u16,
-) -> Result<Box<IxyDevice>, Box<Error>> {
+) -> Result<Box<dyn IxyDevice>, Box<dyn Error>> {
     let mut config_file = pci_open_resource(pci_addr, "config").expect("wrong pci address");
 
     let vendor_id = read_io16(&mut config_file, 0)?;

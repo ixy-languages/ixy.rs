@@ -45,8 +45,8 @@ impl<T> Dma<T> {
     pub fn allocate(
         size: usize,
         require_contigous: bool,
-        dev: &IxyDevice,
-    ) -> Result<Dma<T>, Box<Error>> {
+        dev: &dyn IxyDevice,
+    ) -> Result<Dma<T>, Box<dyn Error>> {
         let size = if size % HUGE_PAGE_SIZE != 0 {
             ((size >> HUGE_PAGE_BITS) + 1) << HUGE_PAGE_BITS
         } else {
@@ -237,8 +237,8 @@ impl Mempool {
     pub fn allocate(
         entries: usize,
         size: usize,
-        dev: &IxyDevice,
-    ) -> Result<Rc<Mempool>, Box<Error>> {
+        dev: &dyn IxyDevice,
+    ) -> Result<Rc<Mempool>, Box<dyn Error>> {
         let entry_size = match size {
             0 => 2048,
             x => x,
@@ -347,7 +347,7 @@ pub(crate) unsafe fn memset<T: Copy>(addr: *mut T, len: usize, value: T) {
 }
 
 /// Translates a virtual address to its physical counterpart.
-pub(crate) fn virt_to_phys(addr: usize) -> Result<usize, Box<Error>> {
+pub(crate) fn virt_to_phys(addr: usize) -> Result<usize, Box<dyn Error>> {
     let pagesize = unsafe { libc::sysconf(libc::_SC_PAGE_SIZE) } as usize;
 
     let mut file = fs::OpenOptions::new()
