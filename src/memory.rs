@@ -70,7 +70,7 @@ impl<T> Dma<T> {
                 Err("failed to memory map ".into())
             } else {
                 let iommu_dma_map: vfio_iommu_type1_dma_map = vfio_iommu_type1_dma_map {
-                    argsz: mem::size_of::<vfio_iommu_type1_dma_map> as usize as u32,
+                    argsz: mem::size_of::<vfio_iommu_type1_dma_map>() as u32,
                     vaddr: ptr as *mut u8,
                     size,
                     iova: ptr as *mut u8,

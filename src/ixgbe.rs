@@ -843,7 +843,7 @@ fn init_iommu(pci_addr: &str) -> Result<RawFd, Box<dyn Error>> {
     let mut cfd: RawFd = unsafe { CFD };
     // we also have to build this vfio struct...
     let group_status: vfio_group_status = vfio_group_status {
-        argsz: mem::size_of::<vfio_group_status> as usize as u32,
+        argsz: mem::size_of::<vfio_group_status>() as u32,
         flags: 0,
     };
 
@@ -949,7 +949,7 @@ fn init_iommu(pci_addr: &str) -> Result<RawFd, Box<dyn Error>> {
 fn vfio_enable_dma(device_file_descriptor: RawFd) -> Result<(), Box<dyn Error>> {
     // Get region info for config region
     let conf_reg: vfio_region_info = vfio_region_info {
-        argsz: mem::size_of::<vfio_region_info> as usize as u32,
+        argsz: mem::size_of::<vfio_region_info>() as u32,
         flags: 0,
         index: VFIO_PCI_CONFIG_REGION_INDEX,
         cap_offset: 0,
@@ -1008,7 +1008,7 @@ fn vfio_enable_dma(device_file_descriptor: RawFd) -> Result<(), Box<dyn Error>> 
 /// Mmaps a VFIO resource and returns a pointer to the mapped memory.
 fn vfio_map_resource(fd: RawFd, index: u32) -> Result<(*mut u8, usize), Box<dyn Error>> {
     let region_info: vfio_region_info = vfio_region_info {
-        argsz: mem::size_of::<vfio_region_info> as usize as u32,
+        argsz: mem::size_of::<vfio_region_info>() as u32,
         flags: 0,
         index,
         cap_offset: 0,
