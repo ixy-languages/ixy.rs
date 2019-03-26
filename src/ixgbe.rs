@@ -21,7 +21,6 @@ use crate::pci::pci_map_resource;
 use crate::DeviceStats;
 use crate::IxyDevice;
 use crate::MAX_QUEUES;
-use libc;
 
 const DRIVER_NAME: &str = "ixy-ixgbe";
 
