@@ -1,6 +1,3 @@
-// actually, the dma assignment is used, but in unsafe code, so it is not recognized
-#![allow(unused_assignments)]
-
 use std::collections::VecDeque;
 use std::error::Error;
 use std::fs;
@@ -21,7 +18,6 @@ use crate::pci::pci_map_resource;
 use crate::DeviceStats;
 use crate::IxyDevice;
 use crate::MAX_QUEUES;
-use libc;
 
 const DRIVER_NAME: &str = "ixy-ixgbe";
 
@@ -109,7 +105,7 @@ impl IxyDevice for IxgbeDevice {
         pci_addr: &str,
         num_rx_queues: u16,
         num_tx_queues: u16,
-    ) -> Result<IxgbeDevice, Box<Error>> {
+    ) -> Result<IxgbeDevice, Box<dyn Error>> {
         if unsafe { libc::getuid() } != 0 {
             warn!("not running as root, this will probably fail");
         }
@@ -395,7 +391,7 @@ impl IxyDevice for IxgbeDevice {
 
 impl IxgbeDevice {
     /// Resets and initializes this device.
-    fn reset_and_init(&mut self, pci_addr: &str) -> Result<(), Box<Error>> {
+    fn reset_and_init(&mut self, pci_addr: &str) -> Result<(), Box<dyn Error>> {
         info!("resetting device {}", pci_addr);
         // section 4.6.3.1 - disable all interrupts
         self.set_reg32(IXGBE_EIMC, 0x7fff_ffff);
@@ -455,7 +451,7 @@ impl IxgbeDevice {
 
     // sections 4.6.7
     /// Initializes the rx queues of this device.
-    fn init_rx(&mut self) -> Result<(), Box<Error>> {
+    fn init_rx(&mut self) -> Result<(), Box<dyn Error>> {
         // disable rx while re-configuring it
         self.clear_flags32(IXGBE_RXCTRL, IXGBE_RXCTRL_RXEN);
 
@@ -544,7 +540,7 @@ impl IxgbeDevice {
 
     // section 4.6.8
     /// Initializes the tx queues of this device.
-    fn init_tx(&mut self) -> Result<(), Box<Error>> {
+    fn init_tx(&mut self) -> Result<(), Box<dyn Error>> {
         // crc offload and small packet padding
         self.set_flags32(IXGBE_HLREG0, IXGBE_HLREG0_TXCRCEN | IXGBE_HLREG0_TXPADEN);
 
@@ -610,7 +606,7 @@ impl IxgbeDevice {
     }
 
     /// Sets the rx queues` descriptors and enables the queues.
-    fn start_rx_queue(&mut self, queue_id: u16) -> Result<(), Box<Error>> {
+    fn start_rx_queue(&mut self, queue_id: u16) -> Result<(), Box<dyn Error>> {
         debug!("starting rx queue {}", queue_id);
 
         {
@@ -664,7 +660,7 @@ impl IxgbeDevice {
     }
 
     /// Enables the tx queues.
-    fn start_tx_queue(&mut self, queue_id: u16) -> Result<(), Box<Error>> {
+    fn start_tx_queue(&mut self, queue_id: u16) -> Result<(), Box<dyn Error>> {
         debug!("starting tx queue {}", queue_id);
 
         {
@@ -840,14 +836,14 @@ fn clean_tx_queue(queue: &mut IxgbeTxQueue) -> usize {
 }
 
 /// Initializes the IOMMU for a given PCI device. The device must be bound to the VFIO driver.
-fn init_iommu(pci_addr: &str) -> Result<RawFd, Box<Error>> {
+fn init_iommu(pci_addr: &str) -> Result<RawFd, Box<dyn Error>> {
     let dfd: RawFd;
-    let group_file: Option<File>;
+    let group_file: File;
     let gfd: RawFd;
     let mut cfd: RawFd = unsafe { CFD };
     // we also have to build this vfio struct...
     let group_status: vfio_group_status = vfio_group_status {
-        argsz: mem::size_of::<vfio_group_status> as usize as u32,
+        argsz: mem::size_of::<vfio_group_status>() as u32,
         flags: 0,
     };
 
@@ -858,17 +854,16 @@ fn init_iommu(pci_addr: &str) -> Result<RawFd, Box<Error>> {
         // ...initialize it
         first_time_setup = true;
         // Open new VFIO Container
+        let container_file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open("/dev/vfio/vfio")
+            .unwrap();
+        cfd = container_file.as_raw_fd();
         unsafe {
-            CONTAINER_FILE = Some(
-                OpenOptions::new()
-                    .read(true)
-                    .write(true)
-                    .open("/dev/vfio/vfio")
-                    .unwrap(),
-            );
+            CONTAINER_FILE = Some(container_file);
+            CFD = cfd;
         }
-        unsafe { CFD = get_raw_fd(&CONTAINER_FILE) };
-        cfd = unsafe { CFD };
         // check IOMMU API version
         if unsafe { libc::ioctl(cfd, VFIO_GET_API_VERSION) } != VFIO_API_VERSION {
             return Err("unknown VFIO API Version".into());
@@ -891,14 +886,12 @@ fn init_iommu(pci_addr: &str) -> Result<RawFd, Box<Error>> {
         .unwrap();
 
     // open the devices' group
-    group_file = Some(
-        OpenOptions::new()
-            .read(true)
-            .write(true)
-            .open(format!("/dev/vfio/{}", group))
-            .unwrap(),
-    );
-    gfd = get_raw_fd(&group_file);
+    group_file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(format!("/dev/vfio/{}", group))
+        .unwrap();
+    gfd = group_file.as_raw_fd();
 
     // Test the group is viable and available
     if unsafe { libc::ioctl(gfd, VFIO_GROUP_GET_STATUS, &group_status) } == -1 {
@@ -953,10 +946,10 @@ fn init_iommu(pci_addr: &str) -> Result<RawFd, Box<Error>> {
 }
 
 /// Enables DMA Bit for VFIO devices
-fn vfio_enable_dma(device_file_descriptor: RawFd) -> Result<(), Box<Error>> {
+fn vfio_enable_dma(device_file_descriptor: RawFd) -> Result<(), Box<dyn Error>> {
     // Get region info for config region
     let conf_reg: vfio_region_info = vfio_region_info {
-        argsz: mem::size_of::<vfio_region_info> as usize as u32,
+        argsz: mem::size_of::<vfio_region_info>() as u32,
         flags: 0,
         index: VFIO_PCI_CONFIG_REGION_INDEX,
         cap_offset: 0,
@@ -978,11 +971,10 @@ fn vfio_enable_dma(device_file_descriptor: RawFd) -> Result<(), Box<Error>> {
     }
 
     let mut dma: u16 = 0;
-    let dma_ptr: *mut u16 = &mut dma;
     if unsafe {
         libc::pread(
             device_file_descriptor,
-            dma_ptr as *mut libc::c_void,
+            &mut dma as *mut _ as *mut libc::c_void,
             2,
             (conf_reg.offset + COMMAND_REGISTER_OFFSET) as i64,
         )
@@ -999,7 +991,7 @@ fn vfio_enable_dma(device_file_descriptor: RawFd) -> Result<(), Box<Error>> {
     if unsafe {
         libc::pwrite(
             device_file_descriptor,
-            dma_ptr as *mut libc::c_void,
+            &mut dma as *mut _ as *mut libc::c_void,
             2,
             (conf_reg.offset + COMMAND_REGISTER_OFFSET) as i64,
         )
@@ -1014,9 +1006,9 @@ fn vfio_enable_dma(device_file_descriptor: RawFd) -> Result<(), Box<Error>> {
 }
 
 /// Mmaps a VFIO resource and returns a pointer to the mapped memory.
-fn vfio_map_resource(fd: RawFd, index: u32) -> Result<(*mut u8, usize), Box<Error>> {
+fn vfio_map_resource(fd: RawFd, index: u32) -> Result<(*mut u8, usize), Box<dyn Error>> {
     let region_info: vfio_region_info = vfio_region_info {
-        argsz: mem::size_of::<vfio_region_info> as usize as u32,
+        argsz: mem::size_of::<vfio_region_info>() as u32,
         flags: 0,
         index,
         cap_offset: 0,
@@ -1053,12 +1045,4 @@ fn vfio_map_resource(fd: RawFd, index: u32) -> Result<(*mut u8, usize), Box<Erro
     let addr = ptr as *mut u8;
 
     Ok((addr, len))
-}
-
-/// Returns the RawFd for the given file
-fn get_raw_fd(f: &Option<File>) -> RawFd {
-    match *f {
-        Some(ref x) => x.as_raw_fd(),
-        None => -1,
-    }
 }

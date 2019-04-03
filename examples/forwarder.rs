@@ -1,6 +1,3 @@
-extern crate ixy;
-extern crate simple_logger;
-
 use std::collections::VecDeque;
 use std::env;
 use std::process;
@@ -81,9 +78,9 @@ pub fn main() {
 
 fn forward(
     buffer: &mut VecDeque<Packet>,
-    rx_dev: &mut IxyDevice,
+    rx_dev: &mut dyn IxyDevice,
     rx_queue: u32,
-    tx_dev: &mut IxyDevice,
+    tx_dev: &mut dyn IxyDevice,
     tx_queue: u32,
 ) {
     let num_rx = rx_dev.rx_batch(rx_queue, buffer, BATCH_SIZE);

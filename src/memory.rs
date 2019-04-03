@@ -8,16 +8,15 @@ use std::ops::{Deref, DerefMut};
 use std::os::unix::prelude::AsRawFd;
 use std::process;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{ptr, slice};
 
 use crate::IxyDevice;
-use libc;
 
 const HUGE_PAGE_BITS: u32 = 21;
 const HUGE_PAGE_SIZE: usize = 1 << HUGE_PAGE_BITS;
 
-static HUGEPAGE_ID: AtomicUsize = ATOMIC_USIZE_INIT;
+static HUGEPAGE_ID: AtomicUsize = AtomicUsize::new(0);
 
 pub struct Dma<T> {
     pub virt: *mut T,
@@ -27,7 +26,7 @@ pub struct Dma<T> {
 const VFIO_DMA_MAP_FLAG_READ: u32 = 1;
 const VFIO_DMA_MAP_FLAG_WRITE: u32 = 2;
 const VFIO_IOMMU_MAP_DMA: u64 = 15217;
-const MAP_HUGE_2MB: i32 = 0x54000000; // 21 << 26
+const MAP_HUGE_2MB: i32 = 0x5400_0000; // 21 << 26
 
 // struct vfio_iommu_type1_dma_map, grabbed from linux/vfio.h
 #[allow(non_camel_case_types)]
@@ -45,8 +44,8 @@ impl<T> Dma<T> {
     pub fn allocate(
         size: usize,
         require_contigous: bool,
-        dev: &IxyDevice,
-    ) -> Result<Dma<T>, Box<Error>> {
+        dev: &dyn IxyDevice,
+    ) -> Result<Dma<T>, Box<dyn Error>> {
         let size = if size % HUGE_PAGE_SIZE != 0 {
             ((size >> HUGE_PAGE_BITS) + 1) << HUGE_PAGE_BITS
         } else {
@@ -71,7 +70,7 @@ impl<T> Dma<T> {
                 Err("failed to memory map ".into())
             } else {
                 let iommu_dma_map: vfio_iommu_type1_dma_map = vfio_iommu_type1_dma_map {
-                    argsz: mem::size_of::<vfio_iommu_type1_dma_map> as usize as u32,
+                    argsz: mem::size_of::<vfio_iommu_type1_dma_map>() as u32,
                     vaddr: ptr as *mut u8,
                     size,
                     iova: ptr as *mut u8,
@@ -237,8 +236,8 @@ impl Mempool {
     pub fn allocate(
         entries: usize,
         size: usize,
-        dev: &IxyDevice,
-    ) -> Result<Rc<Mempool>, Box<Error>> {
+        dev: &dyn IxyDevice,
+    ) -> Result<Rc<Mempool>, Box<dyn Error>> {
         let entry_size = match size {
             0 => 2048,
             x => x,
@@ -347,7 +346,7 @@ pub(crate) unsafe fn memset<T: Copy>(addr: *mut T, len: usize, value: T) {
 }
 
 /// Translates a virtual address to its physical counterpart.
-pub(crate) fn virt_to_phys(addr: usize) -> Result<usize, Box<Error>> {
+pub(crate) fn virt_to_phys(addr: usize) -> Result<usize, Box<dyn Error>> {
     let pagesize = unsafe { libc::sysconf(libc::_SC_PAGE_SIZE) } as usize;
 
     let mut file = fs::OpenOptions::new()
