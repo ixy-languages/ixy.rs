@@ -42,6 +42,13 @@ The built binaries are located in `target/release/examples/`.
 
 To build and execute the examples at once see **Usage**.
 
+Usage of sse and prefetching requires `x86` or `x86_64` and `sse` enabled. This
+requires extra buildflags to be passed to `cargo`.
+
+```
+RUSTFLAGS="-C target-cpu=native -C target-feature=+sse" cargo build --release --all-targets
+```
+
 ## Performance
 
 Have a look at our [performance results](https://github.com/ixy-languages/ixy-languages#Performance) in the ixy-languages repository.
