@@ -217,6 +217,51 @@ impl Packet {
     pub fn get_pool(&self) -> &Rc<Mempool> {
         &self.pool
     }
+
+    /// Prefetch the (first cacheline of) packet content.
+    ///
+    /// The temporal consistency is chosen by the user, where strong consistency will lead to lower
+    /// access times at the cost of cache space in stepwise lower cache tiers (smaller). This
+    /// method is only available on `x86` or `x86_64` architectures with `sse` enabled.
+    ///
+    /// ```bash
+    /// RUSTFLAGS="-C target-cpu=native -C target-feature=+sse" cargo build …
+    /// ```
+    #[cfg(all(any(target_arch="x86", target_arch="x86_64"), target_feature="sse"))]
+    #[inline(always)]
+    pub fn prefetch(&self, hint: Prefetch) {
+        #[cfg(target_arch="x86")]
+        use core::arch::x86;
+        #[cfg(target_arch="x86_64")]
+        use core::arch::x86_64 as x86;
+
+        let addr = self.get_virt_addr() as *const _;
+        unsafe {
+            
+            match hint {
+                Prefetch::Time0 => x86::_mm_prefetch(addr, x86::_MM_HINT_T0),
+                Prefetch::Time1 => x86::_mm_prefetch(addr, x86::_MM_HINT_T1),
+                Prefetch::Time2 => x86::_mm_prefetch(addr, x86::_MM_HINT_T2),
+                Prefetch::NonTemporal => x86::_mm_prefetch(addr, x86::_MM_HINT_NTA),
+            }
+        }
+    }
+}
+
+/// Common representation for prefetch strategies.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Prefetch {
+    /// Corresponds to _MM_HINT_T0 on x86 sse.
+    Time0,
+
+    /// Corresponds to _MM_HINT_T1 on x86 sse.
+    Time1,
+
+    /// Corresponds to _MM_HINT_T2 on x86 sse.
+    Time2,
+
+    /// Corresponds to _MM_HINT_NTA on x86 sse.
+    NonTemporal,
 }
 
 pub struct Mempool {

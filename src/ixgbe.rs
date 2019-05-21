@@ -253,6 +253,9 @@ impl IxyDevice for IxgbeDevice {
                         }
                     };
 
+                    #[cfg(all(any(target_arch="x86", target_arch="x86_64"), target_feature="sse"))]
+                    p.prefetch(Prefetch::Time1);
+
                     buffer.push_back(p);
 
                     unsafe {
