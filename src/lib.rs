@@ -14,6 +14,7 @@ mod constants;
 mod ixgbe;
 pub mod memory;
 mod pci;
+mod vfio;
 
 use self::ixgbe::*;
 use self::memory::*;
