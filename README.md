@@ -10,10 +10,16 @@ Check out [our paper](https://www.net.in.tum.de/fileadmin/bibtex/publications/th
 
 ## Features
 
-* less than 2000 lines of Rust code for the driver and two sample applications
-* simple API to use
+* driver for Intel NICs in the `ixgbe` family, i.e. the 82599ES family (aka Intel X520)
 * super fast, can forward > 26 million packets per second on a single 3.3 GHz CPU core
+* less than 2000 lines of Rust code for the driver and a packet forwarder
+* no kernel modules needed (except `vfio-pci` for the IOMMU)
+* can run without root privileges (using the IOMMU)
+* support for multiple device queues
+* very few dependencies
+* simple API to use
 * documented code
+* MIT license
 
 ## Build instructions
 
@@ -48,6 +54,35 @@ requires extra buildflags to be passed to `cargo`.
 ```
 RUSTFLAGS="-C target-cpu=native -C target-feature=+sse" cargo build --release --all-targets
 ```
+
+## Using the IOMMU / VFIO
+The usage of the IOMMU via the `vfio-pci` driver is implemented for ixgbe devices (Intel X520, X540, and X550).
+To use it, you have to:
+
+0. Enable the IOMMU in the BIOS.
+	On most Intel machines, the BIOS entry is called `VT-d` and has to be enabled in addition to any other virtualization technique.
+
+1. Enable the IOMMU in the linux kernel.
+	Add `intel_iommu=on` to your cmdline (if you are running a grub, the file `/etc/default/grub.cfg` contains a `GRUB_CMDLINE_LINUX` where you can add it).
+
+2. Get the PCI address, vendor and device ID:
+	`lspci -nn | grep Ether` returns something like `05:00.0 Ethernet controller [0200]: Intel Corporation Ethernet Controller 10-Gigabit X540-AT2 [8086:1528] (rev 01)`.
+	In this case, `0000:05:00.0` is our PCI Address, and `8086` and `1528` are the vendor and device id, respectively.
+
+3. Unbind the device from the `ixgbe` driver.
+	`echo $PCI_ADDRESS > /sys/bus/pci/devices/$PCI_ADDRESS/driver/unbind`
+
+4. Enable the `vfio-pci` driver.
+	`modprobe vfio-pci`
+
+5. Bind the device to the `vfio-pci` driver.
+	`echo $VENDOR_ID $DEVICE_ID > /sys/bus/pci/drivers/vfio-pci/new_id`
+
+6. Chown the device to the user.
+	`chown $USER:$GROUP /dev/vfio/*`
+
+6. That's it!
+	Now you can compile and run ixy as stated above!
 
 ## Performance
 
