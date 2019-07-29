@@ -15,6 +15,7 @@ Check out [our paper](https://www.net.in.tum.de/fileadmin/bibtex/publications/th
 * less than 2000 lines of Rust code for the driver and a packet forwarder
 * no kernel modules needed (except `vfio-pci` for the IOMMU)
 * can run without root privileges (using the IOMMU)
+* packet prefetching
 * support for multiple device queues
 * very few dependencies
 * simple API to use
