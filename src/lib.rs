@@ -13,10 +13,12 @@ mod constants;
 mod ixgbe;
 pub mod memory;
 mod pci;
+pub mod interrupts;
 
 use self::ixgbe::*;
 use self::memory::*;
 use self::pci::*;
+use self::interrupts::*;
 
 use std::collections::VecDeque;
 use std::error::Error;
