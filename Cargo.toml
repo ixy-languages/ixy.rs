@@ -8,6 +8,8 @@ edition = "2018"
 libc = "0.2"
 byteorder = "1"
 log = "0.4"
+eventfd = "0.1.0"
+epoll = "4.1.0"
 
 [dev-dependencies]
 simple_logger = "0.5"

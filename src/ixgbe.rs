@@ -236,6 +236,17 @@ impl IxyDevice for IxgbeDevice {
             rx_index = queue.rx_index;
             last_rx_index = queue.rx_index;
 
+            let mut interrupt;
+            let interrupt_enabled = self.interrupts.interrupts_enabled;
+
+            if interrupt_enabled {
+                interrupt = self.interrupts.queues[rx_index];
+            }
+
+            if interrupt_enabled && interrupt.interrupt_enabled {
+                interrupt.vfio_epoll_wait(10, self.interrupts.timeout_ms as i32);
+            }
+
             for i in 0..num_packets {
                 let desc = unsafe { queue.descriptors.add(rx_index) as *mut ixgbe_adv_rx_desc };
                 let status =
@@ -280,6 +291,24 @@ impl IxyDevice for IxgbeDevice {
                     received_packets = i + 1;
                 } else {
                     break;
+                }
+            }
+
+            if interrupt_enabled {
+                let int_en = interrupt.interrupt_enabled;
+                interrupt.rx_pkts += received_packets as u64;
+
+                let diff = monotonic_time() - interrupt.last_time_checked;
+                if diff > interrupt.interval {
+                    interrupt.check_interrupt(diff, received_packets, num_packets);
+                }
+
+                if int_en != interrupt.interrupt_enabled {
+                    if interrupt.interrupt_enabled {
+                        self.enable_interrupt(queue_id);
+                    } else {
+                        self.disable_interrupt(queue_id);
+                    }
                 }
             }
         }
@@ -454,7 +483,7 @@ impl IxgbeDevice {
 
         // enable interrupts
         for queue in 0..self.num_rx_queues {
-            self.enable_interrupt( queue);
+            self.enable_interrupt( queue as u32);
         }
 
         // enable promisc mode by default to make testing easier
@@ -807,15 +836,15 @@ impl IxgbeDevice {
      * @param queue queue to map the corresponding interrupt to
      * @param msix_vector the vector to map to the corresponding queue
      */
-    fn set_ivar(&self, direction: s8, queue: u16, msix_vector: u32) {
+    fn set_ivar(&self, direction: s8, queue: u32, msix_vector: u32) {
         let mut ivar: u32;
         let mut index: u32;
         msix_vector |= IXGBE_IVAR_ALLOC_VAL;
-        index = ((16 * (queue & 1) as u32) + (8 * direction));
-        ivar = self.get_reg32(IXGBE_IVAR((queue >> 1) as u32));
+        index = ((16 * (queue & 1)) + (8 * direction));
+        ivar = self.get_reg32(IXGBE_IVAR((queue >> 1)));
         ivar &= !(0xFF << index);
         ivar |= (msix_vector << index);
-        self.set_reg32(IXGBE_IVAR((queue >> 1) as u32), ivar);
+        self.set_reg32(IXGBE_IVAR((queue >> 1)), ivar);
     }
 
 
@@ -832,9 +861,9 @@ impl IxgbeDevice {
      * Clear interrupt for queue.
      * @param queue_id The ID of the queue to clear.
      */
-    fn clear_interrupt(&self, queue_id: u16) {
+    fn clear_interrupt(&self, queue_id: u32) {
         // Clear interrupt mask
-        self.set_reg32(IXGBE_EIMC, (1 << queue_id) as u32);
+        self.set_reg32(IXGBE_EIMC, (1 << queue_id));
         self.get_reg32(IXGBE_EICR);
     }
 
@@ -851,10 +880,10 @@ impl IxgbeDevice {
      * Disable interrupt for queue
      * @param queue_id The ID of the queue to disable.
      */
-    fn disable_interrupt(&self, queue_id: u16) {
+    fn disable_interrupt(&self, queue_id: u32) {
         // Clear interrupt mask to stop from interrupts being generated
         let mut mask: u32 = self.get_reg32( IXGBE_EIMS);
-        mask &= !(1 << queue_id) as u32;
+        mask &= !(1 << queue_id);
         self.set_reg32(IXGBE_EIMS, mask);
         self.clear_interrupt(queue_id);
     }
@@ -863,7 +892,7 @@ impl IxgbeDevice {
      * Enable MSI interrupt for queue.
      * @param queue_id The ID of the queue to enable.
      */
-    fn enable_msi_interrupt(&self, queue_id: u16) {
+    fn enable_msi_interrupt(&self, queue_id: u32) {
         // Step 1: The software driver associates between Tx and Rx interrupt causes and the EICR
         // register by setting the IVAR[n] registers.
         self.set_ivar(0, queue_id, 0);
@@ -878,14 +907,14 @@ impl IxgbeDevice {
         // Step 4: Set the auto mask in the EIAM register according to the preferred mode of operation.
 
         // Step 5: Set the interrupt throttling in EITR[n] and GPIE according to the preferred mode of operation.
-        self.set_reg32(IXGBE_EITR(queue_id as u32), self.interrupts.itr_rate);
+        self.set_reg32(IXGBE_EITR(queue_id), self.interrupts.itr_rate);
 
         // Step 6: Software clears EICR by writing all ones to clear old interrupt causes
         self.clear_interrupts();
 
         // Step 7: Software enables the required interrupt causes by setting the EIMS register
         let mut mask: u32 = self.get_reg32(IXGBE_EIMS);
-        mask |= (1 << queue_id) as u32;
+        mask |= (1 << queue_id);
         self.set_reg32(IXGBE_EIMS, mask);
     }
 
@@ -893,13 +922,13 @@ impl IxgbeDevice {
      * Enable MSI-X interrupt for queue.
      * @param queue_id The ID of the queue to enable.
      */
-    fn enable_msix_interrupt(&self, queue_id: u16) {
+    fn enable_msix_interrupt(&self, queue_id: u32) {
         // Step 1: The software driver associates between interrupt causes and MSI-X vectors and the
         //throttling timers EITR[n] by programming the IVAR[n] and IVAR_MISC registers.
         let mut gpie: u32 = self.get_reg32(IXGBE_GPIE);
         gpie |= IXGBE_GPIE_MSIX_MODE | IXGBE_GPIE_PBA_SUPPORT | IXGBE_GPIE_EIAME;
         self.set_reg32(IXGBE_GPIE, gpie);
-        self.set_ivar(0, queue_id, queue_id as u32);
+        self.set_ivar(0, queue_id, queue_id);
 
         // Step 2: Program SRRCTL[n].RDMTS (per receive queue) if software uses the receive
         // descriptor minimum threshold interrupt
@@ -930,11 +959,11 @@ impl IxgbeDevice {
         // 0xE10 (900us) => 1080 INT/s
         // 0xFA7 (1000us) => 980 INT/s
         // 0xFFF (1024us) => 950 INT/s
-        self.set_reg32(IXGBE_EITR(queue_id as u32), self.interrupts.itr_rate);
+        self.set_reg32(IXGBE_EITR(queue_id), self.interrupts.itr_rate);
 
         // Step 6: Software enables the required interrupt causes by setting the EIMS register
         let mut mask: u32 = self.get_reg32(IXGBE_EIMS);
-        mask |= (1 << queue_id) as u32;
+        mask |= (1 << queue_id);
         self.set_reg32(IXGBE_EIMS, mask);
     }
 
@@ -942,15 +971,15 @@ impl IxgbeDevice {
      * Enable MSI or MSI-X interrupt for queue depending on which is supported (Prefer MSI-x).
      * @param queue_id The ID of the queue to enable.
      */
-    fn enable_interrupt(&self, queue_id: u16) {
+    fn enable_interrupt(&self, queue_id: u32) {
         if !self.interrupts.interrupts_enabled {
             return;
         }
         match self.interrupts.interrupt_type {
             VFIO_PCI_MSIX_IRQ_INDEX =>
-                enable_msix_interrupt(dev, queue_id),
+                self.enable_msix_interrupt(queue_id),
             VFIO_PCI_MSI_IRQ_INDEX =>
-                enable_msi_interrupt(dev, queue_id),
+                self.enable_msi_interrupt(queue_id),
             _ => {
                 error("Interrupt type not supported: %d", self.interrupts.interrupt_type);
                 return;
@@ -963,30 +992,30 @@ impl IxgbeDevice {
      */
     fn setup_interrupts(&mut self) {
         if !self.interrupts.interrupts_enabled {
+            self.interrupts.queues = Default::default();
             return;
         }
-        self.interrupts.queues = Vec::with_capacity(self.num_rx_queues as usize);;
-        self.interrupts.interrupt_type = vfio_setup_interrupt(self.vfio_fd);
+        self.interrupts.queues = Vec::with_capacity(self.num_rx_queues as usize);
+        self.interrupts.vfio_setup_interrupt(self.vfio_fd);
         match self.ixy.interrupts.interrupt_type {
             VFIO_PCI_MSIX_IRQ_INDEX => {
                 for rx_queue in 0..self.num_rx_queues {
-                    let mut vfio_event_fd = vfio_enable_msix(self.vfio_fd, rx_queue);
-                    let mut vfio_epoll_fd = vfio_epoll_ctl(vfio_event_fd);
-                    self.interrupts.queues[rx_queue].vfio_event_fd = vfio_event_fd;
-                    self.interrupts.queues[rx_queue].vfio_epoll_fd = vfio_epoll_fd;
-                    self.interrupts.queues[rx_queue].moving_avg.length = 0;
-                    self.interrupts.queues[rx_queue].moving_avg.index = 0;
-                    self.interrupts.queues[rx_queue].interval = INTERRUPT_INITIAL_INTERVAL;
+                    let mut queue: InterruptsQueue = self.interrupts.queues[rx_queue];
+                    queue = Default::default();
+                    queue.vfio_enable_msix(self.vfio_container, rx_queue as u32);
+                    queue.vfio_epoll_ctl(vfio_event_fd);
+                    queue.interrupt_enabled = true;
+                    queue.interval = INTERRUPT_INITIAL_INTERVAL;
                 }
             },
             VFIO_PCI_MSI_IRQ_INDEX => {
-                let mut vfio_event_fd = vfio_enable_msi(self.vfio_fd);
-                let mut vfio_epoll_fd = vfio_epoll_ctl(vfio_event_fd);
                 for rx_queue in 0..self.num_rx_queues {
-                    self.interrupts.queues[rx_queue].vfio_event_fd = vfio_event_fd;
-                    self.interrupts.queues[rx_queue].vfio_epoll_fd = vfio_epoll_fd;
-                    self.interrupts.queues[rx_queue].moving_avg.length = 0;
-                    self.interrupts.queues[rx_queue].interval = INTERRUPT_INITIAL_INTERVAL;
+                    let mut queue: InterruptsQueue = self.interrupts.queues[rx_queue];
+                    queue = Default::default();
+                    queue.vfio_enable_msi(self.vfio_container);
+                    queue.vfio_epoll_ctl(vfio_event_fd);
+                    queue.interrupt_enabled = true;
+                    queue.interval = INTERRUPT_INITIAL_INTERVAL;
                 }
             },
             _ => {
