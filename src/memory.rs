@@ -8,7 +8,7 @@ use std::ops::{Deref, DerefMut};
 use std::os::unix::prelude::AsRawFd;
 use std::process;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{ptr, slice};
 
 use crate::IxyDevice;
@@ -17,7 +17,7 @@ use libc;
 const HUGE_PAGE_BITS: u32 = 21;
 const HUGE_PAGE_SIZE: usize = 1 << HUGE_PAGE_BITS;
 
-static HUGEPAGE_ID: AtomicUsize = ATOMIC_USIZE_INIT;
+static HUGEPAGE_ID: AtomicUsize = AtomicUsize::new(0);
 
 pub struct Dma<T> {
     pub virt: *mut T,
@@ -45,7 +45,7 @@ impl<T> Dma<T> {
     pub fn allocate(
         size: usize,
         require_contigous: bool,
-        dev: &IxyDevice,
+        dev: &dyn IxyDevice,
     ) -> Result<Dma<T>, Box<dyn Error>> {
         let size = if size % HUGE_PAGE_SIZE != 0 {
             ((size >> HUGE_PAGE_BITS) + 1) << HUGE_PAGE_BITS
@@ -237,7 +237,7 @@ impl Mempool {
     pub fn allocate(
         entries: usize,
         size: usize,
-        dev: &IxyDevice,
+        dev: &dyn IxyDevice,
     ) -> Result<Rc<Mempool>, Box<dyn Error>> {
         let entry_size = match size {
             0 => 2048,

@@ -60,13 +60,10 @@ struct vfio_irq_info {
 const VFIO_IRQ_SET_DATA_NONE: u32 = (1 << 0); /* Data not present */
 const VFIO_IRQ_SET_DATA_EVENTFD: u32 = (1 << 2); /* Data is eventfd (s32) */
 const VFIO_IRQ_SET_ACTION_TRIGGER: u32 = (1 << 5); /* Trigger interrupt */
-const VFIO_DEVICE_GET_INFO: u64 = 15211;
-const VFIO_DEVICE_GET_REGION_INFO: u64 = 15212;
 const VFIO_DEVICE_GET_IRQ_INFO: u64 = 15213;
 const VFIO_DEVICE_SET_IRQS: u64 = 15214;
 const VFIO_PCI_MSI_IRQ_INDEX: u32 = 1;
 const VFIO_PCI_MSIX_IRQ_INDEX: u32 = 2;
-const VFIO_PCI_CONFIG_REGION_INDEX: u32 = 7;
 const VFIO_IRQ_INFO_EVENTFD: u32 = (1 << 0);
 
 impl Interrupts {

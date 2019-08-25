@@ -79,7 +79,7 @@ pub fn main() {
     }
 }
 
-fn echo(buffer: &mut VecDeque<Packet>, dev: &mut IxyDevice, rx_queue: u32, tx_queue: u32) {
+fn echo(buffer: &mut VecDeque<Packet>, dev: &mut dyn IxyDevice, rx_queue: u32, tx_queue: u32) {
     let num_rx = dev.rx_batch(rx_queue, buffer, BATCH_SIZE);
 
     if num_rx > 0 {

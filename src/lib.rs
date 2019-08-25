@@ -140,7 +140,7 @@ pub struct DeviceStats {
 
 impl DeviceStats {
     ///  Prints the stats differences between `stats_old` and `self`.
-    pub fn print_stats_diff(&self, dev: &IxyDevice, stats_old: &DeviceStats, nanos: u32) {
+    pub fn print_stats_diff(&self, dev: &dyn IxyDevice, stats_old: &DeviceStats, nanos: u32) {
         let pci_addr = dev.get_pci_addr();
         let mbits = self.diff_mbit(
             self.rx_bytes,
@@ -190,7 +190,7 @@ pub fn ixy_init(
     pci_addr: &str,
     rx_queues: u16,
     tx_queues: u16,
-) -> Result<Box<IxyDevice>, Box<dyn Error>> {
+) -> Result<Box<dyn IxyDevice>, Box<dyn Error>> {
     let mut config_file = pci_open_resource(pci_addr, "config").expect("wrong pci address");
 
     let vendor_id = read_io16(&mut config_file, 0)?;

@@ -829,7 +829,7 @@ impl IxgbeDevice {
     /// the `queue` ID and the corresponding `misx_vector`.
     fn set_ivar(&self, direction: u32, queue: u32, mut msix_vector: u32) {
         let mut ivar: u32;
-        let mut index: u32;
+        let index: u32;
         msix_vector |= IXGBE_IVAR_ALLOC_VAL;
         index = 16 * (queue & 1) + 8 * direction;
         ivar = self.get_reg32(IXGBE_IVAR(queue >> 1));
