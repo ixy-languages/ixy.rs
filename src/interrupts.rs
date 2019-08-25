@@ -38,7 +38,7 @@ pub struct InterruptMovingAvg {
     pub measured_rates: [f64; MOVING_AVERAGE_RANGE], // The moving average window
 }
 
-// constants and structs needed for IOMMU. Grabbed from linux/vfio.h
+/// constants and structs needed for IOMMU. Grabbed from linux/vfio.h
 #[allow(non_camel_case_types)]
 #[repr(C)]
 struct vfio_irq_set {
@@ -92,11 +92,8 @@ const VFIO_PCI_CONFIG_REGION_INDEX: u32 = 7;
 const VFIO_IRQ_INFO_EVENTFD: u32 = (1 << 0);
 
 impl Interrupts {
-    /**
-     * Setup VFIO interrupts by detecting which interrupts this device supports.
-     * @param device_fd The VFIO file descriptor.
-     * @return The supported interrupt.
-     */
+    /// Setup VFIO interrupts by checking the `device_fd` for which interrupts this device supports.
+    /// Returns the supported interrupt type.
     pub fn vfio_setup_interrupt(&mut self, device_fd: RawFd) {
         let device_info: vfio_device_info = vfio_device_info {
             argsz: mem::size_of::<vfio_device_info> as usize as u32,
@@ -157,11 +154,7 @@ impl Interrupts {
 
 impl InterruptsQueue {
 
-    /**
-     * Add event file descriptor to epoll.
-     * @param event_fd The event file descriptor to add.
-     * @return The epoll file descriptor.
-     */
+    /// Add the `event_fd` file descriptor to epoll.
     pub fn vfio_epoll_ctl(&mut self, event_fd: RawFd) {
         let mut event: Event = Event {
             events: libc::EPOLLIN,
@@ -175,17 +168,13 @@ impl InterruptsQueue {
         self.vfio_epoll_fd = epoll_fd;
     }
 
-    /**
-     * Waits for events on the epoll instance referred to by the file descriptor epoll_fd.
-     * The memory area pointed to by events will contain the events that will be available for the caller.
-     * Up to maxevents are returned by epoll_wait.
-     * @param epoll_fd The epoll file descriptor.
-     * @param maxevents The maximum number of events to return. The maxevents argument must be greater than zero.
-     * @param timeout The timeout argument specifies the minimum number of milliseconds that epoll_wait will block.
-     * Specifying a timeout of -1 causes epoll_wait to block indefinitely,
-     * while specifying a timeout equal to zero cause epoll_wait to return immediately, even if no events are available.
-     * @return Number of ready file descriptors.
-     */
+    /// Waits for events on the epoll instance referred to by the file descriptor `epoll_fd`.
+    /// The memory area pointed to by events will contain the events that will be available for the caller.
+    /// Up to `maxevents` are returned by epoll_wait. The `maxevents` argument must be greater than zero.
+    /// The `timeout` argument specifies the minimum number of milliseconds that epoll_wait will block.
+    /// Specifying a `timeout` of -1 causes epoll_wait to block indefinitely,
+    /// while specifying a `timeout` equal to zero cause epoll_wait to return immediately, even if no events are available.
+    /// Returns the number of ready file descriptors.
     pub fn vfio_epoll_wait(&self, maxevents: usize, timeout: i32) -> usize {
         let &mut events: [Event; maxevents] = [];
         let mut rc: usize;
@@ -217,10 +206,7 @@ impl InterruptsQueue {
         return rc;
     }
 
-    /**
-     * Enable VFIO MSI interrupts.
-     * @param device_fd The VFIO file descriptor.
-     */
+    /// Enable VFIO MSI interrupts for the given `device_fd`.
     pub fn vfio_enable_msi(&mut self, device_fd: RawFd) {
         // setup event fd
         let mut event_fd: RawFd = EventFD::new(0, 0);
@@ -244,11 +230,7 @@ impl InterruptsQueue {
         self.vfio_event_fd = event_fd;
     }
 
-    /**
-     * Disable VFIO MSI interrupts.
-     * @param device_fd The VFIO file descriptor.
-     * @return 0 on success.
-     */
+    /// Disable VFIO MSI interrupts for the given `device_fd`.
     pub fn vfio_disable_msi(&mut self, device_fd: RawFd) {
         let irq_set: vfio_irq_set = vfio_irq_set {
             argsz: (mem::size_of::<vfio_irq_set> + mem::size_of::<RawFd>) as usize as u32,
@@ -269,11 +251,8 @@ impl InterruptsQueue {
         self.vfio_event_fd = 0;
     }
 
-    /**
-     * Enable VFIO MSI-X interrupts.
-     * @param device_fd The VFIO file descriptor.
-     * @return The event file descriptor.
-     */
+    /// Enable VFIO MSI-X interrupts for the given `device_fd`.
+    /// The `interrupt_vector` specifies the number of queues to watch.
     pub fn vfio_enable_msix(&mut self, device_fd: RawFd, mut interrupt_vector: u32) {
         // setup event fd
         let mut event_fd: RawFd = EventFD::new(0, 0);
@@ -303,11 +282,7 @@ impl InterruptsQueue {
         self.vfio_event_fd = event_fd;
     }
 
-    /**
-     * Disable VFIO MSI interrupts.
-     * @param device_fd The VFIO file descriptor.
-     * @return 0 on success.
-     */
+    /// Disable VFIO MSI-X interrupts for the given `device_fd`.
     pub fn vfio_disable_msix(&mut self, device_fd: RawFd) {
         let irq_set: vfio_irq_set = vfio_irq_set {
             argsz: (mem::size_of::<vfio_irq_set> + mem::size_of::<RawFd>) as usize as u32,
@@ -328,23 +303,16 @@ impl InterruptsQueue {
         self.vfio_event_fd = 0;
     }
 
-    /**
-     * Calculate packets per second based on the received number of packets and the elapsed time in nanoseconds since the
-     * last calculation.
-     * @param elapsed_time_nanos Time elapsed in nanoseconds since the last calculation.
-     * @return Packets per second.
-     */
+    /// Calculate packets per second based on the received number of packets and the
+    /// elapsed time in `nanos` since the last calculation.
+    /// Returns the number of packets per second.
     pub fn diff_mpps(&self, nanos: u32) -> f64 {
         self.rx_pkts as f64 / 1_000_000.0 / (f64::from(nanos) / 1_000_000_000.0)
     }
 
-    /**
-     * Check if interrupts or polling should be used based on the current number of received packets per seconds.
-     * @param diff The difference since the last call in nanoseconds.
-     * @param buf_index The current buffer index.
-     * @param buf_size The maximum buffer size.
-     * @return Whether to disable NIC interrupts or not.
-     */
+    /// Check if interrupts or polling should be used based on the current number of received packets per seconds.
+    /// The `diff` specifies time elapsed since the last call in nanoseconds.
+    /// The `buf_index` and `buf_size` the current buffer index and the size of the receive buffer.
     pub fn check_interrupt(&mut self, diff: u64, buf_index: usize, buf_size: usize) {
         self.moving_avg.sum -= self.moving_avg.measured_rates[self.moving_avg.index];
         self.moving_avg.measured_rates[self.moving_avg.index] = self.mpps(diff);

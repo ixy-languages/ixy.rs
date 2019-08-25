@@ -825,12 +825,8 @@ impl IxgbeDevice {
         }
     }
 
-    /**
-     * ixgbe_set_ivar - set the IVAR registers, mapping interrupt causes to vectors
-     * @param direction 0 for Rx, 1 for Tx
-     * @param queue queue to map the corresponding interrupt to
-     * @param msix_vector the vector to map to the corresponding queue
-     */
+    /// Maps interrupt causes to vectors by specifying the `direction` (0 for Rx, 1 for Tx),
+    /// the `queue` ID and the corresponding `misx_vector`.
     fn set_ivar(&self, direction: s8, queue: u32, msix_vector: u32) {
         let mut ivar: u32;
         let mut index: u32;
@@ -842,39 +838,28 @@ impl IxgbeDevice {
         self.set_reg32(IXGBE_IVAR((queue >> 1)), ivar);
     }
 
-
-    /**
-     * Clear all interrupt masks for all queues.
-     */
+    /// Clear all interrupt masks for all queues.
     fn clear_interrupts(&self) {
         // Clear interrupt mask
         self.set_reg32(IXGBE_EIMC, IXGBE_IRQ_CLEAR_MASK);
         self.get_reg32(IXGBE_EICR);
     }
 
-    /**
-     * Clear interrupt for queue.
-     * @param queue_id The ID of the queue to clear.
-     */
+    /// Clear interrupt for queue with `queue_id`.
     fn clear_interrupt(&self, queue_id: u32) {
         // Clear interrupt mask
         self.set_reg32(IXGBE_EIMC, (1 << queue_id));
         self.get_reg32(IXGBE_EICR);
     }
 
-    /**
-     * Disable all interrupts for all queues.
-     */
+    /// Disable all interrupts for all queues.
     fn disable_interrupts(&self) {
         // Clear interrupt mask to stop from interrupts being generated
         self.set_reg32(IXGBE_EIMS, 0x00000000);
         self.clear_interrupts();
     }
 
-    /**
-     * Disable interrupt for queue
-     * @param queue_id The ID of the queue to disable.
-     */
+    /// Disable interrupt for queue with `queue_id`.
     fn disable_interrupt(&self, queue_id: u32) {
         // Clear interrupt mask to stop from interrupts being generated
         let mut mask: u32 = self.get_reg32( IXGBE_EIMS);
@@ -883,10 +868,7 @@ impl IxgbeDevice {
         self.clear_interrupt(queue_id);
     }
 
-    /**
-     * Enable MSI interrupt for queue.
-     * @param queue_id The ID of the queue to enable.
-     */
+    /// Enable MSI interrupt for queue with `queue_id`.
     fn enable_msi_interrupt(&self, queue_id: u32) {
         // Step 1: The software driver associates between Tx and Rx interrupt causes and the EICR
         // register by setting the IVAR[n] registers.
@@ -913,10 +895,7 @@ impl IxgbeDevice {
         self.set_reg32(IXGBE_EIMS, mask);
     }
 
-    /**
-     * Enable MSI-X interrupt for queue.
-     * @param queue_id The ID of the queue to enable.
-     */
+    /// Enable MSI-X interrupt for queue with `queue_id`.
     fn enable_msix_interrupt(&self, queue_id: u32) {
         // Step 1: The software driver associates between interrupt causes and MSI-X vectors and the
         //throttling timers EITR[n] by programming the IVAR[n] and IVAR_MISC registers.
@@ -962,10 +941,7 @@ impl IxgbeDevice {
         self.set_reg32(IXGBE_EIMS, mask);
     }
 
-    /**
-     * Enable MSI or MSI-X interrupt for queue depending on which is supported (Prefer MSI-x).
-     * @param queue_id The ID of the queue to enable.
-     */
+    /// Enable MSI or MSI-X interrupt for queue with `queue_id` depending on which is supported (Prefer MSI-x).
     fn enable_interrupt(&self, queue_id: u32) {
         if !self.interrupts.interrupts_enabled {
             return;
@@ -982,9 +958,7 @@ impl IxgbeDevice {
         }
     }
 
-    /**
-     * Setup interrupts by enabling VFIO interrupts.
-     */
+    /// Setup interrupts by enabling VFIO interrupts.
     fn setup_interrupts(&mut self) {
         if !self.interrupts.interrupts_enabled {
             self.interrupts.queues = Default::default();
