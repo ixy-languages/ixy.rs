@@ -989,6 +989,7 @@ impl IxgbeDevice {
                 return Err(format!("Interrupt type not supported: {}", self.interrupts.interrupt_type).into());
             },
         }
+        Ok(())
     }
 
 }
