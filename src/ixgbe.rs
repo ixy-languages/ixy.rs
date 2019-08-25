@@ -40,8 +40,8 @@ const VFIO_GROUP_SET_CONTAINER: u64 = 15208;
 const VFIO_GROUP_GET_DEVICE_FD: u64 = 15210;
 const VFIO_DEVICE_GET_REGION_INFO: u64 = 15212;
 
-const VFIO_PCI_MSI_IRQ_INDEX: u64 = 1;
-const VFIO_PCI_MSIX_IRQ_INDEX: u64 = 2;
+const VFIO_PCI_MSI_IRQ_INDEX: u8 = 1;
+const VFIO_PCI_MSIX_IRQ_INDEX: u8 = 2;
 
 const VFIO_API_VERSION: i32 = 0;
 const VFIO_TYPE1_IOMMU: u64 = 1;
@@ -237,7 +237,7 @@ impl IxyDevice for IxgbeDevice {
             last_rx_index = queue.rx_index;
 
             if self.interrupts.interrupts_enabled && self.interrupts.queues[rx_index].interrupt_enabled {
-                self.interrupts.queues[rx_index].vfio_epoll_wait(10, self.interrupts.timeout_ms as i32);
+                self.interrupts.queues[rx_index].vfio_epoll_wait(10, self.interrupts.timeout_ms as i32)?;
             }
 
             for i in 0..num_packets {
@@ -288,7 +288,7 @@ impl IxyDevice for IxgbeDevice {
             }
 
             if self.interrupts.interrupts_enabled {
-                let mut interrupt = self.interrupts.queues[rx_index];
+                let mut interrupt = self.interrupts.queues[rx_index as usize];
                 let int_en = interrupt.interrupt_enabled;
                 interrupt.rx_pkts += received_packets as u64;
 
@@ -965,30 +965,31 @@ impl IxgbeDevice {
             return;
         }
         self.interrupts.queues = Vec::with_capacity(self.num_rx_queues as usize);
-        self.interrupts.vfio_setup_interrupt(self.vfio_fd);
-        match self.ixy.interrupts.interrupt_type {
+        self.interrupts.vfio_setup_interrupt(self.vfio_container)?;
+        match self.interrupts.interrupt_type {
             VFIO_PCI_MSIX_IRQ_INDEX => {
                 for rx_queue in 0..self.num_rx_queues {
-                    let mut queue: InterruptsQueue = self.interrupts.queues[rx_queue];
+                    let mut queue: InterruptsQueue = self.interrupts.queues[rx_queue as usize];
                     queue = Default::default();
-                    queue.vfio_enable_msix(self.vfio_container, rx_queue as u32);
-                    queue.vfio_epoll_ctl(queue.vfio_event_fd);
+                    queue.vfio_enable_msix(self.vfio_container, rx_queue as u32)?;
+                    queue.vfio_epoll_ctl(queue.vfio_event_fd)?;
                     queue.interrupt_enabled = true;
                     queue.interval = INTERRUPT_INITIAL_INTERVAL;
                 }
             },
             VFIO_PCI_MSI_IRQ_INDEX => {
                 for rx_queue in 0..self.num_rx_queues {
-                    let mut queue: InterruptsQueue = self.interrupts.queues[rx_queue];
+                    let mut queue: InterruptsQueue = self.interrupts.queues[rx_queue as usize];
                     queue = Default::default();
-                    queue.vfio_enable_msi(self.vfio_container);
-                    queue.vfio_epoll_ctl(queue.vfio_event_fd);
+                    queue.vfio_enable_msi(self.vfio_container)?;
+                    queue.vfio_epoll_ctl(queue.vfio_event_fd)?;
                     queue.interrupt_enabled = true;
                     queue.interval = INTERRUPT_INITIAL_INTERVAL;
                 }
             },
             _ => {
-                return Err(format!("Interrupt type not supported: {}", self.interrupts.interrupt_type).into());
+                eprintln!("Interrupt type not supported: {}", self.interrupts.interrupt_type);
+                return;
             },
         }
     }

@@ -3,6 +3,7 @@ use std::os::unix::io::RawFd;
 use epoll::Event;
 use std::time::Instant;
 use libc;
+use std::error::Error;
 
 const MOVING_AVERAGE_RANGE: usize = 5;
 const INTERRUPT_THRESHOLD: f64 = 1.2;
@@ -20,13 +21,17 @@ pub struct Interrupts {
 
 #[derive(Default)]
 pub struct InterruptsQueue {
-    pub vfio_event_fd: u32, // event fd
-    pub vfio_epoll_fd: u32, // epoll fd
+    pub vfio_event_fd: RawFd, // event fd
+    pub vfio_epoll_fd: RawFd, // epoll fd
     pub interrupt_enabled: bool, // Whether interrupt for this queue is enabled or not
     pub last_time_checked: Instant, // Last time the interrupt flag was checked
     pub rx_pkts: u64, // The number of received packets since the last check
     pub interval: u64, // The interval to check the interrupt flag
     pub moving_avg: InterruptMovingAvg, // The moving average of the hybrid interrupt
+}
+
+impl Default for Instant {
+    fn default() -> Self { Instant::now() }
 }
 
 #[derive(Default)]
@@ -81,10 +86,10 @@ struct vfio_irq_info {
 const VFIO_IRQ_SET_DATA_NONE: u32 = (1 << 0); /* Data not present */
 const VFIO_IRQ_SET_DATA_EVENTFD: u32 = (1 << 2); /* Data is eventfd (s32) */
 const VFIO_IRQ_SET_ACTION_TRIGGER: u32 = (1 << 5); /* Trigger interrupt */
-const VFIO_DEVICE_GET_INFO: u32 = 15211;
-const VFIO_DEVICE_GET_REGION_INFO: u32 = 15212;
-const VFIO_DEVICE_GET_IRQ_INFO: u32 = 15213;
-const VFIO_DEVICE_SET_IRQS: u32 = 15214;
+const VFIO_DEVICE_GET_INFO: u64 = 15211;
+const VFIO_DEVICE_GET_REGION_INFO: u64 = 15212;
+const VFIO_DEVICE_GET_IRQ_INFO: u64 = 15213;
+const VFIO_DEVICE_SET_IRQS: u64 = 15214;
 const VFIO_PCI_MSI_IRQ_INDEX: u32 = 1;
 const VFIO_PCI_MSIX_IRQ_INDEX: u32 = 2;
 const VFIO_PCI_CONFIG_REGION_INDEX: u32 = 7;
@@ -93,9 +98,9 @@ const VFIO_IRQ_INFO_EVENTFD: u32 = (1 << 0);
 impl Interrupts {
     /// Setup VFIO interrupts by checking the `device_fd` for which interrupts this device supports.
     /// Returns the supported interrupt type.
-    pub fn vfio_setup_interrupt(&mut self, device_fd: RawFd) {
+    pub fn vfio_setup_interrupt(&mut self, device_fd: RawFd) -> Result<(), Box<Error>> {
         let device_info: vfio_device_info = vfio_device_info {
-            argsz: mem::size_of::<vfio_device_info> as usize as u32,
+            argsz: mem::size_of::<vfio_device_info>() as u32,
             flags: 0,
             num_regions: 0,
             num_irqs: 0
@@ -109,7 +114,7 @@ impl Interrupts {
         }
 
         let region_info: vfio_region_info = vfio_region_info {
-            argsz: mem::size_of::<vfio_region_info> as usize as u32,
+            argsz: mem::size_of::<vfio_region_info>() as u32,
             flags: 0,
             index: VFIO_PCI_CONFIG_REGION_INDEX,
             cap_offset: 0,
@@ -126,7 +131,7 @@ impl Interrupts {
 
         for index in VFIO_PCI_MSIX_IRQ_INDEX..0 {
             let irq_info: vfio_irq_info = vfio_irq_info {
-                argsz: mem::size_of::<vfio_irq_info> as usize as u32,
+                argsz: mem::size_of::<vfio_irq_info>() as u32,
                 index,
                 flags: 0,
                 count: 0,
@@ -144,27 +149,29 @@ impl Interrupts {
             }
 
             self.interrupt_type = index as u8;
-            return;
+            return OK();
         }
 
-        self.interrupt_type = -1;
+        self.interrupt_type = 0;
+        return OK();
     }
 }
 
 impl InterruptsQueue {
 
     /// Add the `event_fd` file descriptor to epoll.
-    pub fn vfio_epoll_ctl(&mut self, event_fd: RawFd) {
+    pub fn vfio_epoll_ctl(&mut self, event_fd: RawFd) -> Result<(), Box<Error>> {
         let mut event: Event = Event {
-            events: libc::EPOLLIN,
-            data: event_fd
+            events: libc::EPOLLIN as u32,
+            data: event_fd as u64
         };
 
         let epoll_fd = epoll::create(false)?;
 
-        epoll::ctl(epoll_fd, epoll::ControlOptions::EPOLL_CTL_ADD, event_fd, event)?;
+        epoll::ctl(epoll_fd, epoll::ControlOptions::EPOLL_CTL_ADD, event_fd, event);
 
         self.vfio_epoll_fd = epoll_fd;
+        return OK();
     }
 
     /// Waits for events on the epoll instance referred to by the file descriptor `epoll_fd`.
@@ -174,20 +181,21 @@ impl InterruptsQueue {
     /// Specifying a `timeout` of -1 causes epoll_wait to block indefinitely,
     /// while specifying a `timeout` equal to zero cause epoll_wait to return immediately, even if no events are available.
     /// Returns the number of ready file descriptors.
-    pub fn vfio_epoll_wait(&self, maxevents: usize, timeout: i32) -> usize {
-        let &mut events: Vec<Event> = Vec::with_capacity(maxevents);
+    pub fn vfio_epoll_wait(&self, maxevents: usize, timeout: i32)  -> Result<usize, Box<Error>> {
+        let mut events: Vec<Event> = Vec::with_capacity(maxevents);
         let mut rc: usize;
 
         loop {
             // info("Waiting for packets...");
-            rc = epoll::wait(self.vfio_epoll_fd, timeout, events)?;
+            rc = epoll::wait(self.vfio_epoll_fd, timeout, events.as_mut_slice())?;
             if rc > 0 {
                 /* epoll_wait has at least one fd ready to read */
                 for i in 0..rc {
-                    let mut val: u64;
+                    let mut val: u16 = 0;
+                    let val_ptr: *mut u16 = &mut val;
                     // read event file descriptor to clear interrupt.
                     if unsafe {
-                        libc::read(events[i].data, &val, mem::size_of::<u64>)
+                        libc::read(events[i].data as i32, val_ptr as *mut libc::c_void, mem::size_of::<u64>())
                     } == -1
                     {
                         return Err(format!("failed to read event. Errno: {}", unsafe {
@@ -202,11 +210,11 @@ impl InterruptsQueue {
             }
         }
 
-        return rc;
+        return OK(rc);
     }
 
     /// Enable VFIO MSI interrupts for the given `device_fd`.
-    pub fn vfio_enable_msi(&mut self, device_fd: RawFd) {
+    pub fn vfio_enable_msi(&mut self, device_fd: RawFd) -> Result<(), Box<Error>> {
         // setup event fd
         let mut event_fd: RawFd = unsafe { libc::eventfd(0, 0) };
 
@@ -218,12 +226,12 @@ impl InterruptsQueue {
         }
 
         let irq_set: vfio_irq_set = vfio_irq_set {
-            argsz: (mem::size_of::<vfio_irq_set> + mem::size_of::<RawFd>) as usize as u32,
+            argsz: (mem::size_of::<vfio_irq_set>() + mem::size_of::<RawFd>()) as u32,
             count: 1,
             flags: VFIO_IRQ_SET_DATA_EVENTFD | VFIO_IRQ_SET_ACTION_TRIGGER,
             index: VFIO_PCI_MSI_IRQ_INDEX,
             start: 0,
-            data: Vec::from(event_fd)
+            data: vec![event_fd]
         };
 
         if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_SET_IRQS, &irq_set) } == -1 {
@@ -234,12 +242,13 @@ impl InterruptsQueue {
         }
 
         self.vfio_event_fd = event_fd;
+        return OK();
     }
 
     /// Disable VFIO MSI interrupts for the given `device_fd`.
-    pub fn vfio_disable_msi(&mut self, device_fd: RawFd) {
+    pub fn vfio_disable_msi(&mut self, device_fd: RawFd) -> Result<(), Box<Error>> {
         let irq_set: vfio_irq_set = vfio_irq_set {
-            argsz: (mem::size_of::<vfio_irq_set> + mem::size_of::<RawFd>) as usize as u32,
+            argsz: (mem::size_of::<vfio_irq_set>() + mem::size_of::<RawFd>()) as u32,
             count: 0,
             flags: VFIO_IRQ_SET_DATA_NONE | VFIO_IRQ_SET_ACTION_TRIGGER,
             index: VFIO_PCI_MSI_IRQ_INDEX,
@@ -255,11 +264,12 @@ impl InterruptsQueue {
         }
 
         self.vfio_event_fd = 0;
+        return OK();
     }
 
     /// Enable VFIO MSI-X interrupts for the given `device_fd`.
     /// The `interrupt_vector` specifies the number of queues to watch.
-    pub fn vfio_enable_msix(&mut self, device_fd: RawFd, mut interrupt_vector: u32) {
+    pub fn vfio_enable_msix(&mut self, device_fd: RawFd, mut interrupt_vector: u32) -> Result<(), Box<Error>> {
         // setup event fd
         let mut event_fd: RawFd = unsafe { libc::eventfd(0, 0) };
 
@@ -270,19 +280,19 @@ impl InterruptsQueue {
             ).into());
         }
 
-        if !interrupt_vector {
+        if interrupt_vector == 0 {
             interrupt_vector = 1;
         } else if interrupt_vector > MAX_INTERRUPT_VECTORS {
             interrupt_vector = MAX_INTERRUPT_VECTORS + 1;
         }
 
         let irq_set: vfio_irq_set = vfio_irq_set {
-            argsz: (mem::size_of::<vfio_irq_set> + mem::size_of::<RawFd>) * interrupt_vector as usize as u32,
+            argsz: (mem::size_of::<vfio_irq_set>() + mem::size_of::<RawFd>()) as u32 * interrupt_vector,
             count: interrupt_vector,
             flags: VFIO_IRQ_SET_DATA_EVENTFD | VFIO_IRQ_SET_ACTION_TRIGGER,
             index: VFIO_PCI_MSIX_IRQ_INDEX,
             start: 0,
-            data: Vec::from(event_fd)
+            data: vec![event_fd]
         };
 
         if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_SET_IRQS, &irq_set) } == -1 {
@@ -293,12 +303,13 @@ impl InterruptsQueue {
         }
 
         self.vfio_event_fd = event_fd;
+        return OK();
     }
 
     /// Disable VFIO MSI-X interrupts for the given `device_fd`.
-    pub fn vfio_disable_msix(&mut self, device_fd: RawFd) {
+    pub fn vfio_disable_msix(&mut self, device_fd: RawFd) -> Result<(), Box<Error>> {
         let irq_set: vfio_irq_set = vfio_irq_set {
-            argsz: (mem::size_of::<vfio_irq_set> + mem::size_of::<RawFd>) as usize as u32,
+            argsz: (mem::size_of::<vfio_irq_set>() + mem::size_of::<RawFd>()) as u32,
             count: 0,
             flags: VFIO_IRQ_SET_DATA_NONE | VFIO_IRQ_SET_ACTION_TRIGGER,
             index: VFIO_PCI_MSI_IRQ_INDEX,
@@ -314,12 +325,13 @@ impl InterruptsQueue {
         }
 
         self.vfio_event_fd = 0;
+        return OK();
     }
 
     /// Calculate packets per second based on the received number of packets and the
     /// elapsed time in `nanos` since the last calculation.
     /// Returns the number of packets per second.
-    pub fn diff_mpps(&self, nanos: u32) -> f64 {
+    pub fn mpps(&self, nanos: u64) -> f64 {
         self.rx_pkts as f64 / 1_000_000.0 / (f64::from(nanos) / 1_000_000_000.0)
     }
 
@@ -335,7 +347,7 @@ impl InterruptsQueue {
         }
         self.moving_avg.index = (self.moving_avg.index + 1) % MOVING_AVERAGE_RANGE;
         self.moving_avg.length += 1;
-        self.moving_avg.rx_pkts = 0;
+        self.rx_pkts = 0;
         let average = self.moving_avg.sum / self.moving_avg.length as f64;
         if average > INTERRUPT_THRESHOLD {
             self.interrupt_enabled = false;
