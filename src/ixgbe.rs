@@ -288,7 +288,7 @@ impl IxyDevice for IxgbeDevice {
             }
 
             if self.interrupts.interrupts_enabled {
-                let mut interrupt = self.interrupts.queues[rx_index as usize];
+                let interrupt = &mut self.interrupts.queues[rx_index as usize];
                 let int_en = interrupt.interrupt_enabled;
                 interrupt.rx_pkts += received_packets as u64;
 
@@ -827,7 +827,7 @@ impl IxgbeDevice {
 
     /// Maps interrupt causes to vectors by specifying the `direction` (0 for Rx, 1 for Tx),
     /// the `queue` ID and the corresponding `misx_vector`.
-    fn set_ivar(&self, direction: u32, queue: u32, msix_vector: u32) {
+    fn set_ivar(&self, direction: u32, queue: u32, mut msix_vector: u32) {
         let mut ivar: u32;
         let mut index: u32;
         msix_vector |= IXGBE_IVAR_ALLOC_VAL;
@@ -969,7 +969,7 @@ impl IxgbeDevice {
         match self.interrupts.interrupt_type {
             VFIO_PCI_MSIX_IRQ_INDEX => {
                 for rx_queue in 0..self.num_rx_queues {
-                    let mut queue: InterruptsQueue = self.interrupts.queues[rx_queue as usize];
+                    let queue = &mut self.interrupts.queues[rx_queue as usize];
                     queue.vfio_enable_msix(self.vfio_container, rx_queue as u32)?;
                     queue.vfio_epoll_ctl(queue.vfio_event_fd)?;
                     queue.interrupt_enabled = true;
@@ -978,7 +978,7 @@ impl IxgbeDevice {
             },
             VFIO_PCI_MSI_IRQ_INDEX => {
                 for rx_queue in 0..self.num_rx_queues {
-                    let mut queue: InterruptsQueue = self.interrupts.queues[rx_queue as usize];
+                    let queue = &mut self.interrupts.queues[rx_queue as usize];
                     queue.vfio_enable_msi(self.vfio_container)?;
                     queue.vfio_epoll_ctl(queue.vfio_event_fd)?;
                     queue.interrupt_enabled = true;
