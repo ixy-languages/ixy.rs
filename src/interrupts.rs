@@ -1,15 +1,15 @@
 use std::mem;
 use std::os::unix::io::RawFd;
-use std::os::unix::io::FromRawFd;
 use epoll::Event;
 use std::time::Instant;
+use libc;
 
 const MOVING_AVERAGE_RANGE: usize = 5;
 const INTERRUPT_THRESHOLD: f64 = 1.2;
 pub const INTERRUPT_INITIAL_INTERVAL: u64 = 1_000_000_000;
 const MAX_INTERRUPT_VECTORS: u32 = 32;
 
-#[derive(Default, Copy, Clone)]
+#[derive(Default)]
 pub struct Interrupts {
     pub interrupts_enabled: bool, // Whether interrupts for this device are enabled or disabled.
     pub itr_rate: u32, // The Interrupt Throttling Rate
@@ -18,7 +18,7 @@ pub struct Interrupts {
     pub queues: Vec<InterruptsQueue>,  // Interrupt settings per queue
 }
 
-#[derive(Default, Copy, Clone)]
+#[derive(Default)]
 pub struct InterruptsQueue {
     pub vfio_event_fd: u32, // event fd
     pub vfio_epoll_fd: u32, // epoll fd
@@ -29,7 +29,7 @@ pub struct InterruptsQueue {
     pub moving_avg: InterruptMovingAvg, // The moving average of the hybrid interrupt
 }
 
-#[derive(Default, Copy, Clone)]
+#[derive(Default)]
 pub struct InterruptMovingAvg {
     pub index: usize, // The current index
     pub length: usize, // The moving average length
@@ -101,7 +101,7 @@ impl Interrupts {
             num_irqs: 0
         };
 
-        if unsafe { ioctl(device_fd, VFIO_DEVICE_GET_INFO, &device_info) } == -1 {
+        if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_GET_INFO, &device_info) } == -1 {
             return Err(format!(
                 "failed to VFIO_DEVICE_GET_INFO. Errno: {}",
                 unsafe { *libc::__errno_location() }
@@ -117,7 +117,7 @@ impl Interrupts {
             offset: 0,
         };
 
-        if unsafe { ioctl(device_fd, VFIO_DEVICE_GET_REGION_INFO, &device_info) } == -1 {
+        if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_GET_REGION_INFO, &device_info) } == -1 {
             return Err(format!(
                 "failed to VFIO_DEVICE_GET_REGION_INFO for index VFIO_PCI_CONFIG_REGION_INDEX. Errno: {}",
                 unsafe { *libc::__errno_location() }
@@ -132,7 +132,7 @@ impl Interrupts {
                 count: 0,
             };
 
-            if unsafe { ioctl(device_fd, VFIO_DEVICE_GET_IRQ_INFO, &irq_info) } == -1 {
+            if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_GET_IRQ_INFO, &irq_info) } == -1 {
                 return Err(format!(
                     "failed to VFIO_DEVICE_GET_IRQ_INFO for index {}. Errno: {}", index,
                     unsafe { *libc::__errno_location() }
@@ -175,7 +175,7 @@ impl InterruptsQueue {
     /// while specifying a `timeout` equal to zero cause epoll_wait to return immediately, even if no events are available.
     /// Returns the number of ready file descriptors.
     pub fn vfio_epoll_wait(&self, maxevents: usize, timeout: i32) -> usize {
-        let &mut events: [Event; maxevents] = [];
+        let &mut events: Vec<Event> = Vec::with_capacity(maxevents);
         let mut rc: usize;
 
         loop {
@@ -183,11 +183,11 @@ impl InterruptsQueue {
             rc = epoll::wait(self.vfio_epoll_fd, timeout, events)?;
             if rc > 0 {
                 /* epoll_wait has at least one fd ready to read */
-                for i in 0...rc {
+                for i in 0..rc {
                     let mut val: u64;
                     // read event file descriptor to clear interrupt.
                     if unsafe {
-                        libc::read(events[i].data, &val, mem::size_of::<val>)
+                        libc::read(events[i].data, &val, mem::size_of::<u64>)
                     } == -1
                     {
                         return Err(format!("failed to read event. Errno: {}", unsafe {
@@ -208,7 +208,7 @@ impl InterruptsQueue {
     /// Enable VFIO MSI interrupts for the given `device_fd`.
     pub fn vfio_enable_msi(&mut self, device_fd: RawFd) {
         // setup event fd
-        let mut event_fd: RawFd = unsafe { eventfd(0, 0) };
+        let mut event_fd: RawFd = unsafe { libc::eventfd(0, 0) };
 
         if event_fd == -1 {
             return Err(format!(
@@ -226,7 +226,7 @@ impl InterruptsQueue {
             data: Vec::from(event_fd)
         };
 
-        if unsafe { ioctl(device_fd, VFIO_DEVICE_SET_IRQS, &irq_set) } == -1 {
+        if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_SET_IRQS, &irq_set) } == -1 {
             return Err(format!(
                 "failed to VFIO_DEVICE_SET_IRQS. Errno: {}",
                 unsafe { *libc::__errno_location() }
@@ -247,7 +247,7 @@ impl InterruptsQueue {
             data: Vec::new()
         };
 
-        if unsafe { ioctl(device_fd, VFIO_DEVICE_SET_IRQS, irq_set) } == -1 {
+        if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_SET_IRQS, irq_set) } == -1 {
             return Err(format!(
                 "failed to VFIO_DEVICE_SET_IRQS. Errno: {}",
                 unsafe { *libc::__errno_location() }
@@ -261,7 +261,7 @@ impl InterruptsQueue {
     /// The `interrupt_vector` specifies the number of queues to watch.
     pub fn vfio_enable_msix(&mut self, device_fd: RawFd, mut interrupt_vector: u32) {
         // setup event fd
-        let mut event_fd: RawFd = unsafe { eventfd(0, 0) };
+        let mut event_fd: RawFd = unsafe { libc::eventfd(0, 0) };
 
         if event_fd == -1 {
             return Err(format!(
@@ -285,7 +285,7 @@ impl InterruptsQueue {
             data: Vec::from(event_fd)
         };
 
-        if unsafe { ioctl(device_fd, VFIO_DEVICE_SET_IRQS, &irq_set) } == -1 {
+        if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_SET_IRQS, &irq_set) } == -1 {
             return Err(format!(
                 "failed to VFIO_DEVICE_SET_IRQS. Errno: {}",
                 unsafe { *libc::__errno_location() }
@@ -306,7 +306,7 @@ impl InterruptsQueue {
             data: Vec::new()
         };
 
-        if unsafe { ioctl(device_fd, VFIO_DEVICE_SET_IRQS, irq_set) } == -1 {
+        if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_SET_IRQS, irq_set) } == -1 {
             return Err(format!(
                 "failed to VFIO_DEVICE_SET_IRQS. Errno: {}",
                 unsafe { *libc::__errno_location() }
