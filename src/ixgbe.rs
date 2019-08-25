@@ -115,7 +115,7 @@ impl IxyDevice for IxgbeDevice {
         pci_addr: &str,
         num_rx_queues: u16,
         num_tx_queues: u16,
-    ) -> Result<IxgbeDevice, Box<Error>> {
+    ) -> Result<IxgbeDevice, Box<dyn Error>> {
         if unsafe { libc::getuid() } != 0 {
             warn!("not running as root, this will probably fail");
         }
@@ -427,7 +427,7 @@ impl IxyDevice for IxgbeDevice {
 
 impl IxgbeDevice {
     /// Resets and initializes this device.
-    fn reset_and_init(&mut self, pci_addr: &str) -> Result<(), Box<Error>> {
+    fn reset_and_init(&mut self, pci_addr: &str) -> Result<(), Box<dyn Error>> {
         info!("resetting device {}", pci_addr);
         // section 4.6.3.1 - disable all interrupts
         self.disable_interrupts();
@@ -492,7 +492,7 @@ impl IxgbeDevice {
 
     // sections 4.6.7
     /// Initializes the rx queues of this device.
-    fn init_rx(&mut self) -> Result<(), Box<Error>> {
+    fn init_rx(&mut self) -> Result<(), Box<dyn Error>> {
         // disable rx while re-configuring it
         self.clear_flags32(IXGBE_RXCTRL, IXGBE_RXCTRL_RXEN);
 
@@ -581,7 +581,7 @@ impl IxgbeDevice {
 
     // section 4.6.8
     /// Initializes the tx queues of this device.
-    fn init_tx(&mut self) -> Result<(), Box<Error>> {
+    fn init_tx(&mut self) -> Result<(), Box<dyn Error>> {
         // crc offload and small packet padding
         self.set_flags32(IXGBE_HLREG0, IXGBE_HLREG0_TXCRCEN | IXGBE_HLREG0_TXPADEN);
 
@@ -647,7 +647,7 @@ impl IxgbeDevice {
     }
 
     /// Sets the rx queues` descriptors and enables the queues.
-    fn start_rx_queue(&mut self, queue_id: u16) -> Result<(), Box<Error>> {
+    fn start_rx_queue(&mut self, queue_id: u16) -> Result<(), Box<dyn Error>> {
         debug!("starting rx queue {}", queue_id);
 
         {
@@ -701,7 +701,7 @@ impl IxgbeDevice {
     }
 
     /// Enables the tx queues.
-    fn start_tx_queue(&mut self, queue_id: u16) -> Result<(), Box<Error>> {
+    fn start_tx_queue(&mut self, queue_id: u16) -> Result<(), Box<dyn Error>> {
         debug!("starting tx queue {}", queue_id);
 
         {
@@ -942,7 +942,7 @@ impl IxgbeDevice {
     }
 
     /// Enable MSI or MSI-X interrupt for queue with `queue_id` depending on which is supported (Prefer MSI-x).
-    fn enable_interrupt(&self, queue_id: u32) -> Result<(), Box<Error>> {
+    fn enable_interrupt(&self, queue_id: u32) -> Result<(), Box<dyn Error>> {
         if !self.interrupts.interrupts_enabled {
             return Ok(());
         }
@@ -959,7 +959,7 @@ impl IxgbeDevice {
     }
 
     /// Setup interrupts by enabling VFIO interrupts.
-    fn setup_interrupts(&mut self) -> Result<(), Box<Error>> {
+    fn setup_interrupts(&mut self) -> Result<(), Box<dyn Error>> {
         if !self.interrupts.interrupts_enabled {
             self.interrupts.queues = Vec::with_capacity(0);
             return Ok(());
@@ -1045,7 +1045,7 @@ fn clean_tx_queue(queue: &mut IxgbeTxQueue) -> usize {
 }
 
 /// Initializes the IOMMU for a given PCI device. The device must be bound to the VFIO driver.
-fn init_iommu(pci_addr: &str) -> Result<RawFd, Box<Error>> {
+fn init_iommu(pci_addr: &str) -> Result<RawFd, Box<dyn Error>> {
     let dfd: RawFd;
     let group_file: Option<File>;
     let gfd: RawFd;
@@ -1158,7 +1158,7 @@ fn init_iommu(pci_addr: &str) -> Result<RawFd, Box<Error>> {
 }
 
 /// Enables DMA Bit for VFIO devices
-fn vfio_enable_dma(device_file_descriptor: RawFd) -> Result<(), Box<Error>> {
+fn vfio_enable_dma(device_file_descriptor: RawFd) -> Result<(), Box<dyn Error>> {
     // Get region info for config region
     let conf_reg: vfio_region_info = vfio_region_info {
         argsz: mem::size_of::<vfio_region_info> as usize as u32,
@@ -1219,7 +1219,7 @@ fn vfio_enable_dma(device_file_descriptor: RawFd) -> Result<(), Box<Error>> {
 }
 
 /// Mmaps a VFIO resource and returns a pointer to the mapped memory.
-fn vfio_map_resource(fd: RawFd, index: u32) -> Result<(*mut u8, usize), Box<Error>> {
+fn vfio_map_resource(fd: RawFd, index: u32) -> Result<(*mut u8, usize), Box<dyn Error>> {
     let region_info: vfio_region_info = vfio_region_info {
         argsz: mem::size_of::<vfio_region_info> as usize as u32,
         flags: 0,
