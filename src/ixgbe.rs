@@ -237,7 +237,7 @@ impl IxyDevice for IxgbeDevice {
             last_rx_index = queue.rx_index;
 
             if self.interrupts.interrupts_enabled && self.interrupts.queues[rx_index].interrupt_enabled {
-                self.interrupts.queues[rx_index].vfio_epoll_wait(10, self.interrupts.timeout_ms as i32)?;
+                self.interrupts.queues[rx_index].vfio_epoll_wait(10, self.interrupts.timeout_ms as i32);
             }
 
             for i in 0..num_packets {

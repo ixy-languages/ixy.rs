@@ -175,7 +175,7 @@ impl InterruptsQueue {
     /// Specifying a `timeout` of -1 causes epoll_wait to block indefinitely,
     /// while specifying a `timeout` equal to zero cause epoll_wait to return immediately, even if no events are available.
     /// Returns the number of ready file descriptors.
-    pub fn vfio_epoll_wait(&self, maxevents: usize, timeout: i32)  -> Result<usize, Box<Error>> {
+    pub fn vfio_epoll_wait(&self, maxevents: usize, timeout: i32) -> usize {
         let mut events: Vec<Event> = Vec::with_capacity(maxevents);
         let mut rc: usize;
 
@@ -188,14 +188,9 @@ impl InterruptsQueue {
                     let mut val: u16 = 0;
                     let val_ptr: *mut u16 = &mut val;
                     // read event file descriptor to clear interrupt.
-                    if unsafe {
+                    unsafe {
                         libc::read(events[i].data as i32, val_ptr as *mut libc::c_void, mem::size_of::<u64>())
-                    } == -1
-                    {
-                        return Err(format!("failed to read event. Errno: {}", unsafe {
-                            *libc::__errno_location()
-                        }).into());
-                    }
+                    };
                 }
                 break;
             } else {
@@ -204,7 +199,7 @@ impl InterruptsQueue {
             }
         }
 
-        OK(rc)
+        rc
     }
 
     /// Enable VFIO MSI interrupts for the given `device_fd`.
