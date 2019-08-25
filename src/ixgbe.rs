@@ -115,6 +115,9 @@ impl IxyDevice for IxgbeDevice {
         pci_addr: &str,
         num_rx_queues: u16,
         num_tx_queues: u16,
+        itr: u32,
+        interrupt_timeout: u64,
+        interrupts_enabled: bool
     ) -> Result<IxgbeDevice, Box<dyn Error>> {
         if unsafe { libc::getuid() } != 0 {
             warn!("not running as root, this will probably fail");
@@ -161,6 +164,10 @@ impl IxyDevice for IxgbeDevice {
             vfio_container: unsafe { CFD },
             interrupts: Default::default()
         };
+
+        dev.interrupts.interrupts_enabled = interrupts_enabled;
+        dev.interrupts.timeout_ms = interrupt_timeout;
+        dev.interrupts.itr_rate = itr;
 
         dev.setup_interrupts()?;
         dev.reset_and_init(pci_addr)?;

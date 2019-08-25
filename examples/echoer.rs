@@ -33,8 +33,8 @@ pub fn main() {
         }
     };
 
-    let mut dev1 = ixy_init(&pci_addr_1, 1, 1).unwrap();
-    let mut dev2 = ixy_init(&pci_addr_2, 1, 1).unwrap();
+    let mut dev1 = ixy_init(&pci_addr_1, 1, 1, 0, 0, false).unwrap();
+    let mut dev2 = ixy_init(&pci_addr_2, 1, 1, 0, 0, false).unwrap();
 
     let mut dev1_stats = Default::default();
     let mut dev1_stats_old = Default::default();

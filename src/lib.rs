@@ -190,6 +190,9 @@ pub fn ixy_init(
     pci_addr: &str,
     rx_queues: u16,
     tx_queues: u16,
+    itr: u32,
+    interrupt_timeout: u64,
+    interrupts_enabled: bool
 ) -> Result<Box<dyn IxyDevice>, Box<dyn Error>> {
     let mut config_file = pci_open_resource(pci_addr, "config").expect("wrong pci address");
 
@@ -205,7 +208,7 @@ pub fn ixy_init(
         unimplemented!("virtio driver is not implemented yet");
     } else {
         // let's give it a try with ixgbe
-        let device: IxgbeDevice = IxgbeDevice::init(pci_addr, rx_queues, tx_queues)?;
+        let device: IxgbeDevice = IxgbeDevice::init(pci_addr, rx_queues, tx_queues, itr, interrupt_timeout, interrupts_enabled)?;
         Ok(Box::new(device))
     }
 }
