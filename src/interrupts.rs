@@ -204,7 +204,7 @@ impl InterruptsQueue {
             }
         }
 
-        OK(rc)
+        Ok(rc)
     }
 
     /// Enable VFIO MSI interrupts for the given `device_fd`.

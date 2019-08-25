@@ -300,7 +300,7 @@ impl IxyDevice for IxgbeDevice {
 
                 if int_en != interrupt.interrupt_enabled {
                     if interrupt.interrupt_enabled {
-                        self.enable_interrupt(queue_id);
+                        self.enable_interrupt(queue_id).unwrap();
                     } else {
                         self.disable_interrupt(queue_id);
                     }
@@ -478,7 +478,7 @@ impl IxgbeDevice {
 
         // enable interrupts
         for queue in 0..self.num_rx_queues {
-            self.enable_interrupt( queue as u32);
+            self.enable_interrupt( queue as u32)?;
         }
 
         // enable promisc mode by default to make testing easier
@@ -942,9 +942,9 @@ impl IxgbeDevice {
     }
 
     /// Enable MSI or MSI-X interrupt for queue with `queue_id` depending on which is supported (Prefer MSI-x).
-    fn enable_interrupt(&self, queue_id: u32) {
+    fn enable_interrupt(&self, queue_id: u32) -> Result<(), Box<Error>> {
         if !self.interrupts.interrupts_enabled {
-            return;
+            return Ok(());
         }
         match self.interrupts.interrupt_type {
             VFIO_PCI_MSIX_IRQ_INDEX =>
@@ -952,17 +952,17 @@ impl IxgbeDevice {
             VFIO_PCI_MSI_IRQ_INDEX =>
                 self.enable_msi_interrupt(queue_id),
             _ => {
-                err("Interrupt type not supported: %d", self.interrupts.interrupt_type);
-                return;
+                return Err(format!("Interrupt type not supported: {}", self.interrupts.interrupt_type).into());
             }
         }
+        Ok(())
     }
 
     /// Setup interrupts by enabling VFIO interrupts.
     fn setup_interrupts(&mut self) -> Result<(), Box<Error>> {
         if !self.interrupts.interrupts_enabled {
             self.interrupts.queues = Vec::with_capacity(0);
-            Ok(());
+            return Ok(());
         }
         self.interrupts.queues = Vec::with_capacity(self.num_rx_queues as usize);
         self.interrupts.vfio_setup_interrupt(self.vfio_container)?;
