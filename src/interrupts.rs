@@ -1,7 +1,6 @@
 use std::mem;
 use std::os::unix::io::RawFd;
 use std::os::unix::io::FromRawFd;
-use eventfd::EventFD;
 use epoll::Event;
 use std::time::Instant;
 
@@ -209,7 +208,14 @@ impl InterruptsQueue {
     /// Enable VFIO MSI interrupts for the given `device_fd`.
     pub fn vfio_enable_msi(&mut self, device_fd: RawFd) {
         // setup event fd
-        let mut event_fd: RawFd = EventFD::new(0, 0);
+        let mut event_fd: RawFd = unsafe { eventfd(0, 0) };
+
+        if event_fd == -1 {
+            return Err(format!(
+                "failed to create eventfd. Errno: {}",
+                unsafe { *libc::__errno_location() }
+            ).into());
+        }
 
         let irq_set: vfio_irq_set = vfio_irq_set {
             argsz: (mem::size_of::<vfio_irq_set> + mem::size_of::<RawFd>) as usize as u32,
@@ -255,7 +261,14 @@ impl InterruptsQueue {
     /// The `interrupt_vector` specifies the number of queues to watch.
     pub fn vfio_enable_msix(&mut self, device_fd: RawFd, mut interrupt_vector: u32) {
         // setup event fd
-        let mut event_fd: RawFd = EventFD::new(0, 0);
+        let mut event_fd: RawFd = unsafe { eventfd(0, 0) };
+
+        if event_fd == -1 {
+            return Err(format!(
+                "failed to create eventfd. Errno: {}",
+                unsafe { *libc::__errno_location() }
+            ).into());
+        }
 
         if !interrupt_vector {
             interrupt_vector = 1;
