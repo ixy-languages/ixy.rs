@@ -19,7 +19,6 @@ pub struct Interrupts {
     pub queues: Vec<InterruptsQueue>,  // Interrupt settings per queue
 }
 
-#[derive(Default)]
 pub struct InterruptsQueue {
     pub vfio_event_fd: RawFd, // event fd
     pub vfio_epoll_fd: RawFd, // epoll fd
@@ -30,7 +29,6 @@ pub struct InterruptsQueue {
     pub moving_avg: InterruptMovingAvg, // The moving average of the hybrid interrupt
 }
 
-#[derive(Default)]
 pub struct InterruptMovingAvg {
     pub index: usize, // The current index
     pub length: usize, // The moving average length
@@ -149,7 +147,7 @@ impl Interrupts {
         }
 
         self.interrupt_type = 0;
-        return Ok(());
+        Ok(())
     }
 }
 
@@ -164,10 +162,10 @@ impl InterruptsQueue {
 
         let epoll_fd = epoll::create(false)?;
 
-        epoll::ctl(epoll_fd, epoll::ControlOptions::EPOLL_CTL_ADD, event_fd, event);
+        epoll::ctl(epoll_fd, epoll::ControlOptions::EPOLL_CTL_ADD, event_fd, event)?;
 
         self.vfio_epoll_fd = epoll_fd;
-        return Ok(());
+        Ok(())
     }
 
     /// Waits for events on the epoll instance referred to by the file descriptor `epoll_fd`.
@@ -206,7 +204,7 @@ impl InterruptsQueue {
             }
         }
 
-        return OK(rc);
+        OK(rc)
     }
 
     /// Enable VFIO MSI interrupts for the given `device_fd`.
@@ -227,7 +225,7 @@ impl InterruptsQueue {
             flags: VFIO_IRQ_SET_DATA_EVENTFD | VFIO_IRQ_SET_ACTION_TRIGGER,
             index: VFIO_PCI_MSI_IRQ_INDEX,
             start: 0,
-            data: vec![event_fd]
+            data: vec![event_fd as u8]
         };
 
         if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_SET_IRQS, &irq_set) } == -1 {
@@ -238,7 +236,7 @@ impl InterruptsQueue {
         }
 
         self.vfio_event_fd = event_fd;
-        return Ok(());
+        Ok(())
     }
 
     /// Disable VFIO MSI interrupts for the given `device_fd`.
@@ -260,7 +258,7 @@ impl InterruptsQueue {
         }
 
         self.vfio_event_fd = 0;
-        return Ok(());
+        Ok(())
     }
 
     /// Enable VFIO MSI-X interrupts for the given `device_fd`.
@@ -288,7 +286,7 @@ impl InterruptsQueue {
             flags: VFIO_IRQ_SET_DATA_EVENTFD | VFIO_IRQ_SET_ACTION_TRIGGER,
             index: VFIO_PCI_MSIX_IRQ_INDEX,
             start: 0,
-            data: vec![event_fd]
+            data: vec![event_fd as u8]
         };
 
         if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_SET_IRQS, &irq_set) } == -1 {
@@ -299,7 +297,7 @@ impl InterruptsQueue {
         }
 
         self.vfio_event_fd = event_fd;
-        return Ok(());
+        Ok(())
     }
 
     /// Disable VFIO MSI-X interrupts for the given `device_fd`.
@@ -328,7 +326,7 @@ impl InterruptsQueue {
     /// elapsed time in `nanos` since the last calculation.
     /// Returns the number of packets per second.
     pub fn mpps(&self, nanos: u64) -> f64 {
-        self.rx_pkts as f64 / 1_000_000.0 / (f64::from(nanos) / 1_000_000_000.0)
+        self.rx_pkts as f64 / 1_000_000.0 / (nanos as f64 / 1_000_000_000.0)
     }
 
     /// Check if interrupts or polling should be used based on the current number of received packets per seconds.

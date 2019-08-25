@@ -162,7 +162,7 @@ impl IxyDevice for IxgbeDevice {
             interrupts: Default::default()
         };
 
-        dev.setup_interrupts();
+        dev.setup_interrupts()?;
         dev.reset_and_init(pci_addr)?;
 
         Ok(dev)
@@ -959,10 +959,10 @@ impl IxgbeDevice {
     }
 
     /// Setup interrupts by enabling VFIO interrupts.
-    fn setup_interrupts(&mut self) {
+    fn setup_interrupts(&mut self) -> Result<(), Box<Error>> {
         if !self.interrupts.interrupts_enabled {
-            self.interrupts.queues = Default::default();
-            return;
+            self.interrupts.queues = Vec::with_capacity(0);
+            Ok(());
         }
         self.interrupts.queues = Vec::with_capacity(self.num_rx_queues as usize);
         self.interrupts.vfio_setup_interrupt(self.vfio_container)?;
@@ -970,7 +970,6 @@ impl IxgbeDevice {
             VFIO_PCI_MSIX_IRQ_INDEX => {
                 for rx_queue in 0..self.num_rx_queues {
                     let mut queue: InterruptsQueue = self.interrupts.queues[rx_queue as usize];
-                    queue = Default::default();
                     queue.vfio_enable_msix(self.vfio_container, rx_queue as u32)?;
                     queue.vfio_epoll_ctl(queue.vfio_event_fd)?;
                     queue.interrupt_enabled = true;
@@ -980,7 +979,6 @@ impl IxgbeDevice {
             VFIO_PCI_MSI_IRQ_INDEX => {
                 for rx_queue in 0..self.num_rx_queues {
                     let mut queue: InterruptsQueue = self.interrupts.queues[rx_queue as usize];
-                    queue = Default::default();
                     queue.vfio_enable_msi(self.vfio_container)?;
                     queue.vfio_epoll_ctl(queue.vfio_event_fd)?;
                     queue.interrupt_enabled = true;
@@ -988,8 +986,7 @@ impl IxgbeDevice {
                 }
             },
             _ => {
-                eprintln!("Interrupt type not supported: {}", self.interrupts.interrupt_type);
-                return;
+                return Err(format!("Interrupt type not supported: {}", self.interrupts.interrupt_type).into());
             },
         }
     }
