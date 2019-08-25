@@ -236,14 +236,7 @@ impl IxyDevice for IxgbeDevice {
             rx_index = queue.rx_index;
             last_rx_index = queue.rx_index;
 
-            let mut interrupt;
-            let interrupt_enabled = self.interrupts.interrupts_enabled;
-
-            if interrupt_enabled {
-                interrupt = self.interrupts.queues[rx_index];
-            }
-
-            if interrupt_enabled && interrupt.interrupt_enabled {
+            if self.interrupts.interrupts_enabled && self.interrupts.queues[rx_index].interrupt_enabled {
                 interrupt.vfio_epoll_wait(10, self.interrupts.timeout_ms as i32);
             }
 
@@ -294,11 +287,13 @@ impl IxyDevice for IxgbeDevice {
                 }
             }
 
-            if interrupt_enabled {
+            if self.interrupts.interrupts_enabled {
+                let mut interrupt = self.interrupts.queues[rx_index];
                 let int_en = interrupt.interrupt_enabled;
                 interrupt.rx_pkts += received_packets as u64;
 
-                let diff = monotonic_time() - interrupt.last_time_checked;
+                let elapsed = interrupt.last_time_checked.elapsed();
+                let diff = elapsed.as_secs() * 1_000_000_000 + elapsed.subsec_nanos() as u64;
                 if diff > interrupt.interval {
                     interrupt.check_interrupt(diff, received_packets, num_packets);
                 }

@@ -3,10 +3,11 @@ use std::os::unix::io::RawFd;
 use std::os::unix::io::FromRawFd;
 use eventfd::EventFD;
 use epoll::Event;
+use std::time::Instant;
 
 const MOVING_AVERAGE_RANGE: usize = 5;
 const INTERRUPT_THRESHOLD: f64 = 1.2;
-pub const INTERRUPT_INITIAL_INTERVAL: u64 = 1000 * 1000 * 1000;
+pub const INTERRUPT_INITIAL_INTERVAL: u64 = 1_000_000_000;
 const MAX_INTERRUPT_VECTORS: u32 = 32;
 
 #[derive(Default, Copy, Clone)]
@@ -23,7 +24,7 @@ pub struct InterruptsQueue {
     pub vfio_event_fd: u32, // event fd
     pub vfio_epoll_fd: u32, // epoll fd
     pub interrupt_enabled: bool, // Whether interrupt for this queue is enabled or not
-    pub last_time_checked: u64, // Last time the interrupt flag was checked
+    pub last_time_checked: Instant, // Last time the interrupt flag was checked
     pub rx_pkts: u64, // The number of received packets since the last check
     pub interval: u64, // The interval to check the interrupt flag
     pub moving_avg: InterruptMovingAvg, // The moving average of the hybrid interrupt
@@ -345,20 +346,16 @@ impl InterruptsQueue {
      * @return Whether to disable NIC interrupts or not.
      */
     pub fn check_interrupt(&mut self, diff: u64, buf_index: usize, buf_size: usize) {
+        self.moving_avg.sum -= self.moving_avg.measured_rates[self.moving_avg.index];
         self.moving_avg.measured_rates[self.moving_avg.index] = self.mpps(diff);
         self.moving_avg.sum += self.moving_avg.measured_rates[self.moving_avg.index];
-        if self.moving_avg.length == MOVING_AVERAGE_RANGE {
-            if self.moving_avg.index == 0 {
-                self.moving_avg.sum -= self.moving_avg.measured_rates[MOVING_AVERAGE_RANGE - 1];
-            } else {
-                self.moving_avg.sum -= self.moving_avg.measured_rates[self.moving_avg.index - 1];
-            }
+        if self.moving_avg.length < MOVING_AVERAGE_RANGE {
             self.moving_avg.length -= 1;
         }
         self.moving_avg.index = (self.moving_avg.index + 1) % MOVING_AVERAGE_RANGE;
         self.moving_avg.length += 1;
         self.moving_avg.rx_pkts = 0;
-        let mut average = self.moving_avg.sum / (self.moving_avg.length - 1) as f64;
+        let average = self.moving_avg.sum / self.moving_avg.length as f64;
         if average > INTERRUPT_THRESHOLD {
             self.interrupt_enabled = false;
         } else if buf_index == buf_size {
@@ -366,6 +363,6 @@ impl InterruptsQueue {
         } else {
             self.interrupt_enabled = true;
         }
-        self.last_time_checked = monotonic_time();
+        self.last_time_checked = Instant::now();
     }
 }
