@@ -30,10 +30,6 @@ pub struct InterruptsQueue {
     pub moving_avg: InterruptMovingAvg, // The moving average of the hybrid interrupt
 }
 
-impl Default for Instant {
-    fn default() -> Self { Instant::now() }
-}
-
 #[derive(Default)]
 pub struct InterruptMovingAvg {
     pub index: usize, // The current index
@@ -149,11 +145,11 @@ impl Interrupts {
             }
 
             self.interrupt_type = index as u8;
-            return OK();
+            return Ok(());
         }
 
         self.interrupt_type = 0;
-        return OK();
+        return Ok(());
     }
 }
 
@@ -171,7 +167,7 @@ impl InterruptsQueue {
         epoll::ctl(epoll_fd, epoll::ControlOptions::EPOLL_CTL_ADD, event_fd, event);
 
         self.vfio_epoll_fd = epoll_fd;
-        return OK();
+        return Ok(());
     }
 
     /// Waits for events on the epoll instance referred to by the file descriptor `epoll_fd`.
@@ -242,7 +238,7 @@ impl InterruptsQueue {
         }
 
         self.vfio_event_fd = event_fd;
-        return OK();
+        return Ok(());
     }
 
     /// Disable VFIO MSI interrupts for the given `device_fd`.
@@ -264,7 +260,7 @@ impl InterruptsQueue {
         }
 
         self.vfio_event_fd = 0;
-        return OK();
+        return Ok(());
     }
 
     /// Enable VFIO MSI-X interrupts for the given `device_fd`.
@@ -303,7 +299,7 @@ impl InterruptsQueue {
         }
 
         self.vfio_event_fd = event_fd;
-        return OK();
+        return Ok(());
     }
 
     /// Disable VFIO MSI-X interrupts for the given `device_fd`.
@@ -325,7 +321,7 @@ impl InterruptsQueue {
         }
 
         self.vfio_event_fd = 0;
-        return OK();
+        return Ok(());
     }
 
     /// Calculate packets per second based on the received number of packets and the
