@@ -50,26 +50,6 @@ struct vfio_irq_set {
 
 #[allow(non_camel_case_types)]
 #[repr(C)]
-struct vfio_device_info {
-    argsz: u32,
-    flags: u32,
-    num_regions: u32,	/* Max region index + 1 */
-    num_irqs: u32	/* Max IRQ index + 1 */
-}
-
-#[allow(non_camel_case_types)]
-#[repr(C)]
-struct vfio_region_info {
-    argsz: u32,
-    flags: u32,
-    index: u32,
-    cap_offset: u32,
-    size: u64,
-    offset: u64,
-}
-
-#[allow(non_camel_case_types)]
-#[repr(C)]
 struct vfio_irq_info {
     argsz: u32,
     flags: u32,
@@ -93,36 +73,6 @@ impl Interrupts {
     /// Setup VFIO interrupts by checking the `device_fd` for which interrupts this device supports.
     /// Returns the supported interrupt type.
     pub fn vfio_setup_interrupt(&mut self, device_fd: RawFd) -> Result<(), Box<dyn Error>> {
-        let device_info: vfio_device_info = vfio_device_info {
-            argsz: mem::size_of::<vfio_device_info>() as u32,
-            flags: 0,
-            num_regions: 0,
-            num_irqs: 0
-        };
-
-        if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_GET_INFO, &device_info) } == -1 {
-            return Err(format!(
-                "failed to VFIO_DEVICE_GET_INFO. Errno: {}",
-                unsafe { *libc::__errno_location() }
-            ).into());
-        }
-
-        let region_info: vfio_region_info = vfio_region_info {
-            argsz: mem::size_of::<vfio_region_info>() as u32,
-            flags: 0,
-            index: VFIO_PCI_CONFIG_REGION_INDEX,
-            cap_offset: 0,
-            size: 0,
-            offset: 0,
-        };
-
-        if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_GET_REGION_INFO, &device_info) } == -1 {
-            return Err(format!(
-                "failed to VFIO_DEVICE_GET_REGION_INFO for index VFIO_PCI_CONFIG_REGION_INDEX. Errno: {}",
-                unsafe { *libc::__errno_location() }
-            ).into());
-        }
-
         for index in VFIO_PCI_MSIX_IRQ_INDEX..0 {
             let irq_info: vfio_irq_info = vfio_irq_info {
                 argsz: mem::size_of::<vfio_irq_info>() as u32,
@@ -155,7 +105,7 @@ impl InterruptsQueue {
 
     /// Add the `event_fd` file descriptor to epoll.
     pub fn vfio_epoll_ctl(&mut self, event_fd: RawFd) -> Result<(), Box<dyn Error>> {
-        let mut event: Event = Event {
+        let event: Event = Event {
             events: libc::EPOLLIN as u32,
             data: event_fd as u64
         };
@@ -177,7 +127,7 @@ impl InterruptsQueue {
     /// Returns the number of ready file descriptors.
     pub fn vfio_epoll_wait(&self, maxevents: usize, timeout: i32)  -> Result<usize, Box<dyn Error>> {
         let mut events: Vec<Event> = Vec::with_capacity(maxevents);
-        let mut rc: usize;
+        let rc: usize;
 
         loop {
             // info("Waiting for packets...");
@@ -210,7 +160,7 @@ impl InterruptsQueue {
     /// Enable VFIO MSI interrupts for the given `device_fd`.
     pub fn vfio_enable_msi(&mut self, device_fd: RawFd) -> Result<(), Box<dyn Error>> {
         // setup event fd
-        let mut event_fd: RawFd = unsafe { libc::eventfd(0, 0) };
+        let event_fd: RawFd = unsafe { libc::eventfd(0, 0) };
 
         if event_fd == -1 {
             return Err(format!(
@@ -265,7 +215,7 @@ impl InterruptsQueue {
     /// The `interrupt_vector` specifies the number of queues to watch.
     pub fn vfio_enable_msix(&mut self, device_fd: RawFd, mut interrupt_vector: u32) -> Result<(), Box<dyn Error>> {
         // setup event fd
-        let mut event_fd: RawFd = unsafe { libc::eventfd(0, 0) };
+        let event_fd: RawFd = unsafe { libc::eventfd(0, 0) };
 
         if event_fd == -1 {
             return Err(format!(
