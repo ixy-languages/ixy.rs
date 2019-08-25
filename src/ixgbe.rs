@@ -116,7 +116,7 @@ impl IxyDevice for IxgbeDevice {
         num_rx_queues: u16,
         num_tx_queues: u16,
         itr: u32,
-        interrupt_timeout: u64,
+        interrupt_timeout: i16,
         interrupts_enabled: bool
     ) -> Result<IxgbeDevice, Box<dyn Error>> {
         if unsafe { libc::getuid() } != 0 {

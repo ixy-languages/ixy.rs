@@ -29,7 +29,7 @@ const MAX_QUEUES: u16 = 64;
 /// Used for implementing an ixy device driver like ixgbe or virtio.
 pub trait IxyDevice {
     /// Initializes an intel 82599 network card.
-    fn init(pci_addr: &str, num_rx_queues: u16, num_tx_queues: u16) -> Result<Self, Box<dyn Error>>
+    fn init(pci_addr: &str, num_rx_queues: u16, num_tx_queues: u16, itr: u32, interrupt_timeout: i16, interrupts_enabled: bool) -> Result<Self, Box<dyn Error>>
     where
         Self: Sized;
 
@@ -191,7 +191,7 @@ pub fn ixy_init(
     rx_queues: u16,
     tx_queues: u16,
     itr: u32,
-    interrupt_timeout: u64,
+    interrupt_timeout: i16,
     interrupts_enabled: bool
 ) -> Result<Box<dyn IxyDevice>, Box<dyn Error>> {
     let mut config_file = pci_open_resource(pci_addr, "config").expect("wrong pci address");
