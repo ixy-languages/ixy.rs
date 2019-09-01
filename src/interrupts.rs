@@ -14,11 +14,12 @@ const MAX_INTERRUPT_VECTORS: u32 = 32;
 pub struct Interrupts {
     pub interrupts_enabled: bool, // Whether interrupts for this device are enabled or disabled.
     pub itr_rate: u32, // The Interrupt Throttling Rate
-    pub interrupt_type: u8, // MSI or MSIX
+    pub interrupt_type: u64, // MSI or MSIX
     pub timeout_ms: i16, // interrupt timeout in milliseconds (-1 to disable the timeout)
     pub queues: Vec<InterruptsQueue>,  // Interrupt settings per queue
 }
 
+#[derive(Copy, Clone)]
 pub struct InterruptsQueue {
     pub vfio_event_fd: RawFd, // event fd
     pub vfio_epoll_fd: RawFd, // epoll fd
@@ -29,6 +30,8 @@ pub struct InterruptsQueue {
     pub moving_avg: InterruptMovingAvg, // The moving average of the hybrid interrupt
 }
 
+#[derive(Default)]
+#[derive(Copy, Clone)]
 pub struct InterruptMovingAvg {
     pub index: usize, // The current index
     pub length: usize, // The moving average length
@@ -37,15 +40,18 @@ pub struct InterruptMovingAvg {
 }
 
 /// constants and structs needed for IOMMU. Grabbed from linux/vfio.h
+/// as this is a dynamically sized struct (has an array at the end) we need to use
+/// Dynamically Sized Types (DSTs) which can be found at
+/// https://doc.rust-lang.org/nomicon/exotic-sizes.html#dynamically-sized-types-dsts
 #[allow(non_camel_case_types)]
 #[repr(C)]
-struct vfio_irq_set {
+struct vfio_irq_set<T: ?Sized> {
     argsz: u32,
     flags: u32,
     index: u32,
     start: u32,
     count: u32,
-    data: Vec<u8>,
+    data: T,
 }
 
 #[allow(non_camel_case_types)]
@@ -62,18 +68,18 @@ const VFIO_IRQ_SET_DATA_EVENTFD: u32 = (1 << 2); /* Data is eventfd (s32) */
 const VFIO_IRQ_SET_ACTION_TRIGGER: u32 = (1 << 5); /* Trigger interrupt */
 const VFIO_DEVICE_GET_IRQ_INFO: u64 = 15213;
 const VFIO_DEVICE_SET_IRQS: u64 = 15214;
-const VFIO_PCI_MSI_IRQ_INDEX: u32 = 1;
-const VFIO_PCI_MSIX_IRQ_INDEX: u32 = 2;
+pub const VFIO_PCI_MSI_IRQ_INDEX: u64 = 1;
+pub const VFIO_PCI_MSIX_IRQ_INDEX: u64 = 2;
 const VFIO_IRQ_INFO_EVENTFD: u32 = (1 << 0);
 
 impl Interrupts {
     /// Setup VFIO interrupts by checking the `device_fd` for which interrupts this device supports.
     /// Returns the supported interrupt type.
     pub fn vfio_setup_interrupt(&mut self, device_fd: RawFd) -> Result<(), Box<dyn Error>> {
-        for index in VFIO_PCI_MSIX_IRQ_INDEX..0 {
+        for index in (0..(VFIO_PCI_MSIX_IRQ_INDEX + 1)).rev() {
             let irq_info: vfio_irq_info = vfio_irq_info {
                 argsz: mem::size_of::<vfio_irq_info>() as u32,
-                index,
+                index: index as u32,
                 flags: 0,
                 count: 0,
             };
@@ -89,7 +95,7 @@ impl Interrupts {
                 continue;
             }
 
-            self.interrupt_type = index as u8;
+            self.interrupt_type = index;
             return Ok(());
         }
 
@@ -123,12 +129,12 @@ impl InterruptsQueue {
     /// while specifying a `timeout` equal to zero cause epoll_wait to return immediately, even if no events are available.
     /// Returns the number of ready file descriptors.
     pub fn vfio_epoll_wait(&self, maxevents: usize, timeout: i32)  -> Result<usize, Box<dyn Error>> {
-        let mut events: Vec<Event> = Vec::with_capacity(maxevents);
+        let mut events = [Event; 10];
         let rc: usize;
 
         loop {
             // info("Waiting for packets...");
-            rc = epoll::wait(self.vfio_epoll_fd, timeout, events.as_mut_slice())?;
+            rc = epoll::wait(self.vfio_epoll_fd, timeout, &mut events)?;
             if rc > 0 {
                 /* epoll_wait has at least one fd ready to read */
                 for i in 0..rc {
@@ -166,13 +172,13 @@ impl InterruptsQueue {
             ).into());
         }
 
-        let irq_set: vfio_irq_set = vfio_irq_set {
-            argsz: (mem::size_of::<vfio_irq_set>() + mem::size_of::<RawFd>()) as u32,
+        let irq_set: vfio_irq_set<[u8; 1]> = vfio_irq_set {
+            argsz: (mem::size_of::<vfio_irq_set<[u8; 1]>>() + mem::size_of::<RawFd>()) as u32,
             count: 1,
             flags: VFIO_IRQ_SET_DATA_EVENTFD | VFIO_IRQ_SET_ACTION_TRIGGER,
-            index: VFIO_PCI_MSI_IRQ_INDEX,
+            index: VFIO_PCI_MSI_IRQ_INDEX as u32,
             start: 0,
-            data: vec![event_fd as u8]
+            data: [event_fd as u8; 1],
         };
 
         if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_SET_IRQS, &irq_set) } == -1 {
@@ -188,13 +194,13 @@ impl InterruptsQueue {
 
     /// Disable VFIO MSI interrupts for the given `device_fd`.
     pub fn vfio_disable_msi(&mut self, device_fd: RawFd) -> Result<(), Box<dyn Error>> {
-        let irq_set: vfio_irq_set = vfio_irq_set {
-            argsz: (mem::size_of::<vfio_irq_set>() + mem::size_of::<RawFd>()) as u32,
+        let irq_set: vfio_irq_set<[u8; 0]> = vfio_irq_set {
+            argsz: (mem::size_of::<vfio_irq_set<[u8; 0]>>() + mem::size_of::<RawFd>()) as u32,
             count: 0,
             flags: VFIO_IRQ_SET_DATA_NONE | VFIO_IRQ_SET_ACTION_TRIGGER,
-            index: VFIO_PCI_MSI_IRQ_INDEX,
+            index: VFIO_PCI_MSI_IRQ_INDEX as u32,
             start: 0,
-            data: Vec::new()
+            data: [0; 0],
         };
 
         if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_SET_IRQS, irq_set) } == -1 {
@@ -227,13 +233,13 @@ impl InterruptsQueue {
             interrupt_vector = MAX_INTERRUPT_VECTORS + 1;
         }
 
-        let irq_set: vfio_irq_set = vfio_irq_set {
-            argsz: (mem::size_of::<vfio_irq_set>() + mem::size_of::<RawFd>()) as u32 * interrupt_vector,
+        let irq_set: vfio_irq_set<[u8; 1]> = vfio_irq_set {
+            argsz: (mem::size_of::<vfio_irq_set<[u8; 1]>>() + mem::size_of::<RawFd>() * (MAX_INTERRUPT_VECTORS + 1) as usize) as u32,
             count: interrupt_vector,
             flags: VFIO_IRQ_SET_DATA_EVENTFD | VFIO_IRQ_SET_ACTION_TRIGGER,
-            index: VFIO_PCI_MSIX_IRQ_INDEX,
+            index: VFIO_PCI_MSIX_IRQ_INDEX as u32,
             start: 0,
-            data: vec![event_fd as u8]
+            data: [event_fd as u8; 1],
         };
 
         if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_SET_IRQS, &irq_set) } == -1 {
@@ -249,13 +255,13 @@ impl InterruptsQueue {
 
     /// Disable VFIO MSI-X interrupts for the given `device_fd`.
     pub fn vfio_disable_msix(&mut self, device_fd: RawFd) -> Result<(), Box<dyn Error>> {
-        let irq_set: vfio_irq_set = vfio_irq_set {
-            argsz: (mem::size_of::<vfio_irq_set>() + mem::size_of::<RawFd>()) as u32,
+        let irq_set: vfio_irq_set<[u8; 0]> = vfio_irq_set {
+            argsz: (mem::size_of::<vfio_irq_set<[u8; 0]>>() + mem::size_of::<RawFd>()) as u32,
             count: 0,
             flags: VFIO_IRQ_SET_DATA_NONE | VFIO_IRQ_SET_ACTION_TRIGGER,
-            index: VFIO_PCI_MSI_IRQ_INDEX,
+            index: VFIO_PCI_MSI_IRQ_INDEX as u32,
             start: 0,
-            data: Vec::new()
+            data: [0; 0],
         };
 
         if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_SET_IRQS, irq_set) } == -1 {

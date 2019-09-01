@@ -40,9 +40,6 @@ const VFIO_GROUP_SET_CONTAINER: u64 = 15208;
 const VFIO_GROUP_GET_DEVICE_FD: u64 = 15210;
 const VFIO_DEVICE_GET_REGION_INFO: u64 = 15212;
 
-const VFIO_PCI_MSI_IRQ_INDEX: u8 = 1;
-const VFIO_PCI_MSIX_IRQ_INDEX: u8 = 2;
-
 const VFIO_API_VERSION: i32 = 0;
 const VFIO_TYPE1_IOMMU: u64 = 1;
 const VFIO_GROUP_FLAGS_VIABLE: u32 = 1;
@@ -86,6 +83,7 @@ pub struct IxgbeDevice {
     tx_queues: Vec<IxgbeTxQueue>,
     iommu: bool,
     vfio_container: RawFd,
+    vfio_device: RawFd,
     interrupts: Interrupts,
 }
 
@@ -144,6 +142,7 @@ impl IxyDevice for IxgbeDevice {
             device_fd = init_iommu(pci_addr)?;
             vfio_map_resource(device_fd, VFIO_PCI_BAR0_REGION_INDEX)?
         } else {
+            device_fd = -1;
             pci_map_resource(pci_addr)?
         };
 
@@ -162,6 +161,7 @@ impl IxyDevice for IxgbeDevice {
             tx_queues,
             iommu,
             vfio_container: unsafe { CFD },
+            vfio_device: device_fd,
             interrupts: Default::default()
         };
 
@@ -972,24 +972,38 @@ impl IxgbeDevice {
             return Ok(());
         }
         self.interrupts.queues = Vec::with_capacity(self.num_rx_queues as usize);
-        self.interrupts.vfio_setup_interrupt(self.vfio_container)?;
+        self.interrupts.vfio_setup_interrupt(self.vfio_device)?;
         match self.interrupts.interrupt_type {
             VFIO_PCI_MSIX_IRQ_INDEX => {
                 for rx_queue in 0..self.num_rx_queues {
-                    let queue = &mut self.interrupts.queues[rx_queue as usize];
-                    queue.vfio_enable_msix(self.vfio_container, rx_queue as u32)?;
+                    let mut queue = InterruptsQueue {
+                        vfio_event_fd: 0,
+                        vfio_epoll_fd: 0,
+                        last_time_checked: Instant::now(),
+                        rx_pkts: 0,
+                        moving_avg: Default::default(),
+                        interrupt_enabled: true,
+                        interval: INTERRUPT_INITIAL_INTERVAL,
+                    };
+                    self.interrupts.queues.push(queue);
+                    queue.vfio_enable_msix(self.vfio_device, rx_queue as u32)?;
                     queue.vfio_epoll_ctl(queue.vfio_event_fd)?;
-                    queue.interrupt_enabled = true;
-                    queue.interval = INTERRUPT_INITIAL_INTERVAL;
                 }
             },
             VFIO_PCI_MSI_IRQ_INDEX => {
-                for rx_queue in 0..self.num_rx_queues {
-                    let queue = &mut self.interrupts.queues[rx_queue as usize];
-                    queue.vfio_enable_msi(self.vfio_container)?;
+                for _rx_queue in 0..self.num_rx_queues {
+                    let mut queue: InterruptsQueue = InterruptsQueue {
+                        vfio_event_fd: 0,
+                        vfio_epoll_fd: 0,
+                        last_time_checked: Instant::now(),
+                        rx_pkts: 0,
+                        moving_avg: Default::default(),
+                        interrupt_enabled: true,
+                        interval: INTERRUPT_INITIAL_INTERVAL,
+                    };
+                    self.interrupts.queues.push(queue);
+                    queue.vfio_enable_msi(self.vfio_device)?;
                     queue.vfio_epoll_ctl(queue.vfio_event_fd)?;
-                    queue.interrupt_enabled = true;
-                    queue.interval = INTERRUPT_INITIAL_INTERVAL;
                 }
             },
             _ => {
