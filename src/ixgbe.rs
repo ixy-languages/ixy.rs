@@ -164,11 +164,13 @@ impl IxyDevice for IxgbeDevice {
             interrupts: Default::default()
         };
 
-        dev.interrupts.interrupts_enabled = interrupts_enabled;
-        dev.interrupts.timeout_ms = interrupt_timeout;
-        dev.interrupts.itr_rate = 0x028;
+        if dev.iommu {
+            dev.interrupts.interrupts_enabled = interrupts_enabled;
+            dev.interrupts.timeout_ms = interrupt_timeout;
+            dev.interrupts.itr_rate = 0x028;
+            dev.setup_interrupts()?;
+        }
 
-        dev.setup_interrupts()?;
         dev.reset_and_init(pci_addr)?;
 
         Ok(dev)

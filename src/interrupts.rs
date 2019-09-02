@@ -1,5 +1,6 @@
 use std::mem;
 use std::os::unix::io::RawFd;
+use std::collections::VecDeque;
 use epoll::Event;
 use epoll::Events;
 use std::time::Instant;
@@ -32,7 +33,8 @@ pub struct InterruptsQueue {
 
 #[derive(Default)]
 pub struct InterruptMovingAvg {
-    pub measured_rates: Vec<u64>, // The moving average window
+    pub measured_rates: VecDeque<u64>, // The moving average window
+    pub sum: u64, // The moving average sum
 }
 
 /// constants and structs needed for IOMMU. Grabbed from linux/vfio.h
@@ -212,9 +214,11 @@ impl InterruptsQueue {
     /// Enable VFIO MSI-X interrupts for the given `device_fd`.
     /// The `interrupt_vector` specifies the number of queues to watch.
     pub fn vfio_enable_msix(&mut self, device_fd: RawFd, mut interrupt_vector: u32) -> Result<(), Box<dyn Error>> {
+        if device_fd < 0 {
+            return Err(format!("Device file descriptor invalid!").into());
+        }
         // setup event fd
         let event_fd: RawFd = unsafe { libc::eventfd(0, 0) };
-
         if event_fd == -1 {
             return Err(format!(
                 "failed to create eventfd. Errno: {}",
@@ -281,13 +285,14 @@ impl InterruptsQueue {
     /// The `diff` specifies time elapsed since the last call in nanoseconds.
     /// The `buf_index` and `buf_size` the current buffer index and the size of the receive buffer.
     pub fn check_interrupt(&mut self, diff: u64, buf_index: usize, buf_size: usize) {
-        self.moving_avg.measured_rates.push(self.ppms(diff));
-        if self.moving_avg.measured_rates.len() > MOVING_AVERAGE_RANGE {
-            self.moving_avg.measured_rates.pop();
+        let ppms = self.ppms(diff);
+        self.moving_avg.sum += ppms;
+        self.moving_avg.measured_rates.push_back(ppms);
+        if self.moving_avg.measured_rates.len() >= MOVING_AVERAGE_RANGE {
+            self.moving_avg.sum -= self.moving_avg.measured_rates.pop_front().unwrap();
         }
         self.rx_pkts = 0;
-        let sum: u64 = self.moving_avg.measured_rates.iter().sum();
-        let average = sum / self.moving_avg.measured_rates.len() as u64;
+        let average = self.moving_avg.sum / self.moving_avg.measured_rates.len() as u64;
         if average > INTERRUPT_THRESHOLD {
             self.interrupt_enabled = false;
         } else if buf_index == buf_size {
