@@ -243,8 +243,8 @@ impl IxyDevice for IxgbeDevice {
             rx_index = queue.rx_index;
             last_rx_index = queue.rx_index;
 
-            if self.interrupts.interrupts_enabled && self.interrupts.queues[rx_index].interrupt_enabled {
-                self.interrupts.queues[rx_index].vfio_epoll_wait(10, self.interrupts.timeout_ms as i32).unwrap();
+            if self.interrupts.interrupts_enabled && self.interrupts.queues[queue_id as usize].interrupt_enabled {
+                self.interrupts.queues[queue_id as usize].vfio_epoll_wait(self.interrupts.timeout_ms as i32).unwrap();
             }
 
             for i in 0..num_packets {
@@ -295,7 +295,7 @@ impl IxyDevice for IxgbeDevice {
             }
 
             if self.interrupts.interrupts_enabled {
-                let interrupt = &mut self.interrupts.queues[rx_index as usize];
+                let interrupt = &mut self.interrupts.queues[queue_id as usize];
                 let int_en = interrupt.interrupt_enabled;
                 interrupt.rx_pkts += received_packets as u64;
 
@@ -985,14 +985,14 @@ impl IxgbeDevice {
                         interrupt_enabled: true,
                         interval: INTERRUPT_INITIAL_INTERVAL,
                     };
-                    self.interrupts.queues.push(queue);
                     queue.vfio_enable_msix(self.vfio_device, rx_queue as u32)?;
                     queue.vfio_epoll_ctl(queue.vfio_event_fd)?;
+                    self.interrupts.queues.push(queue);
                 }
             },
             VFIO_PCI_MSI_IRQ_INDEX => {
                 for _rx_queue in 0..self.num_rx_queues {
-                    let mut queue: InterruptsQueue = InterruptsQueue {
+                    let mut queue = InterruptsQueue {
                         vfio_event_fd: 0,
                         vfio_epoll_fd: 0,
                         last_time_checked: Instant::now(),
@@ -1001,9 +1001,9 @@ impl IxgbeDevice {
                         interrupt_enabled: true,
                         interval: INTERRUPT_INITIAL_INTERVAL,
                     };
-                    self.interrupts.queues.push(queue);
                     queue.vfio_enable_msi(self.vfio_device)?;
                     queue.vfio_epoll_ctl(queue.vfio_event_fd)?;
+                    self.interrupts.queues.push(queue);
                 }
             },
             _ => {

@@ -60,7 +60,7 @@ pub fn main() {
         // don't poll the time unnecessarily
         if counter & 0xfff == 0 {
             let elapsed = time.elapsed();
-            let nanos = elapsed.as_secs() as u32 * 1_000_000_000 + elapsed.subsec_nanos();
+            let nanos = elapsed.as_secs() * 1_000_000_000 + elapsed.subsec_nanos() as u64;
             // every second
             if nanos > 1_000_000_000 {
                 dev1.read_stats(&mut dev1_stats);

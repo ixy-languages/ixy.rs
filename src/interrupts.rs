@@ -1,12 +1,13 @@
 use std::mem;
 use std::os::unix::io::RawFd;
 use epoll::Event;
+use epoll::Events;
 use std::time::Instant;
 use libc;
 use std::error::Error;
 
-const MOVING_AVERAGE_RANGE: usize = 5;
-const INTERRUPT_THRESHOLD: f64 = 1.2;
+pub const MOVING_AVERAGE_RANGE: usize = 5;
+const INTERRUPT_THRESHOLD: u64 = 1_200;
 pub const INTERRUPT_INITIAL_INTERVAL: u64 = 1_000_000_000;
 const MAX_INTERRUPT_VECTORS: u32 = 32;
 
@@ -19,7 +20,6 @@ pub struct Interrupts {
     pub queues: Vec<InterruptsQueue>,  // Interrupt settings per queue
 }
 
-#[derive(Copy, Clone)]
 pub struct InterruptsQueue {
     pub vfio_event_fd: RawFd, // event fd
     pub vfio_epoll_fd: RawFd, // epoll fd
@@ -31,12 +31,8 @@ pub struct InterruptsQueue {
 }
 
 #[derive(Default)]
-#[derive(Copy, Clone)]
 pub struct InterruptMovingAvg {
-    pub index: usize, // The current index
-    pub length: usize, // The moving average length
-    pub sum: f64, // The moving average sum
-    pub measured_rates: [f64; MOVING_AVERAGE_RANGE], // The moving average window
+    pub measured_rates: Vec<u64>, // The moving average window
 }
 
 /// constants and structs needed for IOMMU. Grabbed from linux/vfio.h
@@ -123,13 +119,12 @@ impl InterruptsQueue {
 
     /// Waits for events on the epoll instance referred to by the file descriptor `epoll_fd`.
     /// The memory area pointed to by events will contain the events that will be available for the caller.
-    /// Up to `maxevents` are returned by epoll_wait. The `maxevents` argument must be greater than zero.
     /// The `timeout` argument specifies the minimum number of milliseconds that epoll_wait will block.
     /// Specifying a `timeout` of -1 causes epoll_wait to block indefinitely,
     /// while specifying a `timeout` equal to zero cause epoll_wait to return immediately, even if no events are available.
     /// Returns the number of ready file descriptors.
-    pub fn vfio_epoll_wait(&self, maxevents: usize, timeout: i32)  -> Result<usize, Box<dyn Error>> {
-        let mut events = [Event; 10];
+    pub fn vfio_epoll_wait(&self, timeout: i32)  -> Result<usize, Box<dyn Error>> {
+        let mut events = [Event::new(Events::empty(), 0); 10];
         let rc: usize;
 
         loop {
@@ -275,27 +270,24 @@ impl InterruptsQueue {
         return Ok(());
     }
 
-    /// Calculate packets per second based on the received number of packets and the
+    /// Calculate packets per microsecond based on the received number of packets and the
     /// elapsed time in `nanos` since the last calculation.
-    /// Returns the number of packets per second.
-    pub fn mpps(&self, nanos: u64) -> f64 {
-        self.rx_pkts as f64 / 1_000_000.0 / (nanos as f64 / 1_000_000_000.0)
+    /// Returns the number of packets per microsecond.
+    pub fn ppms(&self, nanos: u64) -> u64 {
+        self.rx_pkts / (nanos / 1_000_000)
     }
 
     /// Check if interrupts or polling should be used based on the current number of received packets per seconds.
     /// The `diff` specifies time elapsed since the last call in nanoseconds.
     /// The `buf_index` and `buf_size` the current buffer index and the size of the receive buffer.
     pub fn check_interrupt(&mut self, diff: u64, buf_index: usize, buf_size: usize) {
-        self.moving_avg.sum -= self.moving_avg.measured_rates[self.moving_avg.index];
-        self.moving_avg.measured_rates[self.moving_avg.index] = self.mpps(diff);
-        self.moving_avg.sum += self.moving_avg.measured_rates[self.moving_avg.index];
-        if self.moving_avg.length < MOVING_AVERAGE_RANGE {
-            self.moving_avg.length -= 1;
+        self.moving_avg.measured_rates.push(self.ppms(diff));
+        if self.moving_avg.measured_rates.len() > MOVING_AVERAGE_RANGE {
+            self.moving_avg.measured_rates.pop();
         }
-        self.moving_avg.index = (self.moving_avg.index + 1) % MOVING_AVERAGE_RANGE;
-        self.moving_avg.length += 1;
         self.rx_pkts = 0;
-        let average = self.moving_avg.sum / self.moving_avg.length as f64;
+        let sum: u64 = self.moving_avg.measured_rates.iter().sum();
+        let average = sum / self.moving_avg.measured_rates.len() as u64;
         if average > INTERRUPT_THRESHOLD {
             self.interrupt_enabled = false;
         } else if buf_index == buf_size {

@@ -140,7 +140,7 @@ pub struct DeviceStats {
 
 impl DeviceStats {
     ///  Prints the stats differences between `stats_old` and `self`.
-    pub fn print_stats_diff(&self, dev: &dyn IxyDevice, stats_old: &DeviceStats, nanos: u32) {
+    pub fn print_stats_diff(&self, dev: &dyn IxyDevice, stats_old: &DeviceStats, nanos: u64) {
         let pci_addr = dev.get_pci_addr();
         let mbits = self.diff_mbit(
             self.rx_bytes,
@@ -170,16 +170,16 @@ impl DeviceStats {
         bytes_old: u64,
         pkts_new: u64,
         pkts_old: u64,
-        nanos: u32,
+        nanos: u64,
     ) -> f64 {
-        (((bytes_new - bytes_old) as f64 / 1_000_000.0 / (f64::from(nanos) / 1_000_000_000.0))
+        (((bytes_new - bytes_old) as f64 / 1_000_000.0 / (nanos as f64 / 1_000_000_000.0))
             * f64::from(8)
             + self.diff_mpps(pkts_new, pkts_old, nanos) * f64::from(20) * f64::from(8))
     }
 
     /// Returns Mpps between two points in time.
-    fn diff_mpps(&self, pkts_new: u64, pkts_old: u64, nanos: u32) -> f64 {
-        (pkts_new - pkts_old) as f64 / 1_000_000.0 / (f64::from(nanos) / 1_000_000_000.0)
+    fn diff_mpps(&self, pkts_new: u64, pkts_old: u64, nanos: u64) -> f64 {
+        (pkts_new - pkts_old) as f64 / 1_000_000.0 / (nanos  as f64 / 1_000_000_000.0)
     }
 }
 
