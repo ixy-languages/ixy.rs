@@ -29,7 +29,7 @@ const MAX_QUEUES: u16 = 64;
 /// Used for implementing an ixy device driver like ixgbe or virtio.
 pub trait IxyDevice {
     /// Initializes an intel 82599 network card.
-    fn init(pci_addr: &str, num_rx_queues: u16, num_tx_queues: u16, itr: u32, interrupt_timeout: i16, interrupts_enabled: bool) -> Result<Self, Box<dyn Error>>
+    fn init(pci_addr: &str, num_rx_queues: u16, num_tx_queues: u16, interrupt_timeout: i16, interrupts_enabled: bool) -> Result<Self, Box<dyn Error>>
     where
         Self: Sized;
 
@@ -190,7 +190,6 @@ pub fn ixy_init(
     pci_addr: &str,
     rx_queues: u16,
     tx_queues: u16,
-    itr: u32,
     interrupt_timeout: i16,
     interrupts_enabled: bool
 ) -> Result<Box<dyn IxyDevice>, Box<dyn Error>> {
@@ -208,7 +207,7 @@ pub fn ixy_init(
         unimplemented!("virtio driver is not implemented yet");
     } else {
         // let's give it a try with ixgbe
-        let device: IxgbeDevice = IxgbeDevice::init(pci_addr, rx_queues, tx_queues, itr, interrupt_timeout, interrupts_enabled)?;
+        let device: IxgbeDevice = IxgbeDevice::init(pci_addr, rx_queues, tx_queues, interrupt_timeout, interrupts_enabled)?;
         Ok(Box::new(device))
     }
 }
