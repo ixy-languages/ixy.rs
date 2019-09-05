@@ -47,7 +47,7 @@ impl<T> Dma<T> {
                     ptr::null_mut(),
                     size,
                     libc::PROT_READ | libc::PROT_WRITE,
-                    libc::MAP_PRIVATE | libc::MAP_ANONYMOUS | libc::MAP_HUGETLB | MAP_HUGE_2MB,
+                    libc::MAP_SHARED | libc::MAP_ANONYMOUS | libc::MAP_HUGETLB | MAP_HUGE_2MB,
                     -1,
                     0,
                 )
@@ -67,6 +67,8 @@ impl<T> Dma<T> {
                 Ok(memory)
             }
         } else {
+            debug!("allocating dma memory via huge page");
+
             if require_contigous && size > HUGE_PAGE_SIZE {
                 return Err("failed to map physically contigous memory".into());
             }
@@ -89,26 +91,26 @@ impl<T> Dma<T> {
                             libc::MAP_SHARED | libc::MAP_HUGETLB,
                             f.as_raw_fd(),
                             0,
-                        ) as *mut T
+                        )
                     };
 
-                    if ptr.is_null() {
-                        Err("failed to memory map hugepage - hugepages enabled and free?".into())
+                    if ptr == libc::MAP_FAILED {
+                        Err("failed to memory map huge page - huge pages enabled and free?".into())
                     } else if unsafe { libc::mlock(ptr as *mut libc::c_void, size) } == 0 {
                         let memory = Dma {
-                            virt: ptr,
+                            virt: ptr as *mut T,
                             phys: virt_to_phys(ptr as usize)?,
                         };
 
                         Ok(memory)
                     } else {
-                        Err("failed to memory lock hugepage".into())
+                        Err("failed to memory lock huge page".into())
                     }
                 }
                 Err(ref e) if e.kind() == io::ErrorKind::NotFound => Err(Box::new(io::Error::new(
                     io::ErrorKind::NotFound,
                     format!(
-                        "hugepage {} could not be created - hugepages enabled?",
+                        "huge page {} could not be created - huge pages enabled?",
                         path
                     ),
                 ))),
