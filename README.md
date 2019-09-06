@@ -6,7 +6,7 @@
 ixy.rs is a Rust rewrite of the [ixy](https://github.com/emmericp/ixy) userspace network driver.
 It is designed to be readable, idiomatic Rust code.
 It supports Intel 82599 10GbE NICs (`ixgbe` family).
-Check out [our paper](https://www.net.in.tum.de/fileadmin/bibtex/publications/theses/2018-ixy-rust.pdf) to read about the details of our implementation.
+Check out [my thesis](https://www.net.in.tum.de/fileadmin/bibtex/publications/theses/2018-ixy-rust.pdf) to read about the details of the implementation.
 
 ## Features
 
@@ -87,7 +87,10 @@ To use it, you have to:
 
 ## Performance
 
-Have a look at our [performance results](https://github.com/ixy-languages/ixy-languages#Performance) in the ixy-languages repository.
+Running the forwarder example on a single core of a Xeon E3-1230 v2 CPU @ 3.3 GHz under full bidirectional load at 20 Gbit/s with 64 byte packets, i.e. 2x 14.88 million packets per second (Mpps), yields these throughput results when varying the batch size:
+![Performance with different batch sizes, CPU at 3.3 GHz](performance.png)
+
+For a comparison to the other drivers, have a look at the [performance results](https://github.com/ixy-languages/ixy-languages#Performance) in the ixy-languages repository.
 
 ## Usage
 
