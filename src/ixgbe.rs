@@ -209,7 +209,7 @@ impl IxyDevice for IxgbeDevice {
             last_rx_index = queue.rx_index;
 
             if self.interrupts.interrupts_enabled && self.interrupts.queues[queue_id as usize].interrupt_enabled {
-                self.interrupts.queues[queue_id as usize].vfio_epoll_wait(self.interrupts.timeout_ms as i32).unwrap();
+                self.interrupts.queues[queue_id as usize].vfio_epoll_wait(i32::from(self.interrupts.timeout_ms)).unwrap();
             }
 
             for i in 0..num_packets {
@@ -274,7 +274,7 @@ impl IxyDevice for IxgbeDevice {
                 if (interrupt.instr_counter & 0xFFF as u64) == 0 {
                     interrupt.instr_counter = 0;
                     let elapsed = interrupt.last_time_checked.elapsed();
-                    let diff = elapsed.as_secs() * 1_000_000_000 + elapsed.subsec_nanos() as u64;
+                    let diff = elapsed.as_secs() * 1_000_000_000 + u64::from(elapsed.subsec_nanos());
                     if diff > interrupt.interval {
                         interrupt.check_interrupt(diff, received_packets, num_packets);
                     }
@@ -460,7 +460,7 @@ impl IxgbeDevice {
 
         // enable interrupts
         for queue in 0..self.num_rx_queues {
-            self.enable_interrupt( queue as u32)?;
+            self.enable_interrupt( u32::from(queue))?;
         }
 
         // enable promisc mode by default to make testing easier
@@ -837,7 +837,7 @@ impl IxgbeDevice {
     /// Disable all interrupts for all queues.
     fn disable_interrupts(&self) {
         // Clear interrupt mask to stop from interrupts being generated
-        self.set_reg32(IXGBE_EIMS, 0x00000000);
+        self.set_reg32(IXGBE_EIMS, 0x0000_0000);
         self.clear_interrupts();
     }
 
@@ -863,7 +863,7 @@ impl IxgbeDevice {
 
         // Step 3: All interrupts should be set to 0b (no auto clear in the EIAC register). Following an
         // interrupt, software might read the EICR register to check for the interrupt causes.
-        self.set_reg32(IXGBE_EIAC, 0x00000000);
+        self.set_reg32(IXGBE_EIAC, 0x0000_0000);
 
         // Step 4: Set the auto mask in the EIAM register according to the preferred mode of operation.
         // In our case we prefer to not auto-mask the interrupts
@@ -966,7 +966,7 @@ impl IxgbeDevice {
                         interval: INTERRUPT_INITIAL_INTERVAL,
                         instr_counter: 0,
                     };
-                    queue.vfio_enable_msix(self.vfio_device_fd, rx_queue as u32)?;
+                    queue.vfio_enable_msix(self.vfio_device_fd, u32::from(rx_queue))?;
                     queue.vfio_epoll_ctl(queue.vfio_event_fd)?;
                     self.interrupts.queues.push(queue);
                 }

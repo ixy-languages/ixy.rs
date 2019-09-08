@@ -30,12 +30,12 @@ const VFIO_IOMMU_MAP_DMA: u64 = 15217;
 // constants needed for IOMMU Interrupts. Grabbed from linux/vfio.h
 pub(crate) const VFIO_DEVICE_GET_IRQ_INFO: u64 = 15213;
 pub(crate) const VFIO_DEVICE_SET_IRQS: u64 = 15214;
-pub(crate) const VFIO_IRQ_SET_DATA_NONE: u32 = (1 << 0); /* Data not present */
+pub(crate) const VFIO_IRQ_SET_DATA_NONE: u32 = 1; /* Data not present */
 pub(crate) const VFIO_IRQ_SET_DATA_EVENTFD: u32 = (1 << 2); /* Data is eventfd (s32) */
 pub(crate) const VFIO_IRQ_SET_ACTION_TRIGGER: u32 = (1 << 5); /* Trigger interrupt */
 pub(crate) const VFIO_PCI_MSI_IRQ_INDEX: u64 = 1;
 pub(crate) const VFIO_PCI_MSIX_IRQ_INDEX: u64 = 2;
-pub(crate) const VFIO_IRQ_INFO_EVENTFD: u32 = (1 << 0);
+pub(crate) const VFIO_IRQ_INFO_EVENTFD: u32 = 1;
 
 /// struct vfio_iommu_type1_dma_map, grabbed from linux/vfio.h
 #[allow(non_camel_case_types)]

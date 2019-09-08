@@ -43,7 +43,7 @@ impl Interrupts {
     /// Setup VFIO interrupts by checking the `device_fd` for which interrupts this device supports.
     pub(crate) fn vfio_setup_interrupt(&mut self, device_fd: RawFd) -> Result<(), Box<dyn Error>> {
         info!("Setup VFIO Interrupts");
-        for index in (0..(VFIO_PCI_MSIX_IRQ_INDEX + 1)).rev() {
+        for index in (0..=VFIO_PCI_MSIX_IRQ_INDEX).rev() {
             let irq_info: vfio_irq_info = vfio_irq_info {
                 argsz: mem::size_of::<vfio_irq_info>() as u32,
                 index: index as u32,
@@ -110,37 +110,31 @@ impl InterruptsQueue {
         let mut events = [Event::default(); 10];
         let rc: usize;
 
-        loop {
-            let status = unsafe {
-                libc::epoll_wait(self.vfio_epoll_fd,
-                                 events.as_mut_ptr() as *mut libc::epoll_event,
-                                 events.len() as i32, timeout)
-            };
-            if status == -1 {
-                return Err(format!(
-                    "failed to epoll_wait. Errno: {}", unsafe { *libc::__errno_location() }
-                ).into());
-            }
-            rc = status as usize;
-            if rc > 0 {
-                /* epoll_wait has at least one fd ready to read */
-                for i in 0..rc {
-                    let mut val: u16 = 0;
-                    let val_ptr: *mut u16 = &mut val;
-                    // read event file descriptor to clear interrupt.
-                    if unsafe {
-                        libc::read(events[i].data as i32, val_ptr as *mut libc::c_void, mem::size_of::<u64>())
-                    } == -1
-                    {
-                        return Err(format!("failed to read event. Errno: {}", unsafe {
-                            *libc::__errno_location()
-                        }).into());
-                    }
+        let status = unsafe {
+            libc::epoll_wait(self.vfio_epoll_fd,
+                             events.as_mut_ptr() as *mut libc::epoll_event,
+                             events.len() as i32, timeout)
+        };
+        if status == -1 {
+            return Err(format!(
+                "failed to epoll_wait. Errno: {}", unsafe { *libc::__errno_location() }
+            ).into());
+        }
+        rc = status as usize;
+        if rc > 0 {
+            /* epoll_wait has at least one fd ready to read */
+            for event in events.iter().take(rc) {
+                let mut val: u16 = 0;
+                let val_ptr: *mut u16 = &mut val;
+                // read event file descriptor to clear interrupt.
+                if unsafe {
+                    libc::read(event.data as i32, val_ptr as *mut libc::c_void, mem::size_of::<u64>())
+                } == -1
+                {
+                    return Err(format!("failed to read event. Errno: {}", unsafe {
+                        *libc::__errno_location()
+                    }).into());
                 }
-                break;
-            } else {
-                /* rc == 0, epoll_wait timed out */
-                break;
             }
         }
 
@@ -209,7 +203,7 @@ impl InterruptsQueue {
     pub(crate) fn vfio_enable_msix(&mut self, device_fd: RawFd, mut interrupt_vector: u32) -> Result<(), Box<dyn Error>> {
         info!("Enable MSIX Interrupts");
         if device_fd < 0 {
-            return Err(format!("Device file descriptor invalid!").into());
+            return Err("Device file descriptor invalid!".to_string().into());
         }
         // setup event fd
         let event_fd: RawFd = unsafe { libc::eventfd(0, 0) };
@@ -266,7 +260,7 @@ impl InterruptsQueue {
         }
 
         self.vfio_event_fd = 0;
-        return Ok(());
+        Ok(())
     }
 
     /// Calculate packets per microsecond based on the received number of packets and the
@@ -288,9 +282,7 @@ impl InterruptsQueue {
         }
         self.rx_pkts = 0;
         let average = self.moving_avg.sum / self.moving_avg.measured_rates.len() as u64;
-        if average > INTERRUPT_THRESHOLD {
-            self.interrupt_enabled = false;
-        } else if buf_index == buf_size {
+        if average > INTERRUPT_THRESHOLD || buf_index == buf_size {
             self.interrupt_enabled = false;
         } else {
             self.interrupt_enabled = true;
