@@ -203,13 +203,13 @@ impl InterruptsQueue {
         let irq_set: vfio_irq_set<[u8; 0]> = vfio_irq_set {
             argsz: (mem::size_of::<vfio_irq_set<[u8; 0]>>() + mem::size_of::<RawFd>()) as u32,
             count: 0,
-            flags: VFIO_IRQ_SET_DATA_NONE | VFIO_IRQ_SET_ACTION_TRIGGER,
+            flags: VFIO_IRQ_SET_DATA_NONE,
             index: VFIO_PCI_MSI_IRQ_INDEX as u32,
             start: 0,
             data: [0; 0],
         };
 
-        if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_SET_IRQS, irq_set) } == -1 {
+        if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_SET_IRQS, &irq_set) } == -1 {
             return Err(
                 format!("failed to VFIO_DEVICE_SET_IRQS. Errno: {}", unsafe {
                     *libc::__errno_location()
@@ -279,13 +279,13 @@ impl InterruptsQueue {
         let irq_set: vfio_irq_set<[u8; 0]> = vfio_irq_set {
             argsz: (mem::size_of::<vfio_irq_set<[u8; 0]>>() + mem::size_of::<RawFd>()) as u32,
             count: 0,
-            flags: VFIO_IRQ_SET_DATA_NONE | VFIO_IRQ_SET_ACTION_TRIGGER,
-            index: VFIO_PCI_MSI_IRQ_INDEX as u32,
+            flags: VFIO_IRQ_SET_DATA_NONE,
+            index: VFIO_PCI_MSIX_IRQ_INDEX as u32,
             start: 0,
             data: [0; 0],
         };
 
-        if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_SET_IRQS, irq_set) } == -1 {
+        if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_SET_IRQS, &irq_set) } == -1 {
             return Err(
                 format!("failed to VFIO_DEVICE_SET_IRQS. Errno: {}", unsafe {
                     *libc::__errno_location()
