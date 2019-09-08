@@ -2,6 +2,7 @@
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
 #![allow(non_upper_case_globals)]
+#![allow(clippy::all)]
 // list of all NIC registers and some structs
 // copied and changed from the ixy C driver
 

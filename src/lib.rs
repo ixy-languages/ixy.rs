@@ -4,16 +4,18 @@
 //! It is designed to be readable, idiomatic Rust code.
 //! It supports Intel 82599 10GbE NICs (ixgbe family).
 
-extern crate byteorder;
-extern crate libc;
+#![warn(rust_2018_idioms)]
+
 #[macro_use]
 extern crate log;
 
+#[rustfmt::skip]
 mod constants;
 mod ixgbe;
 pub mod memory;
 mod pci;
 pub mod interrupts;
+mod vfio;
 
 use self::ixgbe::*;
 use self::memory::*;
@@ -208,5 +210,60 @@ pub fn ixy_init(
         // let's give it a try with ixgbe
         let device: IxgbeDevice = IxgbeDevice::init(pci_addr, rx_queues, tx_queues, interrupt_timeout)?;
         Ok(Box::new(device))
+    }
+}
+
+impl IxyDevice for Box<dyn IxyDevice> {
+    fn init(pci_addr: &str, num_rx_queues: u16, num_tx_queues: u16) -> Result<Self, Box<dyn Error>> {
+        ixy_init(pci_addr, num_rx_queues, num_tx_queues)
+    }
+
+    fn get_driver_name(&self) -> &str {
+        (**self).get_driver_name()
+    }
+
+    fn is_card_iommu_capable(&self) -> bool {
+        (**self).is_card_iommu_capable()
+    }
+
+    fn get_vfio_container(&self) -> Option<RawFd> {
+        (**self).get_vfio_container()
+    }
+
+    fn get_pci_addr(&self) -> &str {
+        (**self).get_pci_addr()
+    }
+
+    fn rx_batch(
+        &mut self,
+        queue_id: u32,
+        buffer: &mut VecDeque<Packet>,
+        num_packets: usize,
+    ) -> usize {
+        (**self).rx_batch(queue_id, buffer, num_packets)
+    }
+
+    fn tx_batch(&mut self, queue_id: u32, buffer: &mut VecDeque<Packet>) -> usize {
+        (**self).tx_batch(queue_id, buffer)
+    }
+
+    fn read_stats(&self, stats: &mut DeviceStats) {
+        (**self).read_stats(stats)
+    }
+
+    fn reset_stats(&self) {
+        (**self).reset_stats()
+    }
+
+    fn get_link_speed(&self) -> u16 {
+        (**self).get_link_speed()
+    }
+
+    fn get_mac_addr(&self) -> [u8; 6] {
+        (**self).get_mac_addr()
+    }
+
+    fn set_mac_addr(&self, addr: [u8; 6]) {
+        (**self).set_mac_addr(addr)
     }
 }

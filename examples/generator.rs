@@ -1,6 +1,3 @@
-extern crate ixy;
-extern crate simple_logger;
-
 use std::collections::VecDeque;
 use std::env;
 use std::process;
@@ -32,6 +29,7 @@ pub fn main() {
 
     let mut dev = ixy_init(&pci_addr, 1, 1, 0).unwrap();
 
+    #[rustfmt::skip]
     let pkt_data = [
         0x01, 0x02, 0x03, 0x04, 0x05, 0x06,         // dst MAC
         0x11, 0x12, 0x13, 0x14, 0x15, 0x16,         // src MAC
@@ -51,7 +49,7 @@ pub fn main() {
         // rest of the payload is zero-filled because mempools guarantee empty bufs
     ];
 
-    let pool = Mempool::allocate(NUM_PACKETS, 0, &*dev).unwrap();
+    let pool = Mempool::allocate(NUM_PACKETS, 0).unwrap();
 
     // pre-fill all packet buffer in the pool with data and return them to the packet pool
     {

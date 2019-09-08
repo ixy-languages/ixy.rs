@@ -5,63 +5,50 @@ use std::fs;
 use std::io::{self, Read, Seek};
 use std::mem;
 use std::ops::{Deref, DerefMut};
-use std::os::unix::prelude::AsRawFd;
+use std::os::unix::io::{AsRawFd, RawFd};
 use std::process;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::{ptr, slice};
 
-use crate::IxyDevice;
-use libc;
+use crate::vfio::vfio_map_dma;
 
 const HUGE_PAGE_BITS: u32 = 21;
 const HUGE_PAGE_SIZE: usize = 1 << HUGE_PAGE_BITS;
 
 static HUGEPAGE_ID: AtomicUsize = AtomicUsize::new(0);
 
+// we want one VFIO Container for all NICs, so every NIC can read from every
+// other NICs memory, especially the mempool. When not using the IOMMU / VFIO,
+// this variable is unused.
+pub(crate) static mut VFIO_CONTAINER_FILE_DESCRIPTOR: RawFd = -1;
+
 pub struct Dma<T> {
     pub virt: *mut T,
     pub phys: usize,
 }
 
-const VFIO_DMA_MAP_FLAG_READ: u32 = 1;
-const VFIO_DMA_MAP_FLAG_WRITE: u32 = 2;
-const VFIO_IOMMU_MAP_DMA: u64 = 15217;
-const MAP_HUGE_2MB: i32 = 0x54000000; // 21 << 26
-
-// struct vfio_iommu_type1_dma_map, grabbed from linux/vfio.h
-#[allow(non_camel_case_types)]
-#[repr(C)]
-struct vfio_iommu_type1_dma_map {
-    argsz: u32,
-    flags: u32,
-    vaddr: *mut u8,
-    iova: *mut u8,
-    size: usize,
-}
+const MAP_HUGE_2MB: i32 = 0x5400_0000; // 21 << 26
 
 impl<T> Dma<T> {
     /// Allocates dma memory on a huge page.
-    pub fn allocate(
-        size: usize,
-        require_contigous: bool,
-        dev: &dyn IxyDevice,
-    ) -> Result<Dma<T>, Box<dyn Error>> {
+    pub fn allocate(size: usize, require_contigous: bool) -> Result<Dma<T>, Box<dyn Error>> {
         let size = if size % HUGE_PAGE_SIZE != 0 {
             ((size >> HUGE_PAGE_BITS) + 1) << HUGE_PAGE_BITS
         } else {
             size
         };
 
-        if dev.is_card_iommu_capable() {
-            // get an anonymous mapped memory space from kernel
+        if get_vfio_container() != -1 {
+            debug!("allocating dma memory via VFIO");
+
             let ptr = unsafe {
                 libc::mmap(
                     ptr::null_mut(),
                     size,
                     libc::PROT_READ | libc::PROT_WRITE,
-                    libc::MAP_PRIVATE | libc::MAP_ANONYMOUS | libc::MAP_HUGETLB | MAP_HUGE_2MB,
-                    0,
+                    libc::MAP_SHARED | libc::MAP_ANONYMOUS | libc::MAP_HUGETLB | MAP_HUGE_2MB,
+                    -1,
                     0,
                 )
             };
@@ -70,33 +57,18 @@ impl<T> Dma<T> {
             if ptr == libc::MAP_FAILED {
                 Err("failed to memory map ".into())
             } else {
-                let iommu_dma_map: vfio_iommu_type1_dma_map = vfio_iommu_type1_dma_map {
-                    argsz: mem::size_of::<vfio_iommu_type1_dma_map> as usize as u32,
-                    vaddr: ptr as *mut u8,
-                    size,
-                    iova: ptr as *mut u8,
-                    flags: VFIO_DMA_MAP_FLAG_READ | VFIO_DMA_MAP_FLAG_WRITE,
+                let iova = vfio_map_dma(ptr as usize, size)?;
+
+                let memory = Dma {
+                    virt: ptr as *mut T,
+                    phys: iova,
                 };
 
-                let ioctl_result = unsafe {
-                    libc::ioctl(
-                        dev.get_vfio_container().unwrap(),
-                        VFIO_IOMMU_MAP_DMA,
-                        &iommu_dma_map,
-                    )
-                };
-                if ioctl_result != -1 {
-                    let memory = Dma {
-                        virt: iommu_dma_map.vaddr as *mut T,
-                        phys: iommu_dma_map.iova as usize,
-                    };
-
-                    Ok(memory)
-                } else {
-                    Err("failed to map the DMA memory - ulimit set for this user?".into())
-                }
+                Ok(memory)
             }
         } else {
+            debug!("allocating dma memory via huge page");
+
             if require_contigous && size > HUGE_PAGE_SIZE {
                 return Err("failed to map physically contigous memory".into());
             }
@@ -119,26 +91,26 @@ impl<T> Dma<T> {
                             libc::MAP_SHARED | libc::MAP_HUGETLB,
                             f.as_raw_fd(),
                             0,
-                        ) as *mut T
+                        )
                     };
 
-                    if ptr.is_null() {
-                        Err("failed to memory map hugepage - hugepages enabled and free?".into())
+                    if ptr == libc::MAP_FAILED {
+                        Err("failed to memory map huge page - huge pages enabled and free?".into())
                     } else if unsafe { libc::mlock(ptr as *mut libc::c_void, size) } == 0 {
                         let memory = Dma {
-                            virt: ptr,
+                            virt: ptr as *mut T,
                             phys: virt_to_phys(ptr as usize)?,
                         };
 
                         Ok(memory)
                     } else {
-                        Err("failed to memory lock hugepage".into())
+                        Err("failed to memory lock huge page".into())
                     }
                 }
                 Err(ref e) if e.kind() == io::ErrorKind::NotFound => Err(Box::new(io::Error::new(
                     io::ErrorKind::NotFound,
                     format!(
-                        "hugepage {} could not be created - hugepages enabled?",
+                        "huge page {} could not be created - huge pages enabled?",
                         path
                     ),
                 ))),
@@ -218,6 +190,63 @@ impl Packet {
     pub fn get_pool(&self) -> &Rc<Mempool> {
         &self.pool
     }
+
+    /// Prefetch the (first cacheline of) packet content.
+    ///
+    /// The temporal consistency is chosen by the user, where strong consistency will lead to lower
+    /// access times at the cost of cache space in stepwise lower cache tiers (smaller). This
+    /// method is only available on `x86` or `x86_64` architectures with `sse` enabled.
+    ///
+    /// ```bash
+    /// RUSTFLAGS="-C target-cpu=native -C target-feature=+sse" cargo build …
+    /// ```
+    #[cfg(all(
+        any(target_arch = "x86", target_arch = "x86_64"),
+        target_feature = "sse"
+    ))]
+    #[inline(always)]
+    pub fn prefetch(&self, hint: Prefetch) {
+        #[cfg(target_arch = "x86")]
+        use core::arch::x86;
+        #[cfg(target_arch = "x86_64")]
+        use core::arch::x86_64 as x86;
+
+        let addr = self.get_virt_addr() as *const _;
+        unsafe {
+            match hint {
+                Prefetch::Time0 => x86::_mm_prefetch(addr, x86::_MM_HINT_T0),
+                Prefetch::Time1 => x86::_mm_prefetch(addr, x86::_MM_HINT_T1),
+                Prefetch::Time2 => x86::_mm_prefetch(addr, x86::_MM_HINT_T2),
+                Prefetch::NonTemporal => x86::_mm_prefetch(addr, x86::_MM_HINT_NTA),
+            }
+        }
+    }
+
+    /// Shorten the packet.
+    ///
+    /// Can be used to shorten an already allocated packet, for example when packets were
+    /// preallocated in bulk. If len is greater than the packet's current length, this has no
+    /// effect.
+    pub fn truncate(&mut self, len: usize) {
+        // Validity invariant: the referred to memory range is a proper subset of the previous one.
+        self.len = self.len.min(len)
+    }
+}
+
+/// Common representation for prefetch strategies.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Prefetch {
+    /// Corresponds to _MM_HINT_T0 on x86 sse.
+    Time0,
+
+    /// Corresponds to _MM_HINT_T1 on x86 sse.
+    Time1,
+
+    /// Corresponds to _MM_HINT_T2 on x86 sse.
+    Time2,
+
+    /// Corresponds to _MM_HINT_NTA on x86 sse.
+    NonTemporal,
 }
 
 pub struct Mempool {
@@ -234,21 +263,21 @@ impl Mempool {
     /// # Panics
     ///
     /// Panics if `size` is not a divisor of the page size.
-    pub fn allocate(
-        entries: usize,
-        size: usize,
-        dev: &dyn IxyDevice,
-    ) -> Result<Rc<Mempool>, Box<dyn Error>> {
+    pub fn allocate(entries: usize, size: usize) -> Result<Rc<Mempool>, Box<dyn Error>> {
         let entry_size = match size {
             0 => 2048,
             x => x,
         };
 
-        let dma: Dma<u8> = Dma::allocate(entries * entry_size, false, dev)?;
+        if (get_vfio_container() == -1) && HUGE_PAGE_SIZE % entry_size != 0 {
+            panic!("entry size must be a divisor of the page size");
+        }
+
+        let dma: Dma<u8> = Dma::allocate(entries * entry_size, false)?;
         let mut phys_addresses = Vec::with_capacity(entries);
 
         for i in 0..entries {
-            if dev.is_card_iommu_capable() {
+            if get_vfio_container() != -1 {
                 phys_addresses.push(unsafe { dma.virt.add(i * entry_size) } as usize);
             } else {
                 phys_addresses
@@ -265,10 +294,6 @@ impl Mempool {
         };
 
         unsafe { memset(pool.base_addr, pool.num_entries * pool.entry_size, 0x00) }
-
-        if HUGE_PAGE_SIZE % entry_size != 0 {
-            panic!("entry size must be a divisor of the page size");
-        }
 
         let pool = Rc::new(pool);
         pool.free_stack.borrow_mut().extend(0..entries);
@@ -294,6 +319,10 @@ impl Mempool {
     /// Returns a packet to the packet pool.
     pub(crate) unsafe fn get_phys_addr(&self, id: usize) -> usize {
         self.phys_addresses[id]
+    }
+
+    pub fn entry_size(&self) -> usize {
+        self.entry_size
     }
 }
 
@@ -363,4 +392,12 @@ pub(crate) fn virt_to_phys(addr: usize) -> Result<usize, Box<dyn Error>> {
 
     let phys = unsafe { mem::transmute::<[u8; mem::size_of::<usize>()], usize>(buffer) };
     Ok((phys & 0x007f_ffff_ffff_ffff) * pagesize + addr % pagesize)
+}
+
+pub(crate) fn get_vfio_container() -> RawFd {
+    unsafe { VFIO_CONTAINER_FILE_DESCRIPTOR }
+}
+
+pub(crate) fn set_vfio_container(cfd: RawFd) {
+    unsafe { VFIO_CONTAINER_FILE_DESCRIPTOR = cfd }
 }
