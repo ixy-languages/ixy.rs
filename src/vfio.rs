@@ -27,6 +27,16 @@ const VFIO_DMA_MAP_FLAG_READ: u32 = 1;
 const VFIO_DMA_MAP_FLAG_WRITE: u32 = 2;
 const VFIO_IOMMU_MAP_DMA: u64 = 15217;
 
+// constants needed for IOMMU Interrupts. Grabbed from linux/vfio.h
+pub(crate) const VFIO_DEVICE_GET_IRQ_INFO: u64 = 15213;
+pub(crate) const VFIO_DEVICE_SET_IRQS: u64 = 15214;
+pub(crate) const VFIO_IRQ_SET_DATA_NONE: u32 = (1 << 0); /* Data not present */
+pub(crate) const VFIO_IRQ_SET_DATA_EVENTFD: u32 = (1 << 2); /* Data is eventfd (s32) */
+pub(crate) const VFIO_IRQ_SET_ACTION_TRIGGER: u32 = (1 << 5); /* Trigger interrupt */
+pub(crate) const VFIO_PCI_MSI_IRQ_INDEX: u64 = 1;
+pub(crate) const VFIO_PCI_MSIX_IRQ_INDEX: u64 = 2;
+pub(crate) const VFIO_IRQ_INFO_EVENTFD: u32 = (1 << 0);
+
 /// struct vfio_iommu_type1_dma_map, grabbed from linux/vfio.h
 #[allow(non_camel_case_types)]
 #[repr(C)]
@@ -56,6 +66,40 @@ struct vfio_region_info {
     cap_offset: u32,
     size: u64,
     offset: u64,
+}
+
+/// struct vfio_irq_set, grabbed from linux/vfio.h
+///
+/// As this is a dynamically sized struct (has an array at the end) we need to use
+/// Dynamically Sized Types (DSTs) which can be found at
+/// https://doc.rust-lang.org/nomicon/exotic-sizes.html#dynamically-sized-types-dsts
+#[allow(non_camel_case_types)]
+#[repr(C)]
+pub(crate) struct vfio_irq_set<T: ?Sized> {
+    pub(crate) argsz: u32,
+    pub(crate) flags: u32,
+    pub(crate) index: u32,
+    pub(crate) start: u32,
+    pub(crate) count: u32,
+    pub(crate) data: T,
+}
+
+/// struct vfio_irq_info, grabbed from linux/vfio.h
+#[allow(non_camel_case_types)]
+#[repr(C)]
+pub(crate) struct vfio_irq_info {
+    pub(crate) argsz: u32,
+    pub(crate) flags: u32,
+    pub(crate) index: u32,		/* IRQ index */
+    pub(crate) count: u32,		/* Number of IRQs within this index */
+}
+
+/// 'libc::epoll_event' equivalent.
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub(crate) struct Event {
+    pub(crate) events: u32,
+    pub(crate) data: u64,
 }
 
 /// Initializes the IOMMU for a given PCI device. The device must be bound to the VFIO driver.

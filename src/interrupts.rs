@@ -3,83 +3,45 @@ use std::os::unix::io::RawFd;
 use std::collections::VecDeque;
 use std::time::Instant;
 use std::error::Error;
+use crate::vfio::{VFIO_PCI_MSIX_IRQ_INDEX, vfio_irq_info,
+                  VFIO_IRQ_INFO_EVENTFD, Event, vfio_irq_set, VFIO_IRQ_SET_DATA_EVENTFD,
+                  VFIO_IRQ_SET_ACTION_TRIGGER, VFIO_PCI_MSI_IRQ_INDEX, VFIO_DEVICE_SET_IRQS,
+                  VFIO_IRQ_SET_DATA_NONE, VFIO_DEVICE_GET_IRQ_INFO};
 
-pub const MOVING_AVERAGE_RANGE: usize = 5;
+pub(crate) const MOVING_AVERAGE_RANGE: usize = 5;
 const INTERRUPT_THRESHOLD: u64 = 1_200;
-pub const INTERRUPT_INITIAL_INTERVAL: u64 = 1_000_000_000;
+pub(crate) const INTERRUPT_INITIAL_INTERVAL: u64 = 1_000_000_000;
 const MAX_INTERRUPT_VECTORS: u32 = 32;
 
 #[derive(Default)]
-pub struct Interrupts {
-    pub interrupts_enabled: bool, // Whether interrupts for this device are enabled or disabled.
-    pub itr_rate: u32, // The Interrupt Throttling Rate
-    pub interrupt_type: u64, // MSI or MSIX
-    pub timeout_ms: i16, // interrupt timeout in milliseconds (-1 to disable the timeout)
-    pub queues: Vec<InterruptsQueue>,  // Interrupt settings per queue
+pub (crate) struct Interrupts {
+    pub(crate) interrupts_enabled: bool, // Whether interrupts for this device are enabled or disabled.
+    pub(crate) itr_rate: u32, // The Interrupt Throttling Rate
+    pub(crate) interrupt_type: u64, // MSI or MSIX
+    pub(crate) timeout_ms: i16, // interrupt timeout in milliseconds (-1 to disable the timeout)
+    pub(crate) queues: Vec<InterruptsQueue>,  // Interrupt settings per queue
 }
 
-pub struct InterruptsQueue {
-    pub vfio_event_fd: RawFd, // event fd
-    pub vfio_epoll_fd: RawFd, // epoll fd
-    pub interrupt_enabled: bool, // Whether interrupt for this queue is enabled or not
-    pub instr_counter: u64, // Instruction counter to avoid unnecessary calls to elapsed time
-    pub last_time_checked: Instant, // Last time the interrupt flag was checked
-    pub rx_pkts: u64, // The number of received packets since the last check
-    pub interval: u64, // The interval to check the interrupt flag
-    pub moving_avg: InterruptMovingAvg, // The moving average of the hybrid interrupt
+pub(crate) struct InterruptsQueue {
+    pub(crate) vfio_event_fd: RawFd, // event fd
+    pub(crate) vfio_epoll_fd: RawFd, // epoll fd
+    pub(crate) interrupt_enabled: bool, // Whether interrupt for this queue is enabled or not
+    pub(crate) instr_counter: u64, // Instruction counter to avoid unnecessary calls to elapsed time
+    pub(crate) last_time_checked: Instant, // Last time the interrupt flag was checked
+    pub(crate) rx_pkts: u64, // The number of received packets since the last check
+    pub(crate) interval: u64, // The interval to check the interrupt flag
+    pub(crate) moving_avg: InterruptMovingAvg, // The moving average of the hybrid interrupt
 }
 
 #[derive(Default)]
-pub struct InterruptMovingAvg {
-    pub measured_rates: VecDeque<u64>, // The moving average window
-    pub sum: u64, // The moving average sum
+pub(crate) struct InterruptMovingAvg {
+    pub(crate) measured_rates: VecDeque<u64>, // The moving average window
+    pub(crate) sum: u64, // The moving average sum
 }
-
-/// Constants and structs needed for IOMMU. Grabbed from linux/vfio.h
-///
-/// as this is a dynamically sized struct (has an array at the end) we need to use
-/// Dynamically Sized Types (DSTs) which can be found at
-/// https://doc.rust-lang.org/nomicon/exotic-sizes.html#dynamically-sized-types-dsts
-#[allow(non_camel_case_types)]
-#[repr(C)]
-struct vfio_irq_set<T: ?Sized> {
-    argsz: u32,
-    flags: u32,
-    index: u32,
-    start: u32,
-    count: u32,
-    data: T,
-}
-
-#[allow(non_camel_case_types)]
-#[repr(C)]
-struct vfio_irq_info {
-    argsz: u32,
-    flags: u32,
-    index: u32,		/* IRQ index */
-    count: u32,		/* Number of IRQs within this index */
-}
-
-/// 'libc::epoll_event' equivalent.
-#[repr(C)]
-#[derive(Clone, Copy, Default)]
-pub struct Event {
-    pub events: u32,
-    pub data: u64,
-}
-
-const VFIO_IRQ_SET_DATA_NONE: u32 = (1 << 0); /* Data not present */
-const VFIO_IRQ_SET_DATA_EVENTFD: u32 = (1 << 2); /* Data is eventfd (s32) */
-const VFIO_IRQ_SET_ACTION_TRIGGER: u32 = (1 << 5); /* Trigger interrupt */
-const VFIO_DEVICE_GET_IRQ_INFO: u64 = 15213;
-const VFIO_DEVICE_SET_IRQS: u64 = 15214;
-pub const VFIO_PCI_MSI_IRQ_INDEX: u64 = 1;
-pub const VFIO_PCI_MSIX_IRQ_INDEX: u64 = 2;
-const VFIO_IRQ_INFO_EVENTFD: u32 = (1 << 0);
 
 impl Interrupts {
     /// Setup VFIO interrupts by checking the `device_fd` for which interrupts this device supports.
-    pub fn vfio_setup_interrupt(&mut self, device_fd: RawFd) -> Result<(), Box<dyn Error>> {
+    pub(crate) fn vfio_setup_interrupt(&mut self, device_fd: RawFd) -> Result<(), Box<dyn Error>> {
         info!("Setup VFIO Interrupts");
         for index in (0..(VFIO_PCI_MSIX_IRQ_INDEX + 1)).rev() {
             let irq_info: vfio_irq_info = vfio_irq_info {
@@ -112,7 +74,7 @@ impl Interrupts {
 impl InterruptsQueue {
 
     /// Add the `event_fd` file descriptor to epoll.
-    pub fn vfio_epoll_ctl(&mut self, event_fd: RawFd) -> Result<(), Box<dyn Error>> {
+    pub(crate) fn vfio_epoll_ctl(&mut self, event_fd: RawFd) -> Result<(), Box<dyn Error>> {
         let mut event: Event = Event {
             events: libc::EPOLLIN as u32,
             data: event_fd as u64
@@ -143,7 +105,7 @@ impl InterruptsQueue {
     /// Specifying a `timeout` of -1 causes epoll_wait to block indefinitely,
     /// while specifying a `timeout` equal to zero cause epoll_wait to return immediately, even if no events are available.
     /// Returns the number of ready file descriptors.
-    pub fn vfio_epoll_wait(&self, timeout: i32)  -> Result<usize, Box<dyn Error>> {
+    pub(crate) fn vfio_epoll_wait(&self, timeout: i32)  -> Result<usize, Box<dyn Error>> {
         debug!("Waiting for packets...");
         let mut events = [Event::default(); 10];
         let rc: usize;
@@ -186,7 +148,7 @@ impl InterruptsQueue {
     }
 
     /// Enable VFIO MSI interrupts for the given `device_fd`.
-    pub fn vfio_enable_msi(&mut self, device_fd: RawFd) -> Result<(), Box<dyn Error>> {
+    pub(crate) fn vfio_enable_msi(&mut self, device_fd: RawFd) -> Result<(), Box<dyn Error>> {
         info!("Enable MSI Interrupts");
         // setup event fd
         let event_fd: RawFd = unsafe { libc::eventfd(0, 0) };
@@ -219,7 +181,7 @@ impl InterruptsQueue {
     }
 
     /// Disable VFIO MSI interrupts for the given `device_fd`.
-    pub fn vfio_disable_msi(&mut self, device_fd: RawFd) -> Result<(), Box<dyn Error>> {
+    pub(crate) fn vfio_disable_msi(&mut self, device_fd: RawFd) -> Result<(), Box<dyn Error>> {
         info!("Disable MSI Interrupts");
         let irq_set: vfio_irq_set<[u8; 0]> = vfio_irq_set {
             argsz: (mem::size_of::<vfio_irq_set<[u8; 0]>>() + mem::size_of::<RawFd>()) as u32,
@@ -244,7 +206,7 @@ impl InterruptsQueue {
     /// Enable VFIO MSI-X interrupts for the given `device_fd`.
     ///
     /// The `interrupt_vector` specifies the number of queues to watch.
-    pub fn vfio_enable_msix(&mut self, device_fd: RawFd, mut interrupt_vector: u32) -> Result<(), Box<dyn Error>> {
+    pub(crate) fn vfio_enable_msix(&mut self, device_fd: RawFd, mut interrupt_vector: u32) -> Result<(), Box<dyn Error>> {
         info!("Enable MSIX Interrupts");
         if device_fd < 0 {
             return Err(format!("Device file descriptor invalid!").into());
@@ -285,7 +247,7 @@ impl InterruptsQueue {
     }
 
     /// Disable VFIO MSI-X interrupts for the given `device_fd`.
-    pub fn vfio_disable_msix(&mut self, device_fd: RawFd) -> Result<(), Box<dyn Error>> {
+    pub(crate) fn vfio_disable_msix(&mut self, device_fd: RawFd) -> Result<(), Box<dyn Error>> {
         info!("Disable MSIX Interrupts");
         let irq_set: vfio_irq_set<[u8; 0]> = vfio_irq_set {
             argsz: (mem::size_of::<vfio_irq_set<[u8; 0]>>() + mem::size_of::<RawFd>()) as u32,
@@ -310,14 +272,14 @@ impl InterruptsQueue {
     /// Calculate packets per microsecond based on the received number of packets and the
     /// elapsed time in `nanos` since the last calculation.
     /// Returns the number of packets per microsecond.
-    pub fn ppms(&self, nanos: u64) -> u64 {
+    pub(crate) fn ppms(&self, nanos: u64) -> u64 {
         self.rx_pkts / (nanos / 1_000_000)
     }
 
     /// Check if interrupts or polling should be used based on the current number of received packets per seconds.
     /// The `diff` specifies time elapsed since the last call in nanoseconds.
     /// The `buf_index` and `buf_size` the current buffer index and the size of the receive buffer.
-    pub fn check_interrupt(&mut self, diff: u64, buf_index: usize, buf_size: usize) {
+    pub(crate) fn check_interrupt(&mut self, diff: u64, buf_index: usize, buf_size: usize) {
         let ppms = self.ppms(diff);
         self.moving_avg.sum += ppms;
         self.moving_avg.measured_rates.push_back(ppms);

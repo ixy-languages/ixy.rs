@@ -10,7 +10,6 @@ use std::time::{Duration, Instant};
 
 use crate::constants::*;
 use crate::memory::*;
-use crate::pci::*;
 use crate::interrupts::*;
 use crate::vfio::*;
 
@@ -44,7 +43,7 @@ pub struct IxgbeDevice {
     tx_queues: Vec<IxgbeTxQueue>,
     vfio: bool,
     vfio_fd: RawFd,
-    vfio_device: RawFd,
+    vfio_device_fd: RawFd,
     interrupts: Interrupts,
 }
 
@@ -120,18 +119,18 @@ impl IxyDevice for IxgbeDevice {
             tx_queues,
             vfio,
             vfio_fd: unsafe { VFIO_CONTAINER_FILE_DESCRIPTOR },
-            vfio_device: device_fd,
+            vfio_device_fd: device_fd,
             interrupts: Default::default(),
         };
 
-        if dev.iommu {
+        if dev.vfio {
             dev.interrupts.interrupts_enabled = interrupt_timeout != 0;
             dev.interrupts.timeout_ms = interrupt_timeout;
             dev.interrupts.itr_rate = 0x028;
             dev.setup_interrupts()?;
         }
 
-        if !dev.iommu && interrupt_timeout != 0 {
+        if !dev.vfio && interrupt_timeout != 0 {
             warn!("Interrupts requested but VFIO not available: Disabling Interrupts!");
             dev.interrupts.interrupts_enabled = false;
         }
@@ -953,7 +952,7 @@ impl IxgbeDevice {
             return Ok(());
         }
         self.interrupts.queues = Vec::with_capacity(self.num_rx_queues as usize);
-        self.interrupts.vfio_setup_interrupt(self.vfio_device)?;
+        self.interrupts.vfio_setup_interrupt(self.vfio_device_fd)?;
         match self.interrupts.interrupt_type {
             VFIO_PCI_MSIX_IRQ_INDEX => {
                 for rx_queue in 0..self.num_rx_queues {
@@ -967,7 +966,7 @@ impl IxgbeDevice {
                         interval: INTERRUPT_INITIAL_INTERVAL,
                         instr_counter: 0,
                     };
-                    queue.vfio_enable_msix(self.vfio_device, rx_queue as u32)?;
+                    queue.vfio_enable_msix(self.vfio_device_fd, rx_queue as u32)?;
                     queue.vfio_epoll_ctl(queue.vfio_event_fd)?;
                     self.interrupts.queues.push(queue);
                 }
@@ -984,7 +983,7 @@ impl IxgbeDevice {
                         interval: INTERRUPT_INITIAL_INTERVAL,
                         instr_counter: 0,
                     };
-                    queue.vfio_enable_msi(self.vfio_device)?;
+                    queue.vfio_enable_msi(self.vfio_device_fd)?;
                     queue.vfio_epoll_ctl(queue.vfio_event_fd)?;
                     self.interrupts.queues.push(queue);
                 }

@@ -14,7 +14,7 @@ mod constants;
 mod ixgbe;
 pub mod memory;
 mod pci;
-pub mod interrupts;
+mod interrupts;
 mod vfio;
 
 use self::ixgbe::*;
@@ -214,8 +214,8 @@ pub fn ixy_init(
 }
 
 impl IxyDevice for Box<dyn IxyDevice> {
-    fn init(pci_addr: &str, num_rx_queues: u16, num_tx_queues: u16) -> Result<Self, Box<dyn Error>> {
-        ixy_init(pci_addr, num_rx_queues, num_tx_queues)
+    fn init(pci_addr: &str, num_rx_queues: u16, num_tx_queues: u16, interrupt_timeout: i16) -> Result<Self, Box<dyn Error>> {
+        ixy_init(pci_addr, num_rx_queues, num_tx_queues, interrupt_timeout)
     }
 
     fn get_driver_name(&self) -> &str {
