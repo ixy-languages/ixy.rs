@@ -1,12 +1,13 @@
+use crate::vfio::{
+    vfio_irq_info, vfio_irq_set, Event, VFIO_DEVICE_GET_IRQ_INFO, VFIO_DEVICE_SET_IRQS,
+    VFIO_IRQ_INFO_EVENTFD, VFIO_IRQ_SET_ACTION_TRIGGER, VFIO_IRQ_SET_DATA_EVENTFD,
+    VFIO_IRQ_SET_DATA_NONE, VFIO_PCI_MSIX_IRQ_INDEX, VFIO_PCI_MSI_IRQ_INDEX,
+};
+use std::collections::VecDeque;
+use std::error::Error;
 use std::mem;
 use std::os::unix::io::RawFd;
-use std::collections::VecDeque;
 use std::time::Instant;
-use std::error::Error;
-use crate::vfio::{VFIO_PCI_MSIX_IRQ_INDEX, vfio_irq_info,
-                  VFIO_IRQ_INFO_EVENTFD, Event, vfio_irq_set, VFIO_IRQ_SET_DATA_EVENTFD,
-                  VFIO_IRQ_SET_ACTION_TRIGGER, VFIO_PCI_MSI_IRQ_INDEX, VFIO_DEVICE_SET_IRQS,
-                  VFIO_IRQ_SET_DATA_NONE, VFIO_DEVICE_GET_IRQ_INFO};
 
 pub(crate) const MOVING_AVERAGE_RANGE: usize = 5;
 const INTERRUPT_THRESHOLD: u64 = 1_200;
@@ -14,29 +15,29 @@ pub(crate) const INTERRUPT_INITIAL_INTERVAL: u64 = 1_000_000_000;
 const MAX_INTERRUPT_VECTORS: u32 = 32;
 
 #[derive(Default)]
-pub (crate) struct Interrupts {
+pub(crate) struct Interrupts {
     pub(crate) interrupts_enabled: bool, // Whether interrupts for this device are enabled or disabled.
-    pub(crate) itr_rate: u32, // The Interrupt Throttling Rate
-    pub(crate) interrupt_type: u64, // MSI or MSIX
+    pub(crate) itr_rate: u32,            // The Interrupt Throttling Rate
+    pub(crate) interrupt_type: u64,      // MSI or MSIX
     pub(crate) timeout_ms: i16, // interrupt timeout in milliseconds (-1 to disable the timeout)
-    pub(crate) queues: Vec<InterruptsQueue>,  // Interrupt settings per queue
+    pub(crate) queues: Vec<InterruptsQueue>, // Interrupt settings per queue
 }
 
 pub(crate) struct InterruptsQueue {
-    pub(crate) vfio_event_fd: RawFd, // event fd
-    pub(crate) vfio_epoll_fd: RawFd, // epoll fd
-    pub(crate) interrupt_enabled: bool, // Whether interrupt for this queue is enabled or not
+    pub(crate) vfio_event_fd: RawFd,           // event fd
+    pub(crate) vfio_epoll_fd: RawFd,           // epoll fd
+    pub(crate) interrupt_enabled: bool,        // Whether interrupt for this queue is enabled or not
     pub(crate) instr_counter: u64, // Instruction counter to avoid unnecessary calls to elapsed time
     pub(crate) last_time_checked: Instant, // Last time the interrupt flag was checked
-    pub(crate) rx_pkts: u64, // The number of received packets since the last check
-    pub(crate) interval: u64, // The interval to check the interrupt flag
+    pub(crate) rx_pkts: u64,       // The number of received packets since the last check
+    pub(crate) interval: u64,      // The interval to check the interrupt flag
     pub(crate) moving_avg: InterruptMovingAvg, // The moving average of the hybrid interrupt
 }
 
 #[derive(Default)]
 pub(crate) struct InterruptMovingAvg {
     pub(crate) measured_rates: VecDeque<u64>, // The moving average window
-    pub(crate) sum: u64, // The moving average sum
+    pub(crate) sum: u64,                      // The moving average sum
 }
 
 impl Interrupts {
@@ -53,9 +54,11 @@ impl Interrupts {
 
             if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_GET_IRQ_INFO, &irq_info) } == -1 {
                 return Err(format!(
-                    "failed to VFIO_DEVICE_GET_IRQ_INFO for index {}. Errno: {}", index,
+                    "failed to VFIO_DEVICE_GET_IRQ_INFO for index {}. Errno: {}",
+                    index,
                     unsafe { *libc::__errno_location() }
-                ).into());
+                )
+                .into());
             }
 
             if (irq_info.flags & VFIO_IRQ_INFO_EVENTFD) == 0 {
@@ -72,26 +75,35 @@ impl Interrupts {
 }
 
 impl InterruptsQueue {
-
     /// Add the `event_fd` file descriptor to epoll.
     pub(crate) fn vfio_epoll_ctl(&mut self, event_fd: RawFd) -> Result<(), Box<dyn Error>> {
         let mut event: Event = Event {
             events: libc::EPOLLIN as u32,
-            data: event_fd as u64
+            data: event_fd as u64,
         };
 
         let status = unsafe { libc::epoll_create1(0) };
         if status == -1 {
-            return Err(format!(
-                "failed to epoll_create1. Errno: {}", unsafe { *libc::__errno_location() }
-            ).into());
+            return Err(format!("failed to epoll_create1. Errno: {}", unsafe {
+                *libc::__errno_location()
+            })
+            .into());
         }
         let epoll_fd = status as RawFd;
 
-        if unsafe { libc::epoll_ctl(epoll_fd, libc::EPOLL_CTL_ADD, event_fd,  &mut event as *mut _ as *mut libc::epoll_event) } == -1 {
-            return Err(format!(
-                "failed to epoll_ctl. Errno: {}", unsafe { *libc::__errno_location() }
-            ).into());
+        if unsafe {
+            libc::epoll_ctl(
+                epoll_fd,
+                libc::EPOLL_CTL_ADD,
+                event_fd,
+                &mut event as *mut _ as *mut libc::epoll_event,
+            )
+        } == -1
+        {
+            return Err(format!("failed to epoll_ctl. Errno: {}", unsafe {
+                *libc::__errno_location()
+            })
+            .into());
         }
 
         self.vfio_epoll_fd = epoll_fd;
@@ -105,20 +117,24 @@ impl InterruptsQueue {
     /// Specifying a `timeout` of -1 causes epoll_wait to block indefinitely,
     /// while specifying a `timeout` equal to zero cause epoll_wait to return immediately, even if no events are available.
     /// Returns the number of ready file descriptors.
-    pub(crate) fn vfio_epoll_wait(&self, timeout: i32)  -> Result<usize, Box<dyn Error>> {
+    pub(crate) fn vfio_epoll_wait(&self, timeout: i32) -> Result<usize, Box<dyn Error>> {
         debug!("Waiting for packets...");
         let mut events = [Event::default(); 10];
         let rc: usize;
 
         let status = unsafe {
-            libc::epoll_wait(self.vfio_epoll_fd,
-                             events.as_mut_ptr() as *mut libc::epoll_event,
-                             events.len() as i32, timeout)
+            libc::epoll_wait(
+                self.vfio_epoll_fd,
+                events.as_mut_ptr() as *mut libc::epoll_event,
+                events.len() as i32,
+                timeout,
+            )
         };
         if status == -1 {
-            return Err(format!(
-                "failed to epoll_wait. Errno: {}", unsafe { *libc::__errno_location() }
-            ).into());
+            return Err(format!("failed to epoll_wait. Errno: {}", unsafe {
+                *libc::__errno_location()
+            })
+            .into());
         }
         rc = status as usize;
         if rc > 0 {
@@ -128,12 +144,17 @@ impl InterruptsQueue {
                 let val_ptr: *mut u16 = &mut val;
                 // read event file descriptor to clear interrupt.
                 if unsafe {
-                    libc::read(event.data as i32, val_ptr as *mut libc::c_void, mem::size_of::<u64>())
+                    libc::read(
+                        event.data as i32,
+                        val_ptr as *mut libc::c_void,
+                        mem::size_of::<u64>(),
+                    )
                 } == -1
                 {
                     return Err(format!("failed to read event. Errno: {}", unsafe {
                         *libc::__errno_location()
-                    }).into());
+                    })
+                    .into());
                 }
             }
         }
@@ -148,10 +169,10 @@ impl InterruptsQueue {
         let event_fd: RawFd = unsafe { libc::eventfd(0, 0) };
 
         if event_fd == -1 {
-            return Err(format!(
-                "failed to create eventfd. Errno: {}",
-                unsafe { *libc::__errno_location() }
-            ).into());
+            return Err(format!("failed to create eventfd. Errno: {}", unsafe {
+                *libc::__errno_location()
+            })
+            .into());
         }
 
         let irq_set: vfio_irq_set<[u8; 1]> = vfio_irq_set {
@@ -164,10 +185,12 @@ impl InterruptsQueue {
         };
 
         if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_SET_IRQS, &irq_set) } == -1 {
-            return Err(format!(
-                "failed to VFIO_DEVICE_SET_IRQS. Errno: {}",
-                unsafe { *libc::__errno_location() }
-            ).into());
+            return Err(
+                format!("failed to VFIO_DEVICE_SET_IRQS. Errno: {}", unsafe {
+                    *libc::__errno_location()
+                })
+                .into(),
+            );
         }
 
         self.vfio_event_fd = event_fd;
@@ -187,10 +210,12 @@ impl InterruptsQueue {
         };
 
         if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_SET_IRQS, irq_set) } == -1 {
-            return Err(format!(
-                "failed to VFIO_DEVICE_SET_IRQS. Errno: {}",
-                unsafe { *libc::__errno_location() }
-            ).into());
+            return Err(
+                format!("failed to VFIO_DEVICE_SET_IRQS. Errno: {}", unsafe {
+                    *libc::__errno_location()
+                })
+                .into(),
+            );
         }
 
         self.vfio_event_fd = 0;
@@ -200,7 +225,11 @@ impl InterruptsQueue {
     /// Enable VFIO MSI-X interrupts for the given `device_fd`.
     ///
     /// The `interrupt_vector` specifies the number of queues to watch.
-    pub(crate) fn vfio_enable_msix(&mut self, device_fd: RawFd, mut interrupt_vector: u32) -> Result<(), Box<dyn Error>> {
+    pub(crate) fn vfio_enable_msix(
+        &mut self,
+        device_fd: RawFd,
+        mut interrupt_vector: u32,
+    ) -> Result<(), Box<dyn Error>> {
         info!("Enable MSIX Interrupts");
         if device_fd < 0 {
             return Err("Device file descriptor invalid!".to_string().into());
@@ -208,10 +237,10 @@ impl InterruptsQueue {
         // setup event fd
         let event_fd: RawFd = unsafe { libc::eventfd(0, 0) };
         if event_fd == -1 {
-            return Err(format!(
-                "failed to create eventfd. Errno: {}",
-                unsafe { *libc::__errno_location() }
-            ).into());
+            return Err(format!("failed to create eventfd. Errno: {}", unsafe {
+                *libc::__errno_location()
+            })
+            .into());
         }
 
         if interrupt_vector == 0 {
@@ -221,7 +250,9 @@ impl InterruptsQueue {
         }
 
         let irq_set: vfio_irq_set<[u8; 1]> = vfio_irq_set {
-            argsz: (mem::size_of::<vfio_irq_set<[u8; 1]>>() + mem::size_of::<RawFd>() * (MAX_INTERRUPT_VECTORS + 1) as usize) as u32,
+            argsz: (mem::size_of::<vfio_irq_set<[u8; 1]>>()
+                + mem::size_of::<RawFd>() * (MAX_INTERRUPT_VECTORS + 1) as usize)
+                as u32,
             count: interrupt_vector,
             flags: VFIO_IRQ_SET_DATA_EVENTFD | VFIO_IRQ_SET_ACTION_TRIGGER,
             index: VFIO_PCI_MSIX_IRQ_INDEX as u32,
@@ -230,10 +261,12 @@ impl InterruptsQueue {
         };
 
         if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_SET_IRQS, &irq_set) } == -1 {
-            return Err(format!(
-                "failed to VFIO_DEVICE_SET_IRQS. Errno: {}",
-                unsafe { *libc::__errno_location() }
-            ).into());
+            return Err(
+                format!("failed to VFIO_DEVICE_SET_IRQS. Errno: {}", unsafe {
+                    *libc::__errno_location()
+                })
+                .into(),
+            );
         }
 
         self.vfio_event_fd = event_fd;
@@ -253,10 +286,12 @@ impl InterruptsQueue {
         };
 
         if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_SET_IRQS, irq_set) } == -1 {
-            return Err(format!(
-                "failed to VFIO_DEVICE_SET_IRQS. Errno: {}",
-                unsafe { *libc::__errno_location() }
-            ).into());
+            return Err(
+                format!("failed to VFIO_DEVICE_SET_IRQS. Errno: {}", unsafe {
+                    *libc::__errno_location()
+                })
+                .into(),
+            );
         }
 
         self.vfio_event_fd = 0;

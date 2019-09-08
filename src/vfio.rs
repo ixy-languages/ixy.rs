@@ -90,8 +90,8 @@ pub(crate) struct vfio_irq_set<T: ?Sized> {
 pub(crate) struct vfio_irq_info {
     pub(crate) argsz: u32,
     pub(crate) flags: u32,
-    pub(crate) index: u32,		/* IRQ index */
-    pub(crate) count: u32,		/* Number of IRQs within this index */
+    pub(crate) index: u32, /* IRQ index */
+    pub(crate) count: u32, /* Number of IRQs within this index */
 }
 
 /// 'libc::epoll_event' equivalent.

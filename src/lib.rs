@@ -11,16 +11,16 @@ extern crate log;
 
 #[rustfmt::skip]
 mod constants;
+mod interrupts;
 mod ixgbe;
 pub mod memory;
 mod pci;
-mod interrupts;
 mod vfio;
 
+use self::interrupts::*;
 use self::ixgbe::*;
 use self::memory::*;
 use self::pci::*;
-use self::interrupts::*;
 
 use std::collections::VecDeque;
 use std::error::Error;
@@ -31,7 +31,12 @@ const MAX_QUEUES: u16 = 64;
 /// Used for implementing an ixy device driver like ixgbe or virtio.
 pub trait IxyDevice {
     /// Initializes an intel 82599 network card.
-    fn init(pci_addr: &str, num_rx_queues: u16, num_tx_queues: u16, interrupt_timeout: i16) -> Result<Self, Box<dyn Error>>
+    fn init(
+        pci_addr: &str,
+        num_rx_queues: u16,
+        num_tx_queues: u16,
+        interrupt_timeout: i16,
+    ) -> Result<Self, Box<dyn Error>>
     where
         Self: Sized;
 
@@ -181,7 +186,7 @@ impl DeviceStats {
 
     /// Returns Mpps between two points in time.
     fn diff_mpps(&self, pkts_new: u64, pkts_old: u64, nanos: u64) -> f64 {
-        (pkts_new - pkts_old) as f64 / 1_000_000.0 / (nanos  as f64 / 1_000_000_000.0)
+        (pkts_new - pkts_old) as f64 / 1_000_000.0 / (nanos as f64 / 1_000_000_000.0)
     }
 }
 
@@ -192,7 +197,7 @@ pub fn ixy_init(
     pci_addr: &str,
     rx_queues: u16,
     tx_queues: u16,
-    interrupt_timeout: i16
+    interrupt_timeout: i16,
 ) -> Result<Box<dyn IxyDevice>, Box<dyn Error>> {
     let mut config_file = pci_open_resource(pci_addr, "config").expect("wrong pci address");
 
@@ -208,13 +213,19 @@ pub fn ixy_init(
         unimplemented!("virtio driver is not implemented yet");
     } else {
         // let's give it a try with ixgbe
-        let device: IxgbeDevice = IxgbeDevice::init(pci_addr, rx_queues, tx_queues, interrupt_timeout)?;
+        let device: IxgbeDevice =
+            IxgbeDevice::init(pci_addr, rx_queues, tx_queues, interrupt_timeout)?;
         Ok(Box::new(device))
     }
 }
 
 impl IxyDevice for Box<dyn IxyDevice> {
-    fn init(pci_addr: &str, num_rx_queues: u16, num_tx_queues: u16, interrupt_timeout: i16) -> Result<Self, Box<dyn Error>> {
+    fn init(
+        pci_addr: &str,
+        num_rx_queues: u16,
+        num_tx_queues: u16,
+        interrupt_timeout: i16,
+    ) -> Result<Self, Box<dyn Error>> {
         ixy_init(pci_addr, num_rx_queues, num_tx_queues, interrupt_timeout)
     }
 

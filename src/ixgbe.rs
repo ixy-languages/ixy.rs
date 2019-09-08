@@ -9,15 +9,15 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::constants::*;
-use crate::memory::*;
 use crate::interrupts::*;
+use crate::memory::*;
 use crate::vfio::*;
 
 use crate::pci::pci_map_resource;
 use crate::vfio::VFIO_PCI_BAR0_REGION_INDEX;
 use crate::DeviceStats;
-use crate::IxyDevice;
 use crate::Interrupts;
+use crate::IxyDevice;
 use crate::MAX_QUEUES;
 
 const DRIVER_NAME: &str = "ixy-ixgbe";
@@ -73,7 +73,7 @@ impl IxyDevice for IxgbeDevice {
         pci_addr: &str,
         num_rx_queues: u16,
         num_tx_queues: u16,
-        interrupt_timeout: i16
+        interrupt_timeout: i16,
     ) -> Result<IxgbeDevice, Box<dyn Error>> {
         if unsafe { libc::getuid() } != 0 {
             warn!("not running as root, this will probably fail");
@@ -208,8 +208,12 @@ impl IxyDevice for IxgbeDevice {
             rx_index = queue.rx_index;
             last_rx_index = queue.rx_index;
 
-            if self.interrupts.interrupts_enabled && self.interrupts.queues[queue_id as usize].interrupt_enabled {
-                self.interrupts.queues[queue_id as usize].vfio_epoll_wait(i32::from(self.interrupts.timeout_ms)).unwrap();
+            if self.interrupts.interrupts_enabled
+                && self.interrupts.queues[queue_id as usize].interrupt_enabled
+            {
+                self.interrupts.queues[queue_id as usize]
+                    .vfio_epoll_wait(i32::from(self.interrupts.timeout_ms))
+                    .unwrap();
             }
 
             for i in 0..num_packets {
@@ -274,7 +278,8 @@ impl IxyDevice for IxgbeDevice {
                 if (interrupt.instr_counter & 0xFFF as u64) == 0 {
                     interrupt.instr_counter = 0;
                     let elapsed = interrupt.last_time_checked.elapsed();
-                    let diff = elapsed.as_secs() * 1_000_000_000 + u64::from(elapsed.subsec_nanos());
+                    let diff =
+                        elapsed.as_secs() * 1_000_000_000 + u64::from(elapsed.subsec_nanos());
                     if diff > interrupt.interval {
                         interrupt.check_interrupt(diff, received_packets, num_packets);
                     }
@@ -460,7 +465,7 @@ impl IxgbeDevice {
 
         // enable interrupts
         for queue in 0..self.num_rx_queues {
-            self.enable_interrupt( u32::from(queue))?;
+            self.enable_interrupt(u32::from(queue))?;
         }
 
         // enable promisc mode by default to make testing easier
@@ -844,7 +849,7 @@ impl IxgbeDevice {
     /// Disable interrupt for queue with `queue_id`.
     fn disable_interrupt(&self, queue_id: u32) {
         // Clear interrupt mask to stop from interrupts being generated
-        let mut mask: u32 = self.get_reg32( IXGBE_EIMS);
+        let mut mask: u32 = self.get_reg32(IXGBE_EIMS);
         mask &= !(1 << queue_id);
         self.set_reg32(IXGBE_EIMS, mask);
         self.clear_interrupt(queue_id);
@@ -934,12 +939,14 @@ impl IxgbeDevice {
             return Ok(());
         }
         match self.interrupts.interrupt_type {
-            VFIO_PCI_MSIX_IRQ_INDEX =>
-                self.enable_msix_interrupt(queue_id),
-            VFIO_PCI_MSI_IRQ_INDEX =>
-                self.enable_msi_interrupt(queue_id),
+            VFIO_PCI_MSIX_IRQ_INDEX => self.enable_msix_interrupt(queue_id),
+            VFIO_PCI_MSI_IRQ_INDEX => self.enable_msi_interrupt(queue_id),
             _ => {
-                return Err(format!("Interrupt type not supported: {}", self.interrupts.interrupt_type).into());
+                return Err(format!(
+                    "Interrupt type not supported: {}",
+                    self.interrupts.interrupt_type
+                )
+                .into());
             }
         }
         Ok(())
@@ -970,7 +977,7 @@ impl IxgbeDevice {
                     queue.vfio_epoll_ctl(queue.vfio_event_fd)?;
                     self.interrupts.queues.push(queue);
                 }
-            },
+            }
             VFIO_PCI_MSI_IRQ_INDEX => {
                 for _rx_queue in 0..self.num_rx_queues {
                     let mut queue = InterruptsQueue {
@@ -987,14 +994,17 @@ impl IxgbeDevice {
                     queue.vfio_epoll_ctl(queue.vfio_event_fd)?;
                     self.interrupts.queues.push(queue);
                 }
-            },
+            }
             _ => {
-                return Err(format!("Interrupt type not supported: {}", self.interrupts.interrupt_type).into());
-            },
+                return Err(format!(
+                    "Interrupt type not supported: {}",
+                    self.interrupts.interrupt_type
+                )
+                .into());
+            }
         }
         Ok(())
     }
-
 }
 
 /// Removes multiples of `TX_CLEAN_BATCH` packets from `queue`.
