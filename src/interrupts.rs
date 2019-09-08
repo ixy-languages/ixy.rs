@@ -4,7 +4,6 @@ use std::collections::VecDeque;
 use epoll::Event;
 use epoll::Events;
 use std::time::Instant;
-use libc;
 use std::error::Error;
 
 pub const MOVING_AVERAGE_RANGE: usize = 5;
@@ -25,6 +24,7 @@ pub struct InterruptsQueue {
     pub vfio_event_fd: RawFd, // event fd
     pub vfio_epoll_fd: RawFd, // epoll fd
     pub interrupt_enabled: bool, // Whether interrupt for this queue is enabled or not
+    pub instr_counter: u64, // Instruction counter to avoid unnecessary calls to elapsed time
     pub last_time_checked: Instant, // Last time the interrupt flag was checked
     pub rx_pkts: u64, // The number of received packets since the last check
     pub interval: u64, // The interval to check the interrupt flag
@@ -37,7 +37,8 @@ pub struct InterruptMovingAvg {
     pub sum: u64, // The moving average sum
 }
 
-/// constants and structs needed for IOMMU. Grabbed from linux/vfio.h
+/// Constants and structs needed for IOMMU. Grabbed from linux/vfio.h
+///
 /// as this is a dynamically sized struct (has an array at the end) we need to use
 /// Dynamically Sized Types (DSTs) which can be found at
 /// https://doc.rust-lang.org/nomicon/exotic-sizes.html#dynamically-sized-types-dsts
@@ -72,7 +73,6 @@ const VFIO_IRQ_INFO_EVENTFD: u32 = (1 << 0);
 
 impl Interrupts {
     /// Setup VFIO interrupts by checking the `device_fd` for which interrupts this device supports.
-    /// Returns the supported interrupt type.
     pub fn vfio_setup_interrupt(&mut self, device_fd: RawFd) -> Result<(), Box<dyn Error>> {
         for index in (0..(VFIO_PCI_MSIX_IRQ_INDEX + 1)).rev() {
             let irq_info: vfio_irq_info = vfio_irq_info {
@@ -120,6 +120,7 @@ impl InterruptsQueue {
     }
 
     /// Waits for events on the epoll instance referred to by the file descriptor `epoll_fd`.
+    ///
     /// The memory area pointed to by events will contain the events that will be available for the caller.
     /// The `timeout` argument specifies the minimum number of milliseconds that epoll_wait will block.
     /// Specifying a `timeout` of -1 causes epoll_wait to block indefinitely,
@@ -212,6 +213,7 @@ impl InterruptsQueue {
     }
 
     /// Enable VFIO MSI-X interrupts for the given `device_fd`.
+    ///
     /// The `interrupt_vector` specifies the number of queues to watch.
     pub fn vfio_enable_msix(&mut self, device_fd: RawFd, mut interrupt_vector: u32) -> Result<(), Box<dyn Error>> {
         if device_fd < 0 {

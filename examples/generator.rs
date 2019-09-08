@@ -30,7 +30,7 @@ pub fn main() {
         }
     };
 
-    let mut dev = ixy_init(&pci_addr, 1, 1, 0, false).unwrap();
+    let mut dev = ixy_init(&pci_addr, 1, 1, 0).unwrap();
 
     let pkt_data = [
         0x01, 0x02, 0x03, 0x04, 0x05, 0x06,         // dst MAC

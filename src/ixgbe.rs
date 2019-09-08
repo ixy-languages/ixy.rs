@@ -113,8 +113,7 @@ impl IxyDevice for IxgbeDevice {
         pci_addr: &str,
         num_rx_queues: u16,
         num_tx_queues: u16,
-        interrupt_timeout: i16,
-        interrupts_enabled: bool
+        interrupt_timeout: i16
     ) -> Result<IxgbeDevice, Box<dyn Error>> {
         if unsafe { libc::getuid() } != 0 {
             warn!("not running as root, this will probably fail");
@@ -165,7 +164,7 @@ impl IxyDevice for IxgbeDevice {
         };
 
         if dev.iommu {
-            dev.interrupts.interrupts_enabled = interrupts_enabled;
+            dev.interrupts.interrupts_enabled = interrupt_timeout != 0;
             dev.interrupts.timeout_ms = interrupt_timeout;
             dev.interrupts.itr_rate = 0x028;
             dev.setup_interrupts()?;
@@ -300,17 +299,21 @@ impl IxyDevice for IxgbeDevice {
                 let int_en = interrupt.interrupt_enabled;
                 interrupt.rx_pkts += received_packets as u64;
 
-                let elapsed = interrupt.last_time_checked.elapsed();
-                let diff = elapsed.as_secs() * 1_000_000_000 + elapsed.subsec_nanos() as u64;
-                if diff > interrupt.interval {
-                    interrupt.check_interrupt(diff, received_packets, num_packets);
-                }
+                interrupt.instr_counter += 1;
+                if (interrupt.instr_counter & 0xFFF as u64) == 0 {
+                    interrupt.instr_counter = 0;
+                    let elapsed = interrupt.last_time_checked.elapsed();
+                    let diff = elapsed.as_secs() * 1_000_000_000 + elapsed.subsec_nanos() as u64;
+                    if diff > interrupt.interval {
+                        interrupt.check_interrupt(diff, received_packets, num_packets);
+                    }
 
-                if int_en != interrupt.interrupt_enabled {
-                    if interrupt.interrupt_enabled {
-                        self.enable_interrupt(queue_id).unwrap();
-                    } else {
-                        self.disable_interrupt(queue_id);
+                    if int_en != interrupt.interrupt_enabled {
+                        if interrupt.interrupt_enabled {
+                            self.enable_interrupt(queue_id).unwrap();
+                        } else {
+                            self.disable_interrupt(queue_id);
+                        }
                     }
                 }
             }
@@ -445,7 +448,7 @@ impl IxgbeDevice {
         self.wait_clear_reg32(IXGBE_CTRL, IXGBE_CTRL_RST_MASK);
         thread::sleep(Duration::from_millis(10));
 
-        // section 4.6.3.1 - disable all interrupts
+        // section 4.6.3.1 - disable interrupts again after reset
         self.disable_interrupts();
 
         let mac = self.get_mac_addr();
@@ -884,12 +887,14 @@ impl IxgbeDevice {
 
         // Step 2: Program SRRCTL[n].RDMTS (per receive queue) if software uses the receive
         // descriptor minimum threshold interrupt
+        // We don't use the minimum threshold interrupt
 
         // Step 3: All interrupts should be set to 0b (no auto clear in the EIAC register). Following an
         // interrupt, software might read the EICR register to check for the interrupt causes.
         self.set_reg32(IXGBE_EIAC, 0x00000000);
 
         // Step 4: Set the auto mask in the EIAM register according to the preferred mode of operation.
+        // In our case we prefer to not auto-mask the interrupts
 
         // Step 5: Set the interrupt throttling in EITR[n] and GPIE according to the preferred mode of operation.
         self.set_reg32(IXGBE_EITR(queue_id), self.interrupts.itr_rate);
@@ -914,6 +919,7 @@ impl IxgbeDevice {
 
         // Step 2: Program SRRCTL[n].RDMTS (per receive queue) if software uses the receive
         // descriptor minimum threshold interrupt
+        // We don't use the minimum threshold interrupt
 
         // Step 3: The EIAC[n] registers should be set to auto clear for transmit and receive interrupt
         // causes (for best performance). The EIAC bits that control the other and TCP timer
@@ -921,8 +927,7 @@ impl IxgbeDevice {
         self.set_reg32(IXGBE_EIAC, IXGBE_EIMS_RTX_QUEUE);
 
         // Step 4: Set the auto mask in the EIAM register according to the preferred mode of operation.
-        //set_reg32(dev->addr, IXGBE_EIAM_EX(0), 0xFFFFFFFF);
-        //set_reg32(dev->addr, IXGBE_EIAM_EX(1), 0xFFFFFFFF);
+        // In our case we prefer to not auto-mask the interrupts
 
         // Step 5: Set the interrupt throttling in EITR[n] and GPIE according to the preferred mode of operation.
         // 0x000 (0us) => ... INT/s
@@ -985,6 +990,7 @@ impl IxgbeDevice {
                         moving_avg: Default::default(),
                         interrupt_enabled: true,
                         interval: INTERRUPT_INITIAL_INTERVAL,
+                        instr_counter: 0,
                     };
                     queue.vfio_enable_msix(self.vfio_device, rx_queue as u32)?;
                     queue.vfio_epoll_ctl(queue.vfio_event_fd)?;
@@ -1001,6 +1007,7 @@ impl IxgbeDevice {
                         moving_avg: Default::default(),
                         interrupt_enabled: true,
                         interval: INTERRUPT_INITIAL_INTERVAL,
+                        instr_counter: 0,
                     };
                     queue.vfio_enable_msi(self.vfio_device)?;
                     queue.vfio_epoll_ctl(queue.vfio_event_fd)?;
