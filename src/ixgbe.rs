@@ -170,6 +170,11 @@ impl IxyDevice for IxgbeDevice {
             dev.setup_interrupts()?;
         }
 
+        if !dev.iommu && interrupt_timeout != 0 {
+            warn!("Interrupts requested but VFIO not available: Disabling Interrupts!");
+            dev.interrupts.interrupts_enabled = false;
+        }
+
         dev.reset_and_init(pci_addr)?;
 
         Ok(dev)
@@ -877,6 +882,7 @@ impl IxgbeDevice {
         mask &= !(1 << queue_id);
         self.set_reg32(IXGBE_EIMS, mask);
         self.clear_interrupt(queue_id);
+        debug!("Using polling");
     }
 
     /// Enable MSI interrupt for queue with `queue_id`.
@@ -906,6 +912,7 @@ impl IxgbeDevice {
         let mut mask: u32 = self.get_reg32(IXGBE_EIMS);
         mask |= 1 << queue_id;
         self.set_reg32(IXGBE_EIMS, mask);
+        debug!("Using MSI interrupts");
     }
 
     /// Enable MSI-X interrupt for queue with `queue_id`.
@@ -952,6 +959,7 @@ impl IxgbeDevice {
         let mut mask: u32 = self.get_reg32(IXGBE_EIMS);
         mask |= 1 << queue_id;
         self.set_reg32(IXGBE_EIMS, mask);
+        debug!("Using MSIX interrupts");
     }
 
     /// Enable MSI or MSI-X interrupt for queue with `queue_id` depending on which is supported (Prefer MSI-x).

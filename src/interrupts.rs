@@ -1,8 +1,6 @@
 use std::mem;
 use std::os::unix::io::RawFd;
 use std::collections::VecDeque;
-use epoll::Event;
-use epoll::Events;
 use std::time::Instant;
 use std::error::Error;
 
@@ -62,6 +60,14 @@ struct vfio_irq_info {
     count: u32,		/* Number of IRQs within this index */
 }
 
+/// 'libc::epoll_event' equivalent.
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct Event {
+    pub events: u32,
+    pub data: u64,
+}
+
 const VFIO_IRQ_SET_DATA_NONE: u32 = (1 << 0); /* Data not present */
 const VFIO_IRQ_SET_DATA_EVENTFD: u32 = (1 << 2); /* Data is eventfd (s32) */
 const VFIO_IRQ_SET_ACTION_TRIGGER: u32 = (1 << 5); /* Trigger interrupt */
@@ -74,6 +80,7 @@ const VFIO_IRQ_INFO_EVENTFD: u32 = (1 << 0);
 impl Interrupts {
     /// Setup VFIO interrupts by checking the `device_fd` for which interrupts this device supports.
     pub fn vfio_setup_interrupt(&mut self, device_fd: RawFd) -> Result<(), Box<dyn Error>> {
+        info!("Setup VFIO Interrupts");
         for index in (0..(VFIO_PCI_MSIX_IRQ_INDEX + 1)).rev() {
             let irq_info: vfio_irq_info = vfio_irq_info {
                 argsz: mem::size_of::<vfio_irq_info>() as u32,
@@ -106,14 +113,24 @@ impl InterruptsQueue {
 
     /// Add the `event_fd` file descriptor to epoll.
     pub fn vfio_epoll_ctl(&mut self, event_fd: RawFd) -> Result<(), Box<dyn Error>> {
-        let event: Event = Event {
+        let mut event: Event = Event {
             events: libc::EPOLLIN as u32,
             data: event_fd as u64
         };
 
-        let epoll_fd = epoll::create(false)?;
+        let status = unsafe { libc::epoll_create1(0) };
+        if status == -1 {
+            return Err(format!(
+                "failed to epoll_create1. Errno: {}", unsafe { *libc::__errno_location() }
+            ).into());
+        }
+        let epoll_fd = status as RawFd;
 
-        epoll::ctl(epoll_fd, epoll::ControlOptions::EPOLL_CTL_ADD, event_fd, event)?;
+        if unsafe { libc::epoll_ctl(epoll_fd, libc::EPOLL_CTL_ADD, event_fd,  &mut event as *mut _ as *mut libc::epoll_event) } == -1 {
+            return Err(format!(
+                "failed to epoll_ctl. Errno: {}", unsafe { *libc::__errno_location() }
+            ).into());
+        }
 
         self.vfio_epoll_fd = epoll_fd;
         Ok(())
@@ -127,12 +144,22 @@ impl InterruptsQueue {
     /// while specifying a `timeout` equal to zero cause epoll_wait to return immediately, even if no events are available.
     /// Returns the number of ready file descriptors.
     pub fn vfio_epoll_wait(&self, timeout: i32)  -> Result<usize, Box<dyn Error>> {
-        let mut events = [Event::new(Events::empty(), 0); 10];
+        debug!("Waiting for packets...");
+        let mut events = [Event::default(); 10];
         let rc: usize;
 
         loop {
-            // info("Waiting for packets...");
-            rc = epoll::wait(self.vfio_epoll_fd, timeout, &mut events)?;
+            let status = unsafe {
+                libc::epoll_wait(self.vfio_epoll_fd,
+                                 events.as_mut_ptr() as *mut libc::epoll_event,
+                                 events.len() as i32, timeout)
+            };
+            if status == -1 {
+                return Err(format!(
+                    "failed to epoll_wait. Errno: {}", unsafe { *libc::__errno_location() }
+                ).into());
+            }
+            rc = status as usize;
             if rc > 0 {
                 /* epoll_wait has at least one fd ready to read */
                 for i in 0..rc {
@@ -160,6 +187,7 @@ impl InterruptsQueue {
 
     /// Enable VFIO MSI interrupts for the given `device_fd`.
     pub fn vfio_enable_msi(&mut self, device_fd: RawFd) -> Result<(), Box<dyn Error>> {
+        info!("Enable MSI Interrupts");
         // setup event fd
         let event_fd: RawFd = unsafe { libc::eventfd(0, 0) };
 
@@ -192,6 +220,7 @@ impl InterruptsQueue {
 
     /// Disable VFIO MSI interrupts for the given `device_fd`.
     pub fn vfio_disable_msi(&mut self, device_fd: RawFd) -> Result<(), Box<dyn Error>> {
+        info!("Disable MSI Interrupts");
         let irq_set: vfio_irq_set<[u8; 0]> = vfio_irq_set {
             argsz: (mem::size_of::<vfio_irq_set<[u8; 0]>>() + mem::size_of::<RawFd>()) as u32,
             count: 0,
@@ -216,6 +245,7 @@ impl InterruptsQueue {
     ///
     /// The `interrupt_vector` specifies the number of queues to watch.
     pub fn vfio_enable_msix(&mut self, device_fd: RawFd, mut interrupt_vector: u32) -> Result<(), Box<dyn Error>> {
+        info!("Enable MSIX Interrupts");
         if device_fd < 0 {
             return Err(format!("Device file descriptor invalid!").into());
         }
@@ -256,6 +286,7 @@ impl InterruptsQueue {
 
     /// Disable VFIO MSI-X interrupts for the given `device_fd`.
     pub fn vfio_disable_msix(&mut self, device_fd: RawFd) -> Result<(), Box<dyn Error>> {
+        info!("Disable MSIX Interrupts");
         let irq_set: vfio_irq_set<[u8; 0]> = vfio_irq_set {
             argsz: (mem::size_of::<vfio_irq_set<[u8; 0]>>() + mem::size_of::<RawFd>()) as u32,
             count: 0,
