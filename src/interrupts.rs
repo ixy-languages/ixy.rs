@@ -84,7 +84,10 @@ impl InterruptsQueue {
 
         let status = unsafe { libc::epoll_create1(0) };
         if status == -1 {
-            return Err(format!("failed to epoll_create1. Errno: {}", std::io::Error::last_os_error())
+            return Err(format!(
+                "failed to epoll_create1. Errno: {}",
+                std::io::Error::last_os_error()
+            )
             .into());
         }
         let epoll_fd = status as RawFd;
@@ -98,7 +101,10 @@ impl InterruptsQueue {
             )
         } == -1
         {
-            return Err(format!("failed to epoll_ctl. Errno: {}", std::io::Error::last_os_error())
+            return Err(format!(
+                "failed to epoll_ctl. Errno: {}",
+                std::io::Error::last_os_error()
+            )
             .into());
         }
 
@@ -126,7 +132,10 @@ impl InterruptsQueue {
             )
         };
         if status == -1 {
-            return Err(format!("failed to epoll_wait. Errno: {}", std::io::Error::last_os_error())
+            return Err(format!(
+                "failed to epoll_wait. Errno: {}",
+                std::io::Error::last_os_error()
+            )
             .into());
         }
         rc = status as usize;
@@ -144,7 +153,10 @@ impl InterruptsQueue {
                     )
                 } == -1
                 {
-                    return Err(format!("failed to read event. Errno: {}", std::io::Error::last_os_error())
+                    return Err(format!(
+                        "failed to read event. Errno: {}",
+                        std::io::Error::last_os_error()
+                    )
                     .into());
                 }
             }
@@ -160,7 +172,10 @@ impl InterruptsQueue {
         let event_fd: RawFd = unsafe { libc::eventfd(0, 0) };
 
         if event_fd == -1 {
-            return Err(format!("failed to create eventfd. Errno: {}", std::io::Error::last_os_error())
+            return Err(format!(
+                "failed to create eventfd. Errno: {}",
+                std::io::Error::last_os_error()
+            )
             .into());
         }
 
@@ -174,10 +189,11 @@ impl InterruptsQueue {
         };
 
         if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_SET_IRQS, &irq_set) } == -1 {
-            return Err(
-                format!("failed to VFIO_DEVICE_SET_IRQS. Errno: {}", std::io::Error::last_os_error())
-                .into(),
-            );
+            return Err(format!(
+                "failed to VFIO_DEVICE_SET_IRQS. Errno: {}",
+                std::io::Error::last_os_error()
+            )
+            .into());
         }
 
         self.vfio_event_fd = event_fd;
@@ -197,10 +213,11 @@ impl InterruptsQueue {
         };
 
         if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_SET_IRQS, &irq_set) } == -1 {
-            return Err(
-                format!("failed to VFIO_DEVICE_SET_IRQS. Errno: {}", std::io::Error::last_os_error())
-                .into(),
-            );
+            return Err(format!(
+                "failed to VFIO_DEVICE_SET_IRQS. Errno: {}",
+                std::io::Error::last_os_error()
+            )
+            .into());
         }
 
         self.vfio_event_fd = 0;
@@ -222,7 +239,10 @@ impl InterruptsQueue {
         // setup event fd
         let event_fd: RawFd = unsafe { libc::eventfd(0, 0) };
         if event_fd == -1 {
-            return Err(format!("failed to create eventfd. Errno: {}", std::io::Error::last_os_error())
+            return Err(format!(
+                "failed to create eventfd. Errno: {}",
+                std::io::Error::last_os_error()
+            )
             .into());
         }
 
@@ -244,10 +264,11 @@ impl InterruptsQueue {
         };
 
         if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_SET_IRQS, &irq_set) } == -1 {
-            return Err(
-                format!("failed to VFIO_DEVICE_SET_IRQS. Errno: {}", std::io::Error::last_os_error())
-                .into(),
-            );
+            return Err(format!(
+                "failed to VFIO_DEVICE_SET_IRQS. Errno: {}",
+                std::io::Error::last_os_error()
+            )
+            .into());
         }
 
         self.vfio_event_fd = event_fd;
@@ -267,10 +288,11 @@ impl InterruptsQueue {
         };
 
         if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_SET_IRQS, &irq_set) } == -1 {
-            return Err(
-                format!("failed to VFIO_DEVICE_SET_IRQS. Errno: {}", std::io::Error::last_os_error())
-                .into(),
-            );
+            return Err(format!(
+                "failed to VFIO_DEVICE_SET_IRQS. Errno: {}",
+                std::io::Error::last_os_error()
+            )
+            .into());
         }
 
         self.vfio_event_fd = 0;
