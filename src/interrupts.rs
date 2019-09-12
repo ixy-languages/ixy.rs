@@ -207,7 +207,7 @@ impl InterruptsQueue {
         let irq_set: vfio_irq_set<[u8; 0]> = vfio_irq_set {
             argsz: (mem::size_of::<vfio_irq_set<[u8; 0]>>() + mem::size_of::<RawFd>()) as u32,
             count: 0,
-            flags: VFIO_IRQ_SET_DATA_NONE,
+            flags: VFIO_IRQ_SET_DATA_NONE | VFIO_IRQ_SET_ACTION_TRIGGER,
             index: VFIO_PCI_MSI_IRQ_INDEX as u32,
             start: 0,
             data: [0; 0],
@@ -283,7 +283,7 @@ impl InterruptsQueue {
         let irq_set: vfio_irq_set<[u8; 0]> = vfio_irq_set {
             argsz: (mem::size_of::<vfio_irq_set<[u8; 0]>>() + mem::size_of::<RawFd>()) as u32,
             count: 0,
-            flags: VFIO_IRQ_SET_DATA_NONE,
+            flags: VFIO_IRQ_SET_DATA_NONE | VFIO_IRQ_SET_ACTION_TRIGGER,
             index: VFIO_PCI_MSIX_IRQ_INDEX as u32,
             start: 0,
             data: [0; 0],
