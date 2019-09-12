@@ -19,7 +19,7 @@ pub struct Interrupts {
     pub interrupts_enabled: bool, // Whether interrupts for this device are enabled or disabled.
     pub itr_rate: u32,            // The Interrupt Throttling Rate
     pub interrupt_type: u64,      // MSI or MSIX
-    pub timeout_ms: i16, // interrupt timeout in milliseconds (-1 to disable the timeout)
+    pub timeout_ms: i16,          // interrupt timeout in milliseconds (-1 to disable the timeout)
     pub queues: Vec<InterruptsQueue>, // Interrupt settings per queue
 }
 
