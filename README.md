@@ -32,7 +32,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 source $HOME/.cargo/env
 ```
 
-Ixy.rs uses hugepages. To enable them run:
+ixy.rs uses hugepages. To enable them run:
 
 ```
 cd ixy.rs
@@ -71,19 +71,19 @@ To use it, you have to:
 	In this case, `0000:05:00.0` is our PCI Address, and `8086` and `1528` are the vendor and device id, respectively.
 
 3. Unbind the device from the `ixgbe` driver.
-	`echo $PCI_ADDRESS > /sys/bus/pci/devices/$PCI_ADDRESS/driver/unbind`
+	`sudo sh -c 'echo $PCI_ADDRESS > /sys/bus/pci/devices/$PCI_ADDRESS/driver/unbind'`
 
 4. Enable the `vfio-pci` driver.
-	`modprobe vfio-pci`
+	`sudo modprobe vfio-pci`
 
 5. Bind the device to the `vfio-pci` driver.
-	`echo $VENDOR_ID $DEVICE_ID > /sys/bus/pci/drivers/vfio-pci/new_id`
+	`sudo sh -c 'echo $VENDOR_ID $DEVICE_ID > /sys/bus/pci/drivers/vfio-pci/new_id'`
 
 6. Chown the device to the user.
-	`chown $USER:$GROUP /dev/vfio/*`
+	`sudo chown $USER:$GROUP /dev/vfio/*`
 
 6. That's it!
-	Now you can compile and run ixy as stated above!
+	Now you can compile and run ixy.rs as stated above!
 
 ## Performance
 
