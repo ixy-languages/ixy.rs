@@ -11,7 +11,7 @@ use std::time::Instant;
 
 const MOVING_AVERAGE_RANGE: usize = 5;
 const INTERRUPT_THRESHOLD: u64 = 1_200;
-const INTERRUPT_INITIAL_INTERVAL: u64 = 1_000_000_000;
+pub const INTERRUPT_INITIAL_INTERVAL: u64 = 1_000_000_000;
 const MAX_INTERRUPT_VECTORS: u32 = 32;
 
 #[derive(Default)]
