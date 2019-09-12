@@ -201,6 +201,7 @@ impl InterruptsQueue {
     }
 
     /// Disable VFIO MSI interrupts for the given `device_fd`.
+    #[allow(dead_code)]
     pub fn vfio_disable_msi(&mut self, device_fd: RawFd) -> Result<(), Box<dyn Error>> {
         info!("Disable MSI Interrupts");
         let irq_set: vfio_irq_set<[u8; 0]> = vfio_irq_set {
@@ -276,6 +277,7 @@ impl InterruptsQueue {
     }
 
     /// Disable VFIO MSI-X interrupts for the given `device_fd`.
+    #[allow(dead_code)]
     pub fn vfio_disable_msix(&mut self, device_fd: RawFd) -> Result<(), Box<dyn Error>> {
         info!("Disable MSIX Interrupts");
         let irq_set: vfio_irq_set<[u8; 0]> = vfio_irq_set {
