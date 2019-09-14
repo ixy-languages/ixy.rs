@@ -943,7 +943,7 @@ impl IxgbeDevice {
             VFIO_PCI_MSI_IRQ_INDEX => self.enable_msi_interrupt(queue_id),
             _ => {
                 return Err(format!(
-                    "Interrupt type not supported: {}",
+                    "interrupt type not supported: {}",
                     self.interrupts.interrupt_type
                 )
                 .into());
@@ -997,7 +997,7 @@ impl IxgbeDevice {
             }
             _ => {
                 return Err(format!(
-                    "Interrupt type not supported: {}",
+                    "interrupt type not supported: {}",
                     self.interrupts.interrupt_type
                 )
                 .into());

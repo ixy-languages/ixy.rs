@@ -43,7 +43,7 @@ pub struct InterruptMovingAvg {
 impl Interrupts {
     /// Setup VFIO interrupts by checking the `device_fd` for which interrupts this device supports.
     pub fn vfio_setup_interrupt(&mut self, device_fd: RawFd) -> Result<(), Box<dyn Error>> {
-        info!("Setup VFIO Interrupts");
+        info!("setting up VFIO interrupts");
         for index in (0..=VFIO_PCI_MSIX_IRQ_INDEX).rev() {
             let mut irq_info: vfio_irq_info = vfio_irq_info {
                 argsz: mem::size_of::<vfio_irq_info>() as u32,
@@ -167,7 +167,7 @@ impl InterruptsQueue {
 
     /// Enable VFIO MSI interrupts for the given `device_fd`.
     pub fn vfio_enable_msi(&mut self, device_fd: RawFd) -> Result<(), Box<dyn Error>> {
-        info!("Enable MSI Interrupts");
+        info!("enabling MSI interrupts");
         // setup event fd
         let event_fd: RawFd = unsafe { libc::eventfd(0, 0) };
 
@@ -203,7 +203,7 @@ impl InterruptsQueue {
     /// Disable VFIO MSI interrupts for the given `device_fd`.
     #[allow(dead_code)]
     pub fn vfio_disable_msi(&mut self, device_fd: RawFd) -> Result<(), Box<dyn Error>> {
-        info!("Disable MSI Interrupts");
+        info!("disabling MSI interrupts");
         let irq_set: vfio_irq_set<[u8; 0]> = vfio_irq_set {
             argsz: (mem::size_of::<vfio_irq_set<[u8; 0]>>() + mem::size_of::<RawFd>()) as u32,
             count: 0,
@@ -233,9 +233,9 @@ impl InterruptsQueue {
         device_fd: RawFd,
         mut interrupt_vector: u32,
     ) -> Result<(), Box<dyn Error>> {
-        info!("Enable MSIX Interrupts");
+        info!("enabling MSIX interrupts");
         if device_fd < 0 {
-            return Err("Device file descriptor invalid!".to_string().into());
+            return Err("device file descriptor invalid!".to_string().into());
         }
         // setup event fd
         let event_fd: RawFd = unsafe { libc::eventfd(0, 0) };
@@ -279,7 +279,7 @@ impl InterruptsQueue {
     /// Disable VFIO MSI-X interrupts for the given `device_fd`.
     #[allow(dead_code)]
     pub fn vfio_disable_msix(&mut self, device_fd: RawFd) -> Result<(), Box<dyn Error>> {
-        info!("Disable MSIX Interrupts");
+        info!("disabling MSIX interrupts");
         let irq_set: vfio_irq_set<[u8; 0]> = vfio_irq_set {
             argsz: (mem::size_of::<vfio_irq_set<[u8; 0]>>() + mem::size_of::<RawFd>()) as u32,
             count: 0,
