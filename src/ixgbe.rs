@@ -973,6 +973,7 @@ impl IxgbeDevice {
                         interval: INTERRUPT_INITIAL_INTERVAL,
                         instr_counter: 0,
                     };
+                    info!("enabling MSIX interrupts for queue {}", rx_queue);
                     queue.vfio_enable_msix(self.vfio_device_fd, u32::from(rx_queue))?;
                     queue.vfio_epoll_ctl(queue.vfio_event_fd)?;
                     self.interrupts.queues.push(queue);
@@ -990,6 +991,7 @@ impl IxgbeDevice {
                         interval: INTERRUPT_INITIAL_INTERVAL,
                         instr_counter: 0,
                     };
+                    info!("enabling MSI interrupts for queue {}", _rx_queue);
                     queue.vfio_enable_msi(self.vfio_device_fd)?;
                     queue.vfio_epoll_ctl(queue.vfio_event_fd)?;
                     self.interrupts.queues.push(queue);
