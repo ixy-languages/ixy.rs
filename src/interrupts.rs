@@ -45,14 +45,14 @@ impl Interrupts {
     pub fn vfio_setup_interrupt(&mut self, device_fd: RawFd) -> Result<(), Box<dyn Error>> {
         info!("Setup VFIO Interrupts");
         for index in (0..=VFIO_PCI_MSIX_IRQ_INDEX).rev() {
-            let irq_info: vfio_irq_info = vfio_irq_info {
+            let mut irq_info: vfio_irq_info = vfio_irq_info {
                 argsz: mem::size_of::<vfio_irq_info>() as u32,
                 index: index as u32,
                 flags: 0,
                 count: 0,
             };
 
-            if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_GET_IRQ_INFO, &irq_info) } == -1 {
+            if unsafe { libc::ioctl(device_fd, VFIO_DEVICE_GET_IRQ_INFO, &mut irq_info) } == -1 {
                 return Err(format!(
                     "failed to VFIO_DEVICE_GET_IRQ_INFO for index {}. Errno: {}",
                     index,
