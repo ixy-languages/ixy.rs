@@ -65,7 +65,7 @@ pub fn vfio_init(pci_addr: &str) -> Result<RawFd, Box<dyn Error>> {
     let gfd: RawFd;
 
     // we also have to build this vfio struct...
-    let group_status: vfio_group_status = vfio_group_status {
+    let mut group_status: vfio_group_status = vfio_group_status {
         argsz: mem::size_of::<vfio_group_status>() as u32,
         flags: 0,
     };
@@ -115,7 +115,7 @@ pub fn vfio_init(pci_addr: &str) -> Result<RawFd, Box<dyn Error>> {
     gfd = group_file.as_raw_fd();
 
     // Test the group is viable and available
-    if unsafe { libc::ioctl(gfd, VFIO_GROUP_GET_STATUS, &group_status) } == -1 {
+    if unsafe { libc::ioctl(gfd, VFIO_GROUP_GET_STATUS, &mut group_status) } == -1 {
         return Err(
             format!("failed to VFIO_GROUP_GET_STATUS. Errno: {}", unsafe {
                 *libc::__errno_location()
@@ -169,7 +169,7 @@ pub fn vfio_init(pci_addr: &str) -> Result<RawFd, Box<dyn Error>> {
 /// Enables DMA Bit for VFIO devices
 pub fn vfio_enable_dma(device_file_descriptor: RawFd) -> Result<(), Box<dyn Error>> {
     // Get region info for config region
-    let conf_reg: vfio_region_info = vfio_region_info {
+    let mut conf_reg: vfio_region_info = vfio_region_info {
         argsz: mem::size_of::<vfio_region_info>() as u32,
         flags: 0,
         index: VFIO_PCI_CONFIG_REGION_INDEX,
@@ -181,7 +181,7 @@ pub fn vfio_enable_dma(device_file_descriptor: RawFd) -> Result<(), Box<dyn Erro
         libc::ioctl(
             device_file_descriptor,
             VFIO_DEVICE_GET_REGION_INFO,
-            &conf_reg,
+            &mut conf_reg,
         )
     } == -1
     {
@@ -228,7 +228,7 @@ pub fn vfio_enable_dma(device_file_descriptor: RawFd) -> Result<(), Box<dyn Erro
 
 /// Mmaps a VFIO resource and returns a pointer to the mapped memory.
 pub fn vfio_map_region(fd: RawFd, index: u32) -> Result<(*mut u8, usize), Box<dyn Error>> {
-    let region_info: vfio_region_info = vfio_region_info {
+    let mut region_info: vfio_region_info = vfio_region_info {
         argsz: mem::size_of::<vfio_region_info>() as u32,
         flags: 0,
         index,
@@ -236,7 +236,7 @@ pub fn vfio_map_region(fd: RawFd, index: u32) -> Result<(*mut u8, usize), Box<dy
         size: 0,
         offset: 0,
     };
-    if unsafe { libc::ioctl(fd, VFIO_DEVICE_GET_REGION_INFO, &region_info) } == -1 {
+    if unsafe { libc::ioctl(fd, VFIO_DEVICE_GET_REGION_INFO, &mut region_info) } == -1 {
         return Err(
             format!("failed to VFIO_DEVICE_GET_REGION_INFO. Errno: {}", unsafe {
                 *libc::__errno_location()
@@ -269,7 +269,7 @@ pub fn vfio_map_region(fd: RawFd, index: u32) -> Result<(*mut u8, usize), Box<dy
 }
 
 pub fn vfio_map_dma(ptr: usize, size: usize) -> Result<usize, Box<dyn Error>> {
-    let iommu_dma_map: vfio_iommu_type1_dma_map = vfio_iommu_type1_dma_map {
+    let mut iommu_dma_map: vfio_iommu_type1_dma_map = vfio_iommu_type1_dma_map {
         argsz: mem::size_of::<vfio_iommu_type1_dma_map>() as u32,
         vaddr: ptr as *mut u8,
         size,
@@ -278,7 +278,7 @@ pub fn vfio_map_dma(ptr: usize, size: usize) -> Result<usize, Box<dyn Error>> {
     };
 
     let ioctl_result =
-        unsafe { libc::ioctl(get_vfio_container(), VFIO_IOMMU_MAP_DMA, &iommu_dma_map) };
+        unsafe { libc::ioctl(get_vfio_container(), VFIO_IOMMU_MAP_DMA, &mut iommu_dma_map) };
     if ioctl_result != -1 {
         Ok(iommu_dma_map.iova as usize)
     } else {
