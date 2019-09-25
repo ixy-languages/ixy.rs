@@ -317,7 +317,7 @@ impl Mempool {
     }
 
     /// Returns a packet to the packet pool.
-    pub(crate) unsafe fn get_phys_addr(&self, id: usize) -> usize {
+    pub(crate) fn get_phys_addr(&self, id: usize) -> usize {
         self.phys_addresses[id]
     }
 
