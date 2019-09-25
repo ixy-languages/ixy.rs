@@ -206,15 +206,12 @@ impl IxyDevice for IxgbeDevice {
                     // replace currently used buffer with new buffer
                     let buf = mem::replace(&mut queue.bufs_in_use[rx_index], buf);
 
-                    let p = unsafe {
-                        Packet {
-                            addr_virt: pool.get_virt_addr(buf),
-                            addr_phys: pool.get_phys_addr(buf),
-                            len: ptr::read_volatile(&(*desc).wb.upper.length as *const u16)
-                                as usize,
-                            pool: pool.clone(),
-                            pool_entry: buf,
-                        }
+                    let p = Packet {
+                        addr_virt: pool.get_virt_addr(buf),
+                        addr_phys: pool.get_phys_addr(buf),
+                        len: unsafe { ptr::read_volatile(&(*desc).wb.upper.length as *const u16) as usize },
+                        pool: pool.clone(),
+                        pool_entry: buf,
                     };
 
                     #[cfg(all(
