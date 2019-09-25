@@ -312,8 +312,8 @@ impl Mempool {
     }
 
     /// Returns a packet to the packet pool.
-    pub(crate) unsafe fn get_virt_addr(&self, id: usize) -> *mut u8 {
-        self.base_addr.add(id * self.entry_size)
+    pub(crate) fn get_virt_addr(&self, id: usize) -> *mut u8 {
+        unsafe { self.base_addr.add(id * self.entry_size) }
     }
 
     /// Returns a packet to the packet pool.
