@@ -301,26 +301,31 @@ impl Mempool {
         Ok(pool)
     }
 
-    /// Removes a packet from the packet pool and returns it, or [`None`] if the pool is empty.
+    /// Returns the position of a free buffer in the memory pool, or [`None`] if the pool is empty.
     pub(crate) fn alloc_buf(&self) -> Option<usize> {
         self.free_stack.borrow_mut().pop()
     }
 
-    /// Returns a packet to the packet pool.
+    /// Marks a buffer in the memory pool as free.
     pub(crate) fn free_buf(&self, id: usize) {
+        assert!(id < self.num_entries, "buffer outside of memory pool");
+        
         self.free_stack.borrow_mut().push(id);
     }
 
-    /// Returns a packet to the packet pool.
-    pub(crate) unsafe fn get_virt_addr(&self, id: usize) -> *mut u8 {
-        self.base_addr.add(id * self.entry_size)
+    /// Returns the virtual address of a buffer from the memory pool.
+    pub(crate) fn get_virt_addr(&self, id: usize) -> *mut u8 {
+        assert!(id < self.num_entries, "buffer outside of memory pool");
+        
+        unsafe { self.base_addr.add(id * self.entry_size) }
     }
 
-    /// Returns a packet to the packet pool.
-    pub(crate) unsafe fn get_phys_addr(&self, id: usize) -> usize {
+    /// Returns the physical address of a buffer from the memory pool.
+    pub(crate) fn get_phys_addr(&self, id: usize) -> usize {
         self.phys_addresses[id]
     }
 
+    /// Returns the size of the buffers in the memory pool.
     pub fn entry_size(&self) -> usize {
         self.entry_size
     }
