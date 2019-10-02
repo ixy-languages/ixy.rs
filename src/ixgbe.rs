@@ -193,23 +193,27 @@ impl IxyDevice for IxgbeDevice {
                 let status =
                     unsafe { ptr::read_volatile(&mut (*desc).wb.upper.status_error as *mut u32) };
 
-                if (status & IXGBE_RXDADV_STAT_DD) != 0 {
-                    if (status & IXGBE_RXDADV_STAT_EOP) == 0 {
-                        panic!("increase buffer size or decrease MTU")
-                    }
+                if (status & IXGBE_RXDADV_STAT_DD) == 0 {
+                    break;
+                }
 
-                    let pool = &queue.pool;
+                if (status & IXGBE_RXDADV_STAT_EOP) == 0 {
+                    panic!("increase buffer size or decrease MTU")
+                }
 
-                    // get a free buffer from the mempool
-                    let buf = pool.alloc_buf().expect("no buffer available");
+                let pool = &queue.pool;
 
+                // get a free buffer from the mempool
+                if let Some(buf) = pool.alloc_buf() {
                     // replace currently used buffer with new buffer
                     let buf = mem::replace(&mut queue.bufs_in_use[rx_index], buf);
 
                     let p = Packet {
                         addr_virt: pool.get_virt_addr(buf),
                         addr_phys: pool.get_phys_addr(buf),
-                        len: unsafe { ptr::read_volatile(&(*desc).wb.upper.length as *const u16) as usize },
+                        len: unsafe {
+                            ptr::read_volatile(&(*desc).wb.upper.length as *const u16) as usize
+                        },
                         pool: pool.clone(),
                         pool_entry: buf,
                     };
@@ -234,6 +238,7 @@ impl IxyDevice for IxgbeDevice {
                     rx_index = wrap_ring(rx_index, queue.num_descriptors);
                     received_packets = i + 1;
                 } else {
+                    // break if there was no free buffer
                     break;
                 }
             }
