@@ -1,5 +1,5 @@
 use std::error::Error;
-use std::fs::{self, File};
+use std::fs::{self, File, OpenOptions};
 use std::io::{self, Seek, SeekFrom, Write};
 use std::os::unix::prelude::AsRawFd;
 use std::ptr;
@@ -30,19 +30,9 @@ pub fn enable_dma(pci_addr: &str) -> Result<(), Box<dyn Error>> {
     let path = format!("/sys/bus/pci/devices/{}/config", pci_addr);
     let mut file = fs::OpenOptions::new().read(true).write(true).open(&path)?;
 
-    assert_eq!(
-        file.seek(SeekFrom::Start(COMMAND_REGISTER_OFFSET))?,
-        COMMAND_REGISTER_OFFSET
-    );
-    let mut dma = file.read_u16::<NativeEndian>()?;
-
+    let mut dma = read_io16(&mut file, COMMAND_REGISTER_OFFSET)?;
     dma |= 1 << BUS_MASTER_ENABLE_BIT;
-
-    assert_eq!(
-        file.seek(SeekFrom::Start(COMMAND_REGISTER_OFFSET))?,
-        COMMAND_REGISTER_OFFSET
-    );
-    file.write_u16::<NativeEndian>(dma)?;
+    write_io16(&mut file, dma, COMMAND_REGISTER_OFFSET)?;
 
     Ok(())
 }
@@ -78,17 +68,41 @@ pub fn pci_map_resource(pci_addr: &str) -> Result<(*mut u8, usize), Box<dyn Erro
 /// Opens a pci resource file at the given address.
 pub fn pci_open_resource(pci_addr: &str, resource: &str) -> Result<File, Box<dyn Error>> {
     let path = format!("/sys/bus/pci/devices/{}/{}", pci_addr, resource);
-    Ok(File::open(path)?)
+    Ok(OpenOptions::new().read(true).write(true).open(path)?)
+}
+
+/// Reads and returns an u8 at `offset` in `file`.
+pub fn read_io8(file: &mut File, offset: u64) -> Result<u8, io::Error> {
+    file.seek(SeekFrom::Start(offset))?;
+    file.read_u8()
 }
 
 /// Reads and returns an u16 at `offset` in `file`.
-pub fn read_io16(file: &mut File, offset: usize) -> Result<u16, Box<dyn Error>> {
-    file.seek(SeekFrom::Start(offset as u64))?;
-    Ok(file.read_u16::<NativeEndian>()?)
+pub fn read_io16(file: &mut File, offset: u64) -> Result<u16, io::Error> {
+    file.seek(SeekFrom::Start(offset))?;
+    file.read_u16::<NativeEndian>()
 }
 
 /// Reads and returns an u32 at `offset` in `file`.
-pub fn read_io32(file: &mut File, offset: usize) -> Result<u32, Box<dyn Error>> {
-    file.seek(SeekFrom::Start(offset as u64))?;
-    Ok(file.read_u32::<NativeEndian>()?)
+pub fn read_io32(file: &mut File, offset: u64) -> Result<u32, io::Error> {
+    file.seek(SeekFrom::Start(offset))?;
+    file.read_u32::<NativeEndian>()
+}
+
+/// Writes an u8 at `offset` in `file`.
+pub fn write_io8(file: &mut File, value: u8, offset: u64) -> Result<(), io::Error> {
+    file.seek(SeekFrom::Start(offset))?;
+    file.write_u8(value)
+}
+
+/// Writes an u16 at `offset` in `file`.
+pub fn write_io16(file: &mut File, value: u16, offset: u64) -> Result<(), io::Error> {
+    file.seek(SeekFrom::Start(offset))?;
+    file.write_u16::<NativeEndian>(value)
+}
+
+/// Writes an u32 at `offset` in `file`.
+pub fn write_io32(file: &mut File, value: u32, offset: u64) -> Result<(), io::Error> {
+    file.seek(SeekFrom::Start(offset))?;
+    file.write_u32::<NativeEndian>(value)
 }

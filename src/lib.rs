@@ -114,7 +114,7 @@ pub trait IxyDevice {
     /// let mut dev = ixy_init("0000:01:00.0", 1, 1).unwrap();
     /// dev.reset_stats();
     /// ```
-    fn reset_stats(&self);
+    fn reset_stats(&mut self);
 
     /// Returns the network card's link speed.
     ///
@@ -260,7 +260,7 @@ impl IxyDevice for Box<dyn IxyDevice> {
         (**self).read_stats(stats)
     }
 
-    fn reset_stats(&self) {
+    fn reset_stats(&mut self) {
         (**self).reset_stats()
     }
 
