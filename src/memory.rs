@@ -1,20 +1,22 @@
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::error::Error;
-use std::fs;
+use std::fmt::{self, Debug};
 use std::io::{self, Read, Seek};
-use std::mem;
 use std::ops::{Deref, DerefMut};
 use std::os::unix::io::{AsRawFd, RawFd};
-use std::process;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::{ptr, slice};
+use std::{fs, mem, process, ptr, slice};
 
 use crate::vfio::vfio_map_dma;
 
 const HUGE_PAGE_BITS: u32 = 21;
 const HUGE_PAGE_SIZE: usize = 1 << HUGE_PAGE_BITS;
+
+// this differs from upstream ixy as our packet metadata is stored outside of the actual packet data
+// which results in a different alignment requirement
+pub const PACKET_HEADROOM: usize = 32;
 
 static HUGEPAGE_ID: AtomicUsize = AtomicUsize::new(0);
 
@@ -70,7 +72,7 @@ impl<T> Dma<T> {
             debug!("allocating dma memory via huge page");
 
             if require_contigous && size > HUGE_PAGE_SIZE {
-                return Err("failed to map physically contigous memory".into());
+                return Err("failed to map physically contiguous memory".into());
             }
 
             let id = HUGEPAGE_ID.fetch_add(1, Ordering::SeqCst);
@@ -151,9 +153,14 @@ impl DerefMut for Packet {
     }
 }
 
+impl Debug for Packet {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        (**self).fmt(f)
+    }
+}
+
 impl Drop for Packet {
     fn drop(&mut self) {
-        //println!("drop");
         self.pool.free_buf(self.pool_entry);
     }
 }
@@ -230,6 +237,18 @@ impl Packet {
     pub fn truncate(&mut self, len: usize) {
         // Validity invariant: the referred to memory range is a proper subset of the previous one.
         self.len = self.len.min(len)
+    }
+
+    /// Returns a mutable slice to the headroom of the packet.
+    ///
+    /// The `len` parameter controls how much of the headroom is returned.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `len` is greater than [`PACKET_HEADROOM`].
+    pub fn headroom_mut(&mut self, len: usize) -> &mut [u8] {
+        assert!(len <= PACKET_HEADROOM);
+        unsafe { slice::from_raw_parts_mut(self.addr_virt.sub(len), len) }
     }
 }
 
@@ -309,14 +328,14 @@ impl Mempool {
     /// Marks a buffer in the memory pool as free.
     pub(crate) fn free_buf(&self, id: usize) {
         assert!(id < self.num_entries, "buffer outside of memory pool");
-        
+
         self.free_stack.borrow_mut().push(id);
     }
 
     /// Returns the virtual address of a buffer from the memory pool.
     pub(crate) fn get_virt_addr(&self, id: usize) -> *mut u8 {
         assert!(id < self.num_entries, "buffer outside of memory pool");
-        
+
         unsafe { self.base_addr.add(id * self.entry_size) }
     }
 
@@ -355,22 +374,19 @@ pub fn alloc_pkt_batch(
 /// Returns a free packet from the `pool`, or [`None`] if the requested packet size exceeds the
 /// maximum size for that pool or if the pool is empty.
 pub fn alloc_pkt(pool: &Rc<Mempool>, size: usize) -> Option<Packet> {
-    if size > pool.entry_size {
+    if size > pool.entry_size - PACKET_HEADROOM {
         return None;
     }
 
-    match pool.alloc_buf() {
-        Some(packet) => unsafe {
-            Some(Packet::new(
-                pool.get_virt_addr(packet),
-                pool.get_phys_addr(packet),
-                size,
-                pool.clone(),
-                packet,
-            ))
-        },
-        _ => None,
-    }
+    pool.alloc_buf().map(|id| unsafe {
+        Packet::new(
+            pool.get_virt_addr(id).add(PACKET_HEADROOM),
+            pool.get_phys_addr(id) + PACKET_HEADROOM,
+            size,
+            Rc::clone(pool),
+            id,
+        )
+    })
 }
 
 /// Initializes `len` fields of type `T` at `addr` with `value`.
