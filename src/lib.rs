@@ -1,4 +1,4 @@
-//! # Ixy.rs
+//! # ixy.rs
 //!
 //! ixy.rs is a Rust rewrite of the ixy userspace network driver.
 //! It is designed to be readable, idiomatic Rust code.
@@ -127,6 +127,14 @@ pub trait IxyDevice {
     /// println!("Link speed is {} Mbit/s", dev.get_link_speed());
     /// ```
     fn get_link_speed(&self) -> u16;
+
+    /// Takes `Packet`s out of `buffer` to send out. This will busy wait until all packets from
+    /// `buffer` are queued.
+    fn tx_batch_busy_wait(&mut self, queue_id: u32, buffer: &mut VecDeque<Packet>) {
+        while !buffer.is_empty() {
+            self.tx_batch(queue_id, buffer);
+        }
+    }
 }
 
 /// Holds network card stats about sent and received packets.
@@ -205,13 +213,17 @@ pub fn ixy_init(
         unimplemented!("virtio driver is not implemented yet");
     } else {
         // let's give it a try with ixgbe
-        let device: IxgbeDevice = IxgbeDevice::init(pci_addr, rx_queues, tx_queues)?;
+        let device = IxgbeDevice::init(pci_addr, rx_queues, tx_queues)?;
         Ok(Box::new(device))
     }
 }
 
 impl IxyDevice for Box<dyn IxyDevice> {
-    fn init(pci_addr: &str, num_rx_queues: u16, num_tx_queues: u16) -> Result<Self, Box<dyn Error>> {
+    fn init(
+        pci_addr: &str,
+        num_rx_queues: u16,
+        num_tx_queues: u16,
+    ) -> Result<Self, Box<dyn Error>> {
         ixy_init(pci_addr, num_rx_queues, num_tx_queues)
     }
 

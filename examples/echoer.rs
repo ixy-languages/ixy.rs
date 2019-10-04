@@ -61,11 +61,11 @@ pub fn main() {
             // every second
             if nanos > 1_000_000_000 {
                 dev1.read_stats(&mut dev1_stats);
-                dev1_stats.print_stats_diff(&*dev1, &dev1_stats_old, nanos);
+                dev1_stats.print_stats_diff(&dev1, &dev1_stats_old, nanos);
                 dev1_stats_old = dev1_stats;
 
                 dev2.read_stats(&mut dev2_stats);
-                dev2_stats.print_stats_diff(&*dev2, &dev2_stats_old, nanos);
+                dev2_stats.print_stats_diff(&dev2, &dev2_stats_old, nanos);
                 dev2_stats_old = dev2_stats;
 
                 time = Instant::now();
