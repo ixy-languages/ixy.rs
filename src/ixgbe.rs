@@ -337,7 +337,7 @@ impl IxyDevice for IxgbeDevice {
     }
 
     /// Resets the stats of this device.
-    fn reset_stats(&self) {
+    fn reset_stats(&mut self) {
         self.get_reg32(IXGBE_GPRC);
         self.get_reg32(IXGBE_GPTC);
         self.get_reg32(IXGBE_GORCL);
