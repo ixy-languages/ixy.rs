@@ -15,10 +15,14 @@ mod ixgbe;
 pub mod memory;
 mod pci;
 mod vfio;
+mod virtio;
+#[rustfmt::skip]
+mod virtio_constants;
 
 use self::ixgbe::*;
 use self::memory::*;
 use self::pci::*;
+use self::virtio::VirtioDevice;
 
 use std::collections::VecDeque;
 use std::error::Error;
@@ -209,8 +213,10 @@ pub fn ixy_init(
         return Err(format!("device {} is not a network card", pci_addr).into());
     }
 
-    if vendor_id == 0x1af4 && device_id >= 0x1000 {
-        unimplemented!("virtio driver is not implemented yet");
+    if vendor_id == 0x1af4 && device_id == 0x1000 {
+        // `vendor_id == 0x1041` would be for non-transitional devices which we don't support atm
+        let device = VirtioDevice::init(pci_addr, rx_queues, tx_queues)?;
+        Ok(Box::new(device))
     } else {
         // let's give it a try with ixgbe
         let device = IxgbeDevice::init(pci_addr, rx_queues, tx_queues)?;
