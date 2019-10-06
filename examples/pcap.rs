@@ -26,6 +26,11 @@ pub fn main() -> Result<(), io::Error> {
     let mut n_packets: Option<usize> = args
         .next()
         .map(|n| n.parse().expect("failed to parse n packets"));
+    if let Some(n) = n_packets {
+        println!("Capturing {} packets...", n);
+    } else {
+        println!("Capturing packets...");
+    }
 
     let mut pcap = File::create(output_file)?;
 
