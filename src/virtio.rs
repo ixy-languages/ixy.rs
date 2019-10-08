@@ -242,12 +242,11 @@ impl IxyDevice for VirtioDevice {
                 continue;
             }
 
-            let mut buf = memory::alloc_pkt(
+            let buf = memory::alloc_pkt(
                 &self.rx_mempool,
                 self.rx_mempool.entry_size() - PACKET_HEADROOM,
             )
             .expect("rx memory pool exhausted");
-            buf.len = self.rx_mempool.entry_size();
 
             *desc = VirtqDesc {
                 len: buf.len as u32 + mem::size_of::<virtio_net_hdr>() as u32,
