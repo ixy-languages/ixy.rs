@@ -48,10 +48,10 @@ pub fn main() -> Result<(), io::Error> {
     let mut buffer: VecDeque<Packet> = VecDeque::with_capacity(BATCH_SIZE);
     while n_packets != Some(0) {
         dev.rx_batch(1, &mut buffer, BATCH_SIZE);
-        for packet in buffer.drain(..) {
-            let time = SystemTime::now();
-            let time = time.duration_since(UNIX_EPOCH).unwrap();
+        let time = SystemTime::now();
+        let time = time.duration_since(UNIX_EPOCH).unwrap();
 
+        for packet in buffer.drain(..) {
             // pcap record header
             pcap.write_u32::<LE>(time.as_secs() as u32)?; // ts_sec
             pcap.write_u32::<LE>(time.subsec_millis())?; // ts_usec
