@@ -57,6 +57,7 @@ impl IxyDevice for VirtioDevice {
         pci_addr: &str,
         num_rx_queues: u16,
         num_tx_queues: u16,
+        _interrupt_timeout: i16,
     ) -> Result<Self, Box<dyn Error>> {
         // `getuid()` can't fail according to the man page
         if unsafe { libc::getuid() } != 0 {
