@@ -43,7 +43,7 @@ pub fn main() -> Result<(), io::Error> {
     pcap.write_u32::<LE>(65535)?; // snaplen
     pcap.write_u32::<LE>(1)?; // network: Ethernet
 
-    let mut dev = ixy_init(&pci_addr, 1, 1).unwrap();
+    let mut dev = ixy_init(&pci_addr, 1, 1, 0).unwrap();
 
     let mut buffer: VecDeque<Packet> = VecDeque::with_capacity(BATCH_SIZE);
     while n_packets != Some(0) {
