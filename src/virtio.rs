@@ -172,7 +172,7 @@ impl IxyDevice for VirtioDevice {
     }
 
     fn get_vfio_container(&self) -> Option<RawFd> {
-        panic!("VFIO isn't supported for Virtio");
+        None
     }
 
     fn get_pci_addr(&self) -> &str {
@@ -317,7 +317,7 @@ impl IxyDevice for VirtioDevice {
                 next: 0,
             };
 
-            let avail_idx = (self.tx_queue.available.idx.0 + sent) % self.tx_queue.size;
+            let avail_idx = (self.tx_queue.available.idx + Wrapping(sent)).0 % self.tx_queue.size;
             self.tx_queue.available[avail_idx] = idx;
 
             self.tx_bytes += packet.len() as u64;
