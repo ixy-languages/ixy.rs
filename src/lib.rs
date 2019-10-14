@@ -1,4 +1,4 @@
-//! # Ixy.rs
+//! # ixy.rs
 //!
 //! ixy.rs is a Rust rewrite of the ixy userspace network driver.
 //! It is designed to be readable, idiomatic Rust code.
@@ -16,11 +16,15 @@ mod ixgbe;
 pub mod memory;
 mod pci;
 mod vfio;
+mod virtio;
+#[rustfmt::skip]
+mod virtio_constants;
 
 use self::interrupts::*;
 use self::ixgbe::*;
 use self::memory::*;
 use self::pci::*;
+use self::virtio::VirtioDevice;
 
 use std::collections::VecDeque;
 use std::error::Error;
@@ -121,7 +125,7 @@ pub trait IxyDevice {
     /// let mut dev = ixy_init("0000:01:00.0", 1, 1).unwrap();
     /// dev.reset_stats();
     /// ```
-    fn reset_stats(&self);
+    fn reset_stats(&mut self);
 
     /// Returns the network card's link speed.
     ///
@@ -134,6 +138,14 @@ pub trait IxyDevice {
     /// println!("Link speed is {} Mbit/s", dev.get_link_speed());
     /// ```
     fn get_link_speed(&self) -> u16;
+
+    /// Takes `Packet`s out of `buffer` to send out. This will busy wait until all packets from
+    /// `buffer` are queued.
+    fn tx_batch_busy_wait(&mut self, queue_id: u32, buffer: &mut VecDeque<Packet>) {
+        while !buffer.is_empty() {
+            self.tx_batch(queue_id, buffer);
+        }
+    }
 }
 
 /// Holds network card stats about sent and received packets.
@@ -209,12 +221,13 @@ pub fn ixy_init(
         return Err(format!("device {} is not a network card", pci_addr).into());
     }
 
-    if vendor_id == 0x1af4 && device_id >= 0x1000 {
-        unimplemented!("virtio driver is not implemented yet");
+    if vendor_id == 0x1af4 && device_id == 0x1000 {
+        // `device_id == 0x1041` would be for non-transitional devices which we don't support atm
+        let device = VirtioDevice::init(pci_addr, rx_queues, tx_queues)?;
+        Ok(Box::new(device))
     } else {
         // let's give it a try with ixgbe
-        let device: IxgbeDevice =
-            IxgbeDevice::init(pci_addr, rx_queues, tx_queues, interrupt_timeout)?;
+        let device = IxgbeDevice::init(pci_addr, rx_queues, tx_queues, interrupt_timeout)?;
         Ok(Box::new(device))
     }
 }
@@ -262,7 +275,7 @@ impl IxyDevice for Box<dyn IxyDevice> {
         (**self).read_stats(stats)
     }
 
-    fn reset_stats(&self) {
+    fn reset_stats(&mut self) {
         (**self).reset_stats()
     }
 

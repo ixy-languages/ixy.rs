@@ -1,0 +1,10 @@
+build = [
+    "sudo apt-get install -y curl gcc",
+    "curl -sSf https://sh.rustup.rs | sh -s -- -y",
+    "source $HOME/.cargo/env && cargo build --release --examples",
+    "sudo ./setup-hugetlbfs.sh",
+]
+
+pktgen = "target/release/examples/generator $PCI_ADDR_PKTGEN"
+fwd = "target/release/examples/forwarder $PCI_ADDR_FWD_SRC $PCI_ADDR_FWD_DST"
+pcap = "target/release/examples/pcap $PCI_ADDR_PCAP $PCAP_OUT $PCAP_N"
