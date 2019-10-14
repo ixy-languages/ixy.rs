@@ -47,7 +47,7 @@ pub fn main() -> Result<(), io::Error> {
 
     let mut buffer: VecDeque<Packet> = VecDeque::with_capacity(BATCH_SIZE);
     while n_packets != Some(0) {
-        dev.rx_batch(1, &mut buffer, BATCH_SIZE);
+        dev.rx_batch(0, &mut buffer, BATCH_SIZE);
         let time = SystemTime::now();
         let time = time.duration_since(UNIX_EPOCH).unwrap();
 
