@@ -214,7 +214,7 @@ pub fn ixy_init(
     }
 
     if vendor_id == 0x1af4 && device_id == 0x1000 {
-        // `vendor_id == 0x1041` would be for non-transitional devices which we don't support atm
+        // `device_id == 0x1041` would be for non-transitional devices which we don't support atm
         let device = VirtioDevice::init(pci_addr, rx_queues, tx_queues)?;
         Ok(Box::new(device))
     } else {
