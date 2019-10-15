@@ -39,73 +39,73 @@
 /*
  * VirtIO Header, located in BAR 0.
  */
-pub const VIRTIO_PCI_HOST_FEATURES: u64 = 0;  /* host's supported features (32bit, RO)*/
-pub const VIRTIO_PCI_GUEST_FEATURES: u64 = 4; /* guest's supported features (32, RW) */
-pub const VIRTIO_PCI_QUEUE_PFN: u64 = 8;      /* physical address of VQ (32, RW) */
-pub const VIRTIO_PCI_QUEUE_NUM: u64 = 12;     /* number of ring entries (16, RO) */
-pub const VIRTIO_PCI_QUEUE_SEL: u64 = 14;     /* current VQ selection (16, RW) */
-pub const VIRTIO_PCI_QUEUE_NOTIFY: u64 = 16;  /* notify host regarding VQ (16, RW) */
-pub const VIRTIO_PCI_STATUS: u64 = 18;        /* device status register (8, RW) */
-pub const VIRTIO_PCI_ISR: u64 = 19;           /* interrupt status register, reading also clears the register (8, RO) */
+pub const VIRTIO_PCI_HOST_FEATURES: u64        = 0;  /* host's supported features (32bit, RO)*/
+pub const VIRTIO_PCI_GUEST_FEATURES: u64       = 4;  /* guest's supported features (32, RW) */
+pub const VIRTIO_PCI_QUEUE_PFN: u64            = 8;  /* physical address of VQ (32, RW) */
+pub const VIRTIO_PCI_QUEUE_NUM: u64            = 12; /* number of ring entries (16, RO) */
+pub const VIRTIO_PCI_QUEUE_SEL: u64            = 14; /* current VQ selection (16, RW) */
+pub const VIRTIO_PCI_QUEUE_NOTIFY: u64         = 16; /* notify host regarding VQ (16, RW) */
+pub const VIRTIO_PCI_STATUS: u64               = 18; /* device status register (8, RW) */
+pub const VIRTIO_PCI_ISR: u64                  = 19; /* interrupt status register, reading also clears the register (8, RO) */
 /* Only if MSIX is enabled: */
-pub const VIRTIO_MSI_CONFIG_VECTOR: u64 = 20; /* configuration change vector (16, RW) */
-pub const VIRTIO_MSI_QUEUE_VECTOR: u64 = 22;  /* vector for selected VQ notifications (16, RW) */
+pub const VIRTIO_MSI_CONFIG_VECTOR: u64        = 20; /* configuration change vector (16, RW) */
+pub const VIRTIO_MSI_QUEUE_VECTOR: u64         = 22; /* vector for selected VQ notifications (16, RW) */
 
 /* Status byte for guest to report progress. */
-pub const VIRTIO_CONFIG_STATUS_RESET: u8 = 0x00;
-pub const VIRTIO_CONFIG_STATUS_ACK: u8 = 0x01;
-pub const VIRTIO_CONFIG_STATUS_DRIVER: u8 = 0x02;
-pub const VIRTIO_CONFIG_STATUS_DRIVER_OK: u8 = 0x04;
+pub const VIRTIO_CONFIG_STATUS_RESET: u8       = 0x00;
+pub const VIRTIO_CONFIG_STATUS_ACK: u8         = 0x01;
+pub const VIRTIO_CONFIG_STATUS_DRIVER: u8      = 0x02;
+pub const VIRTIO_CONFIG_STATUS_DRIVER_OK: u8   = 0x04;
 pub const VIRTIO_CONFIG_STATUS_FEATURES_OK: u8 = 0x08;
-pub const VIRTIO_CONFIG_STATUS_FAILED: u8 = 0x80;
+pub const VIRTIO_CONFIG_STATUS_FAILED: u8      = 0x80;
 
 /*
  * How many bits to shift physical queue address written to QUEUE_PFN.
  * 12 is historical, and due to x86 page size.
  */
-pub const VIRTIO_PCI_QUEUE_ADDR_SHIFT: usize = 12;
+pub const VIRTIO_PCI_QUEUE_ADDR_SHIFT: usize   = 12;
 
 /* This marks a buffer as continuing via the next field. */
-pub const VIRTQ_DESC_F_NEXT: u16 = 1;
+pub const VIRTQ_DESC_F_NEXT: u16               = 1;
 /* This marks a buffer as write-only (otherwise read-only). */
-pub const VIRTQ_DESC_F_WRITE: u16 = 2;
+pub const VIRTQ_DESC_F_WRITE: u16              = 2;
 /* This means the buffer contains a list of buffer descriptors. */
-pub const VIRTQ_DESC_F_INDIRECT: u16 = 4;
+pub const VIRTQ_DESC_F_INDIRECT: u16           = 4;
 
 /* The feature bitmap for virtio net */
-pub const VIRTIO_NET_F_CSUM: usize = 0;            /* Host handles pkts w/ partial csum */
-pub const VIRTIO_NET_F_GUEST_CSUM: usize = 1;      /* Guest handles pkts w/ partial csum */
-pub const VIRTIO_NET_F_MTU: usize = 3;             /* Initial MTU advice. */
-pub const VIRTIO_NET_F_MAC: usize = 5;             /* Host has given MAC address. */
-pub const VIRTIO_NET_F_GUEST_TSO4: usize = 7;      /* Guest can handle TSOv4 in. */
-pub const VIRTIO_NET_F_GUEST_TSO6: usize = 8;      /* Guest can handle TSOv6 in. */
-pub const VIRTIO_NET_F_GUEST_ECN: usize = 9;       /* Guest can handle TSO[6] w/ ECN in. */
-pub const VIRTIO_NET_F_GUEST_UFO: usize = 10;      /* Guest can handle UFO in. */
-pub const VIRTIO_NET_F_HOST_TSO4: usize = 11;      /* Host can handle TSOv4 in. */
-pub const VIRTIO_NET_F_HOST_TSO6: usize = 12;      /* Host can handle TSOv6 in. */
-pub const VIRTIO_NET_F_HOST_ECN: usize = 13;       /* Host can handle TSO[6] w/ ECN in. */
-pub const VIRTIO_NET_F_HOST_UFO: usize = 14;       /* Host can handle UFO in. */
-pub const VIRTIO_NET_F_MRG_RXBUF: usize = 15;      /* Host can merge receive buffers. */
-pub const VIRTIO_NET_F_STATUS: usize = 16;         /* virtio_net_config.status available */
-pub const VIRTIO_NET_F_CTRL_VQ: usize = 17;        /* Control channel available */
-pub const VIRTIO_NET_F_CTRL_RX: usize = 18;        /* Control channel RX mode support */
-pub const VIRTIO_NET_F_CTRL_VLAN: usize = 19;      /* Control channel VLAN filtering */
-pub const VIRTIO_NET_F_CTRL_RX_EXTRA: usize = 20;  /* Extra RX mode control support */
-pub const VIRTIO_NET_F_GUEST_ANNOUNCE: usize = 21; /* Guest can announce device on the network */
-pub const VIRTIO_NET_F_MQ: usize = 22;             /* Device supports Receive Flow Steering */
-pub const VIRTIO_NET_F_CTRL_MAC_ADDR: usize = 23;  /* Set MAC address */
+pub const VIRTIO_NET_F_CSUM: usize             = 0;  /* Host handles pkts w/ partial csum */
+pub const VIRTIO_NET_F_GUEST_CSUM: usize       = 1;  /* Guest handles pkts w/ partial csum */
+pub const VIRTIO_NET_F_MTU: usize              = 3;  /* Initial MTU advice. */
+pub const VIRTIO_NET_F_MAC: usize              = 5;  /* Host has given MAC address. */
+pub const VIRTIO_NET_F_GUEST_TSO4: usize       = 7;  /* Guest can handle TSOv4 in. */
+pub const VIRTIO_NET_F_GUEST_TSO6: usize       = 8;  /* Guest can handle TSOv6 in. */
+pub const VIRTIO_NET_F_GUEST_ECN: usize        = 9;  /* Guest can handle TSO[6] w/ ECN in. */
+pub const VIRTIO_NET_F_GUEST_UFO: usize        = 10; /* Guest can handle UFO in. */
+pub const VIRTIO_NET_F_HOST_TSO4: usize        = 11; /* Host can handle TSOv4 in. */
+pub const VIRTIO_NET_F_HOST_TSO6: usize        = 12; /* Host can handle TSOv6 in. */
+pub const VIRTIO_NET_F_HOST_ECN: usize         = 13; /* Host can handle TSO[6] w/ ECN in. */
+pub const VIRTIO_NET_F_HOST_UFO: usize         = 14; /* Host can handle UFO in. */
+pub const VIRTIO_NET_F_MRG_RXBUF: usize        = 15; /* Host can merge receive buffers. */
+pub const VIRTIO_NET_F_STATUS: usize           = 16; /* virtio_net_config.status available */
+pub const VIRTIO_NET_F_CTRL_VQ: usize          = 17; /* Control channel available */
+pub const VIRTIO_NET_F_CTRL_RX: usize          = 18; /* Control channel RX mode support */
+pub const VIRTIO_NET_F_CTRL_VLAN: usize        = 19; /* Control channel VLAN filtering */
+pub const VIRTIO_NET_F_CTRL_RX_EXTRA: usize    = 20; /* Extra RX mode control support */
+pub const VIRTIO_NET_F_GUEST_ANNOUNCE: usize   = 21; /* Guest can announce device on the network */
+pub const VIRTIO_NET_F_MQ: usize               = 22; /* Device supports Receive Flow Steering */
+pub const VIRTIO_NET_F_CTRL_MAC_ADDR: usize    = 23; /* Set MAC address */
 
 /* Do we get callbacks when the ring is completely used, even if we've suppressed them? */
-pub const VIRTIO_F_NOTIFY_ON_EMPTY: usize = 24;
+pub const VIRTIO_F_NOTIFY_ON_EMPTY: usize      = 24;
 
 /* Can the device handle any descriptor layout? */
-pub const VIRTIO_F_ANY_LAYOUT: usize = 27;
+pub const VIRTIO_F_ANY_LAYOUT: usize           = 27;
 
 /* We support indirect buffer descriptors */
-pub const VIRTIO_RING_F_INDIRECT_DESC: usize = 28;
+pub const VIRTIO_RING_F_INDIRECT_DESC: usize   = 28;
 
-pub const VIRTIO_F_VERSION_1: usize = 32;
-pub const VIRTIO_F_IOMMU_PLATFORM: usize = 33;
+pub const VIRTIO_F_VERSION_1: usize            = 32;
+pub const VIRTIO_F_IOMMU_PLATFORM: usize       = 33;
 
 
 /**
@@ -115,18 +115,18 @@ pub const VIRTIO_F_IOMMU_PLATFORM: usize = 33;
  * 0 and 1 are supported with the VIRTIO_NET_F_CTRL_RX feature.
  * Commands 2-5 are added with VIRTIO_NET_F_CTRL_RX_EXTRA.
  */
-pub const VIRTIO_NET_CTRL_RX: u8 = 0;
-pub const VIRTIO_NET_CTRL_RX_PROMISC: u8 = 0;
-pub const VIRTIO_NET_CTRL_RX_ALLMULTI: u8 = 1;
-pub const VIRTIO_NET_CTRL_RX_ALLUNI: u8 = 2;
-pub const VIRTIO_NET_CTRL_RX_NOMULTI: u8 = 3;
-pub const VIRTIO_NET_CTRL_RX_NOUNI: u8 = 4;
-pub const VIRTIO_NET_CTRL_RX_NOBCAST: u8 = 5;
+pub const VIRTIO_NET_CTRL_RX: u8               = 0;
+pub const VIRTIO_NET_CTRL_RX_PROMISC: u8       = 0;
+pub const VIRTIO_NET_CTRL_RX_ALLMULTI: u8      = 1;
+pub const VIRTIO_NET_CTRL_RX_ALLUNI: u8        = 2;
+pub const VIRTIO_NET_CTRL_RX_NOMULTI: u8       = 3;
+pub const VIRTIO_NET_CTRL_RX_NOUNI: u8         = 4;
+pub const VIRTIO_NET_CTRL_RX_NOBCAST: u8       = 5;
 
-pub const VIRTIO_NET_OK: u8 = 0;
-pub const VIRTIO_NET_ERR: u8 = 1;
+pub const VIRTIO_NET_OK: u8                    = 0;
+pub const VIRTIO_NET_ERR: u8                   = 1;
 
-pub const VIRTIO_MAX_CTRL_DATA: usize = 2048;
+pub const VIRTIO_MAX_CTRL_DATA: usize          = 2048;
 
 /**
  * This is the first element of the scatter-gather list.  If you don't
@@ -142,24 +142,24 @@ pub struct virtio_net_hdr {
     pub csum_offset: u16, // Offset after that to place checksum
 }
 
-pub const VIRTIO_NET_HDR_F_NEEDS_CSUM: u8 = 1; /**< Use csum_start,csum_offset*/
-pub const VIRTIO_NET_HDR_F_DATA_VALID: u8 = 2; /**< Checksum is valid */
+pub const VIRTIO_NET_HDR_F_NEEDS_CSUM: u8      = 1;    /**< Use csum_start,csum_offset*/
+pub const VIRTIO_NET_HDR_F_DATA_VALID: u8      = 2;    /**< Checksum is valid */
 
-pub const VIRTIO_NET_HDR_GSO_NONE: u8 = 0;   /**< Not a GSO frame */
-pub const VIRTIO_NET_HDR_GSO_TCPV4: u8 = 1;  /**< GSO frame, IPv4 TCP (TSO) */
-pub const VIRTIO_NET_HDR_GSO_UDP: u8 = 3;    /**< GSO frame, IPv4 UDP (UFO) */
-pub const VIRTIO_NET_HDR_GSO_TCPV6: u8 = 4;  /**< GSO frame, IPv6 TCP */
-pub const VIRTIO_NET_HDR_GSO_ECN: u8 = 0x80; /**< TCP has ECN set */
+pub const VIRTIO_NET_HDR_GSO_NONE: u8          = 0;    /**< Not a GSO frame */
+pub const VIRTIO_NET_HDR_GSO_TCPV4: u8         = 1;    /**< GSO frame, IPv4 TCP (TSO) */
+pub const VIRTIO_NET_HDR_GSO_UDP: u8           = 3;    /**< GSO frame, IPv4 UDP (UFO) */
+pub const VIRTIO_NET_HDR_GSO_TCPV6: u8         = 4;    /**< GSO frame, IPv6 TCP */
+pub const VIRTIO_NET_HDR_GSO_ECN: u8           = 0x80; /**< TCP has ECN set */
 
 
 /* The Host uses this in used->flags to advise the Guest: don't kick me
  * when you add a buffer.  It's unreliable, so it's simply an
  * optimization.  Guest will still kick if it's out of buffers. */
-pub const VIRTQ_USED_F_NO_NOTIFY: u16 = 1;
+pub const VIRTQ_USED_F_NO_NOTIFY: u16          = 1;
 /* The Guest uses this in avail->flags to advise the Host: don't
  * interrupt me when you consume a buffer.  It's unreliable, so it's
  * simply an optimization. */
-pub const VIRTQ_AVAIL_F_NO_INTERRUPT: u16 = 1;
+pub const VIRTQ_AVAIL_F_NO_INTERRUPT: u16      = 1;
 
 
 use std::num::Wrapping;
@@ -255,7 +255,7 @@ pub trait VirtioNetCtrlCommand {
 pub struct VirtioNetCtrlPromisc(u8);
 
 impl VirtioNetCtrlCommand for VirtioNetCtrlPromisc {
-    const CLASS: u8 = VIRTIO_NET_CTRL_RX;
+    const CLASS: u8   = VIRTIO_NET_CTRL_RX;
     const COMMAND: u8 = VIRTIO_NET_CTRL_RX_PROMISC;
 }
 
