@@ -540,8 +540,8 @@ impl VirtqueueType {
 pub struct Virtqueue {
     size: u16,
     desc: *mut VirtqDesc,
-    available: QueueWrapper<VirtqAvail>,
-    used: QueueWrapper<VirtqUsed>,
+    available: RingWrapper<VirtqAvail>,
+    used: RingWrapper<VirtqUsed>,
     last_used_idx: Wrapping<u16>,
 }
 
@@ -555,8 +555,8 @@ impl Virtqueue {
         Virtqueue {
             size,
             desc: ptr,
-            available: QueueWrapper { ptr: avail, size },
-            used: QueueWrapper { ptr: used, size },
+            available: RingWrapper { ptr: avail, size },
+            used: RingWrapper { ptr: used, size },
             last_used_idx: Wrapping(0),
         }
     }
@@ -590,13 +590,13 @@ impl Virtqueue {
     }
 }
 
-struct QueueWrapper<T: Queue> {
+struct RingWrapper<T: Ring> {
     ptr: *mut T,
     size: u16,
 }
 
-impl<T: Queue> Index<u16> for QueueWrapper<T> {
-    type Output = <T as Queue>::Element;
+impl<T: Ring> Index<u16> for RingWrapper<T> {
+    type Output = <T as Ring>::Element;
     fn index(&self, idx: u16) -> &Self::Output {
         assert!(
             idx < self.size,
@@ -608,7 +608,7 @@ impl<T: Queue> Index<u16> for QueueWrapper<T> {
     }
 }
 
-impl<T: Queue> IndexMut<u16> for QueueWrapper<T> {
+impl<T: Ring> IndexMut<u16> for RingWrapper<T> {
     fn index_mut(&mut self, idx: u16) -> &mut Self::Output {
         assert!(
             idx < self.size,
@@ -620,14 +620,14 @@ impl<T: Queue> IndexMut<u16> for QueueWrapper<T> {
     }
 }
 
-impl<T: Queue> Deref for QueueWrapper<T> {
+impl<T: Ring> Deref for RingWrapper<T> {
     type Target = T;
     fn deref(&self) -> &T {
         unsafe { &*self.ptr }
     }
 }
 
-impl<T: Queue> DerefMut for QueueWrapper<T> {
+impl<T: Ring> DerefMut for RingWrapper<T> {
     fn deref_mut(&mut self) -> &mut T {
         unsafe { &mut *self.ptr }
     }

@@ -199,13 +199,13 @@ pub struct VirtqUsedElem {
     pub len: u32,
 }
 
-pub trait Queue {
+pub trait Ring {
     type Element;
     fn ring(&self) -> *const Self::Element;
     fn ring_mut(&mut self) -> *mut Self::Element;
 }
 
-impl Queue for VirtqAvail {
+impl Ring for VirtqAvail {
     type Element = u16;
     fn ring(&self) -> *const u16 {
         self.ring.as_ptr()
@@ -215,7 +215,7 @@ impl Queue for VirtqAvail {
     }
 }
 
-impl Queue for VirtqUsed {
+impl Ring for VirtqUsed {
     type Element = VirtqUsedElem;
     fn ring(&self) -> *const VirtqUsedElem {
         self.ring.as_ptr()
