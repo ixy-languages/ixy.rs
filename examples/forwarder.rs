@@ -89,7 +89,7 @@ fn forward(
         // touch all packets for a realistic workload
         for p in buffer.iter_mut() {
             // ooops, setting to 1 instead of incrementing, this should fail in ci
-            p[48] = 1;
+            p[56] = 1;
         }
 
         tx_dev.tx_batch(tx_queue, buffer);
