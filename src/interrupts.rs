@@ -10,7 +10,7 @@ use std::os::unix::io::RawFd;
 use std::time::Instant;
 
 const MOVING_AVERAGE_RANGE: usize = 5;
-const INTERRUPT_THRESHOLD: u64 = 1_200;
+const INTERRUPT_THRESHOLD: u64 = 2_400;
 pub const INTERRUPT_INITIAL_INTERVAL: u64 = 1_000_000_000;
 const MAX_INTERRUPT_VECTORS: u32 = 32;
 
@@ -180,7 +180,7 @@ impl InterruptsQueue {
         }
 
         let irq_set: vfio_irq_set<[u8; 1]> = vfio_irq_set {
-            argsz: (mem::size_of::<vfio_irq_set<[u8; 1]>>() + mem::size_of::<RawFd>()) as u32,
+            argsz: mem::size_of::<vfio_irq_set<[u8; 1]>>() as u32,
             count: 1,
             flags: VFIO_IRQ_SET_DATA_EVENTFD | VFIO_IRQ_SET_ACTION_TRIGGER,
             index: VFIO_PCI_MSI_IRQ_INDEX as u32,
@@ -205,7 +205,7 @@ impl InterruptsQueue {
     pub fn vfio_disable_msi(&mut self, device_fd: RawFd) -> Result<(), Box<dyn Error>> {
         info!("disabling MSI interrupts");
         let irq_set: vfio_irq_set<[u8; 0]> = vfio_irq_set {
-            argsz: (mem::size_of::<vfio_irq_set<[u8; 0]>>() + mem::size_of::<RawFd>()) as u32,
+            argsz: mem::size_of::<vfio_irq_set<[u8; 0]>>() as u32,
             count: 0,
             flags: VFIO_IRQ_SET_DATA_NONE | VFIO_IRQ_SET_ACTION_TRIGGER,
             index: VFIO_PCI_MSI_IRQ_INDEX as u32,
@@ -254,9 +254,7 @@ impl InterruptsQueue {
         }
 
         let irq_set: vfio_irq_set<[u8; 1]> = vfio_irq_set {
-            argsz: (mem::size_of::<vfio_irq_set<[u8; 1]>>()
-                + mem::size_of::<RawFd>() * (MAX_INTERRUPT_VECTORS + 1) as usize)
-                as u32,
+            argsz: mem::size_of::<vfio_irq_set<[u8; 1]>>() as u32,
             count: interrupt_vector,
             flags: VFIO_IRQ_SET_DATA_EVENTFD | VFIO_IRQ_SET_ACTION_TRIGGER,
             index: VFIO_PCI_MSIX_IRQ_INDEX as u32,
@@ -281,7 +279,7 @@ impl InterruptsQueue {
     pub fn vfio_disable_msix(&mut self, device_fd: RawFd) -> Result<(), Box<dyn Error>> {
         info!("disabling MSIX interrupts");
         let irq_set: vfio_irq_set<[u8; 0]> = vfio_irq_set {
-            argsz: (mem::size_of::<vfio_irq_set<[u8; 0]>>() + mem::size_of::<RawFd>()) as u32,
+            argsz: mem::size_of::<vfio_irq_set<[u8; 0]>>() as u32,
             count: 0,
             flags: VFIO_IRQ_SET_DATA_NONE | VFIO_IRQ_SET_ACTION_TRIGGER,
             index: VFIO_PCI_MSIX_IRQ_INDEX as u32,
