@@ -203,7 +203,10 @@ impl IxyDevice for IxgbeDevice {
         let mut received_packets = 0;
 
         {
-            let queue = self.rx_queues.get_mut(queue_id as usize).expect("invalid rx queue id");
+            let queue = self
+                .rx_queues
+                .get_mut(queue_id as usize)
+                .expect("invalid rx queue id");
 
             rx_index = queue.rx_index;
             last_rx_index = queue.rx_index;
@@ -310,7 +313,10 @@ impl IxyDevice for IxgbeDevice {
         let mut sent = 0;
 
         {
-            let mut queue = self.tx_queues.get_mut(queue_id as usize).expect("invalid tx queue id");
+            let mut queue = self
+                .tx_queues
+                .get_mut(queue_id as usize)
+                .expect("invalid tx queue id");
 
             let mut cur_index = queue.tx_index;
             let clean_index = clean_tx_queue(&mut queue);

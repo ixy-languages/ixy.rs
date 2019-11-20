@@ -16,28 +16,28 @@ const MAX_INTERRUPT_VECTORS: u32 = 32;
 
 #[derive(Default)]
 pub struct Interrupts {
-    pub interrupts_enabled: bool, // Whether interrupts for this device are enabled or disabled.
-    pub itr_rate: u32,            // The Interrupt Throttling Rate
-    pub interrupt_type: u64,      // MSI or MSIX
-    pub timeout_ms: i16,          // interrupt timeout in milliseconds (-1 to disable the timeout)
+    pub interrupts_enabled: bool,     // Interrupts for this device enabled?
+    pub itr_rate: u32,                // Interrupt Throttling Rate
+    pub interrupt_type: u64,          // MSI or MSIX
+    pub timeout_ms: i16,              // Interrupt timeout in ms (-1 to disable timeout)
     pub queues: Vec<InterruptsQueue>, // Interrupt settings per queue
 }
 
 pub struct InterruptsQueue {
     pub vfio_event_fd: RawFd,           // event fd
     pub vfio_epoll_fd: RawFd,           // epoll fd
-    pub interrupt_enabled: bool,        // Whether interrupt for this queue is enabled or not
-    pub instr_counter: u64, // Instruction counter to avoid unnecessary calls to elapsed time
-    pub last_time_checked: Instant, // Last time the interrupt flag was checked
-    pub rx_pkts: u64,       // The number of received packets since the last check
-    pub interval: u64,      // The interval to check the interrupt flag
+    pub interrupt_enabled: bool,        // Interrupt for this queue enabled?
+    pub instr_counter: u64,             // Counter to avoid unnecessary calls to elapsed time
+    pub last_time_checked: Instant,     // Last time the interrupt flag was checked
+    pub rx_pkts: u64,                   // The number of received packets since the last check
+    pub interval: u64,                  // The interval to check the interrupt flag
     pub moving_avg: InterruptMovingAvg, // The moving average of the hybrid interrupt
 }
 
 #[derive(Default)]
 pub struct InterruptMovingAvg {
-    pub measured_rates: VecDeque<u64>, // The moving average window
-    pub sum: u64,                      // The moving average sum
+    pub measured_rates: VecDeque<u64>, // Moving average window
+    pub sum: u64,                      // Moving average sum
 }
 
 impl Interrupts {
@@ -116,8 +116,8 @@ impl InterruptsQueue {
     ///
     /// The memory area pointed to by events will contain the events that will be available for the caller.
     /// The `timeout` argument specifies the minimum number of milliseconds that epoll_wait will block.
-    /// Specifying a `timeout` of -1 causes epoll_wait to block indefinitely,
-    /// while specifying a `timeout` equal to zero cause epoll_wait to return immediately, even if no events are available.
+    /// Specifying a `timeout` of -1 causes epoll_wait to block indefinitely, while specifying a
+    /// `timeout` equal to zero cause epoll_wait to return immediately, even if no events are available.
     /// Returns the number of ready file descriptors.
     pub fn vfio_epoll_wait(&self, timeout: i32) -> Result<usize, Box<dyn Error>> {
         let mut events = [Event::default(); 10];
