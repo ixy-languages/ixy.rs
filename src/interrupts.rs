@@ -82,15 +82,14 @@ impl InterruptsQueue {
             data: event_fd as u64,
         };
 
-        let status = unsafe { libc::epoll_create1(0) };
-        if status == -1 {
+        let epoll_fd: RawFd = unsafe { libc::epoll_create1(0) };
+        if epoll_fd == -1 {
             return Err(format!(
                 "failed to epoll_create1. Errno: {}",
                 std::io::Error::last_os_error()
             )
             .into());
         }
-        let epoll_fd = status as RawFd;
 
         if unsafe {
             libc::epoll_ctl(
@@ -143,13 +142,12 @@ impl InterruptsQueue {
             /* epoll_wait has at least one fd ready to read */
             for event in events.iter().take(rc) {
                 let mut val: u16 = 0;
-                let val_ptr: *mut u16 = &mut val;
                 // read event file descriptor to clear interrupt.
                 if unsafe {
                     libc::read(
                         event.data as i32,
-                        val_ptr as *mut libc::c_void,
-                        mem::size_of::<u64>(),
+                        &mut val as *mut _ as *mut libc::c_void,
+                        mem::size_of::<u16>(),
                     )
                 } == -1
                 {
