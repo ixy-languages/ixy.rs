@@ -30,8 +30,8 @@ pub fn main() {
         }
     };
 
-    let mut dev1 = ixy_init(&pci_addr_1, 1, 1).unwrap();
-    let mut dev2 = ixy_init(&pci_addr_2, 1, 1).unwrap();
+    let mut dev1 = ixy_init(&pci_addr_1, 1, 1, 0).unwrap();
+    let mut dev2 = ixy_init(&pci_addr_2, 1, 1, 0).unwrap();
 
     let mut dev1_stats = Default::default();
     let mut dev1_stats_old = Default::default();
@@ -57,7 +57,7 @@ pub fn main() {
         // don't poll the time unnecessarily
         if counter & 0xfff == 0 {
             let elapsed = time.elapsed();
-            let nanos = elapsed.as_secs() as u32 * 1_000_000_000 + elapsed.subsec_nanos();
+            let nanos = elapsed.as_secs() * 1_000_000_000 + u64::from(elapsed.subsec_nanos());
             // every second
             if nanos > 1_000_000_000 {
                 dev1.read_stats(&mut dev1_stats);

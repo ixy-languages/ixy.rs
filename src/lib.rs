@@ -11,6 +11,7 @@ extern crate log;
 
 #[rustfmt::skip]
 mod constants;
+mod interrupts;
 mod ixgbe;
 pub mod memory;
 mod pci;
@@ -19,6 +20,7 @@ mod virtio;
 #[rustfmt::skip]
 mod virtio_constants;
 
+use self::interrupts::*;
 use self::ixgbe::*;
 use self::memory::*;
 use self::pci::*;
@@ -33,7 +35,12 @@ const MAX_QUEUES: u16 = 64;
 /// Used for implementing an ixy device driver like ixgbe or virtio.
 pub trait IxyDevice {
     /// Initializes an intel 82599 network card.
-    fn init(pci_addr: &str, num_rx_queues: u16, num_tx_queues: u16) -> Result<Self, Box<dyn Error>>
+    fn init(
+        pci_addr: &str,
+        num_rx_queues: u16,
+        num_tx_queues: u16,
+        interrupt_timeout: i16,
+    ) -> Result<Self, Box<dyn Error>>
     where
         Self: Sized;
 
@@ -152,7 +159,7 @@ pub struct DeviceStats {
 
 impl DeviceStats {
     ///  Prints the stats differences between `stats_old` and `self`.
-    pub fn print_stats_diff(&self, dev: &dyn IxyDevice, stats_old: &DeviceStats, nanos: u32) {
+    pub fn print_stats_diff(&self, dev: &dyn IxyDevice, stats_old: &DeviceStats, nanos: u64) {
         let pci_addr = dev.get_pci_addr();
         let mbits = self.diff_mbit(
             self.rx_bytes,
@@ -182,16 +189,16 @@ impl DeviceStats {
         bytes_old: u64,
         pkts_new: u64,
         pkts_old: u64,
-        nanos: u32,
+        nanos: u64,
     ) -> f64 {
-        (((bytes_new - bytes_old) as f64 / 1_000_000.0 / (f64::from(nanos) / 1_000_000_000.0))
+        (((bytes_new - bytes_old) as f64 / 1_000_000.0 / (nanos as f64 / 1_000_000_000.0))
             * f64::from(8)
             + self.diff_mpps(pkts_new, pkts_old, nanos) * f64::from(20) * f64::from(8))
     }
 
     /// Returns Mpps between two points in time.
-    fn diff_mpps(&self, pkts_new: u64, pkts_old: u64, nanos: u32) -> f64 {
-        (pkts_new - pkts_old) as f64 / 1_000_000.0 / (f64::from(nanos) / 1_000_000_000.0)
+    fn diff_mpps(&self, pkts_new: u64, pkts_old: u64, nanos: u64) -> f64 {
+        (pkts_new - pkts_old) as f64 / 1_000_000.0 / (nanos as f64 / 1_000_000_000.0)
     }
 }
 
@@ -202,6 +209,7 @@ pub fn ixy_init(
     pci_addr: &str,
     rx_queues: u16,
     tx_queues: u16,
+    interrupt_timeout: i16,
 ) -> Result<Box<dyn IxyDevice>, Box<dyn Error>> {
     let mut config_file = pci_open_resource(pci_addr, "config").expect("wrong pci address");
 
@@ -215,11 +223,11 @@ pub fn ixy_init(
 
     if vendor_id == 0x1af4 && device_id == 0x1000 {
         // `device_id == 0x1041` would be for non-transitional devices which we don't support atm
-        let device = VirtioDevice::init(pci_addr, rx_queues, tx_queues)?;
+        let device = VirtioDevice::init(pci_addr, rx_queues, tx_queues, interrupt_timeout)?;
         Ok(Box::new(device))
     } else {
         // let's give it a try with ixgbe
-        let device = IxgbeDevice::init(pci_addr, rx_queues, tx_queues)?;
+        let device = IxgbeDevice::init(pci_addr, rx_queues, tx_queues, interrupt_timeout)?;
         Ok(Box::new(device))
     }
 }
@@ -229,8 +237,9 @@ impl IxyDevice for Box<dyn IxyDevice> {
         pci_addr: &str,
         num_rx_queues: u16,
         num_tx_queues: u16,
+        interrupt_timeout: i16,
     ) -> Result<Self, Box<dyn Error>> {
-        ixy_init(pci_addr, num_rx_queues, num_tx_queues)
+        ixy_init(pci_addr, num_rx_queues, num_tx_queues, interrupt_timeout)
     }
 
     fn get_driver_name(&self) -> &str {

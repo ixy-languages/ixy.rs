@@ -28,7 +28,7 @@ pub fn main() {
         }
     };
 
-    let mut dev = ixy_init(&pci_addr, 1, 1).unwrap();
+    let mut dev = ixy_init(&pci_addr, 1, 1, 0).unwrap();
 
     #[rustfmt::skip]
     let pkt_data = [
@@ -97,7 +97,7 @@ pub fn main() {
         // don't poll the time unnecessarily
         if counter & 0xfff == 0 {
             let elapsed = time.elapsed();
-            let nanos = elapsed.as_secs() as u32 * 1_000_000_000 + elapsed.subsec_nanos();
+            let nanos = elapsed.as_secs() * 1_000_000_000 + u64::from(elapsed.subsec_nanos());
             // every second
             if nanos > 1_000_000_000 {
                 dev.read_stats(&mut dev_stats);

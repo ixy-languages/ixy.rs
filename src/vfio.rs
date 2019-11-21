@@ -27,6 +27,16 @@ const VFIO_DMA_MAP_FLAG_READ: u32 = 1;
 const VFIO_DMA_MAP_FLAG_WRITE: u32 = 2;
 const VFIO_IOMMU_MAP_DMA: u64 = 15217;
 
+// constants needed for IOMMU Interrupts. Grabbed from linux/vfio.h
+pub const VFIO_DEVICE_GET_IRQ_INFO: u64 = 15213;
+pub const VFIO_DEVICE_SET_IRQS: u64 = 15214;
+pub const VFIO_IRQ_SET_DATA_NONE: u32 = 1; /* Data not present */
+pub const VFIO_IRQ_SET_DATA_EVENTFD: u32 = (1 << 2); /* Data is eventfd (s32) */
+pub const VFIO_IRQ_SET_ACTION_TRIGGER: u32 = (1 << 5); /* Trigger interrupt */
+pub const VFIO_PCI_MSI_IRQ_INDEX: u64 = 1;
+pub const VFIO_PCI_MSIX_IRQ_INDEX: u64 = 2;
+pub const VFIO_IRQ_INFO_EVENTFD: u32 = 1;
+
 /// struct vfio_iommu_type1_dma_map, grabbed from linux/vfio.h
 #[allow(non_camel_case_types)]
 #[repr(C)]
@@ -56,6 +66,40 @@ struct vfio_region_info {
     cap_offset: u32,
     size: u64,
     offset: u64,
+}
+
+/// struct vfio_irq_set, grabbed from linux/vfio.h
+///
+/// As this is a dynamically sized struct (has an array at the end) we need to use
+/// Dynamically Sized Types (DSTs) which can be found at
+/// https://doc.rust-lang.org/nomicon/exotic-sizes.html#dynamically-sized-types-dsts
+#[allow(non_camel_case_types)]
+#[repr(C)]
+pub struct vfio_irq_set<T: ?Sized> {
+    pub argsz: u32,
+    pub flags: u32,
+    pub index: u32,
+    pub start: u32,
+    pub count: u32,
+    pub data: T,
+}
+
+/// struct vfio_irq_info, grabbed from linux/vfio.h
+#[allow(non_camel_case_types)]
+#[repr(C)]
+pub struct vfio_irq_info {
+    pub argsz: u32,
+    pub flags: u32,
+    pub index: u32, /* IRQ index */
+    pub count: u32, /* Number of IRQs within this index */
+}
+
+/// 'libc::epoll_event' equivalent.
+#[repr(C)]
+#[derive(Clone, Copy, Default)]
+pub struct Event {
+    pub events: u32,
+    pub data: u64,
 }
 
 /// Initializes the IOMMU for a given PCI device. The device must be bound to the VFIO driver.
@@ -131,12 +175,11 @@ pub fn vfio_init(pci_addr: &str) -> Result<RawFd, Box<dyn Error>> {
 
     // Add the group to the container
     if unsafe { libc::ioctl(gfd, VFIO_GROUP_SET_CONTAINER, &cfd) } == -1 {
-        return Err(
-            format!("failed to VFIO_GROUP_SET_CONTAINER. Errno: {}", unsafe {
-                *libc::__errno_location()
-            })
-            .into(),
-        );
+        return Err(format!(
+            "failed to VFIO_GROUP_SET_CONTAINER. Errno: {}",
+            std::io::Error::last_os_error()
+        )
+        .into());
     }
 
     if first_time_setup {
@@ -144,7 +187,7 @@ pub fn vfio_init(pci_addr: &str) -> Result<RawFd, Box<dyn Error>> {
         if unsafe { libc::ioctl(cfd, VFIO_SET_IOMMU, VFIO_TYPE1_IOMMU) } == -1 {
             return Err(format!(
                 "failed to VFIO_SET_IOMMU to VFIO_TYPE1_IOMMU. Errno: {}",
-                unsafe { *libc::__errno_location() }
+                std::io::Error::last_os_error()
             )
             .into());
         }
@@ -153,12 +196,11 @@ pub fn vfio_init(pci_addr: &str) -> Result<RawFd, Box<dyn Error>> {
     // Get a file descriptor for the device
     dfd = unsafe { libc::ioctl(gfd, VFIO_GROUP_GET_DEVICE_FD, pci_addr) };
     if dfd == -1 {
-        return Err(
-            format!("failed to VFIO_GROUP_GET_DEVICE_FD. Errno: {}", unsafe {
-                *libc::__errno_location()
-            })
-            .into(),
-        );
+        return Err(format!(
+            "failed to VFIO_GROUP_GET_DEVICE_FD. Errno: {}",
+            std::io::Error::last_os_error()
+        )
+        .into());
     }
 
     vfio_enable_dma(dfd)?;
@@ -187,7 +229,7 @@ pub fn vfio_enable_dma(device_file_descriptor: RawFd) -> Result<(), Box<dyn Erro
     {
         return Err(format!(
             "failed to VFIO_DEVICE_GET_REGION_INFO for index VFIO_PCI_CONFIG_REGION_INDEX. Errno: {}",
-            unsafe { *libc::__errno_location() }
+            std::io::Error::last_os_error()
         ).into());
     }
 
@@ -201,9 +243,10 @@ pub fn vfio_enable_dma(device_file_descriptor: RawFd) -> Result<(), Box<dyn Erro
         )
     } == -1
     {
-        return Err(format!("failed to pread DMA bit. Errno: {}", unsafe {
-            *libc::__errno_location()
-        })
+        return Err(format!(
+            "failed to pread DMA bit. Errno: {}",
+            std::io::Error::last_os_error()
+        )
         .into());
     }
 
@@ -218,9 +261,10 @@ pub fn vfio_enable_dma(device_file_descriptor: RawFd) -> Result<(), Box<dyn Erro
         )
     } == -1
     {
-        return Err(format!("failed to pwrite DMA bit. Errno: {}", unsafe {
-            *libc::__errno_location()
-        })
+        return Err(format!(
+            "failed to pwrite DMA bit. Errno: {}",
+            std::io::Error::last_os_error()
+        )
         .into());
     }
     Ok(())
@@ -258,9 +302,10 @@ pub fn vfio_map_region(fd: RawFd, index: u32) -> Result<(*mut u8, usize), Box<dy
         )
     };
     if ptr == libc::MAP_FAILED {
-        return Err(format!("failed to mmap region. Errno: {}", unsafe {
-            *libc::__errno_location()
-        })
+        return Err(format!(
+            "failed to mmap region. Errno: {}",
+            std::io::Error::last_os_error()
+        )
         .into());
     }
     let addr = ptr as *mut u8;
