@@ -141,13 +141,13 @@ impl InterruptsQueue {
         if rc > 0 {
             /* epoll_wait has at least one fd ready to read */
             for event in events.iter().take(rc) {
-                let mut val: u16 = 0;
+                let mut val: u64 = 0;
                 // read event file descriptor to clear interrupt.
                 if unsafe {
                     libc::read(
                         event.data as i32,
                         &mut val as *mut _ as *mut libc::c_void,
-                        mem::size_of::<u16>(),
+                        mem::size_of::<u64>(),
                     )
                 } == -1
                 {
