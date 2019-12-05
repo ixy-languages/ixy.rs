@@ -1,7 +1,5 @@
 # ixy.rs
 [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-[![](https://tokei.rs/b1/github/ixy-languages/ixy.rs?category=code)](https://github.com/ixy-languages/ixy.rs)
-[![](https://tokei.rs/b1/github/ixy-languages/ixy.rs?category=comments)](https://github.com/ixy-languages/ixy.rs)
 
 ixy.rs is a Rust rewrite of the [ixy](https://github.com/emmericp/ixy) userspace network driver.
 It is designed to be readable, idiomatic Rust code.
