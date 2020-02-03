@@ -259,6 +259,14 @@ impl IxyDevice for Box<dyn IxyDevice> {
         (**self).get_pci_addr()
     }
 
+    fn get_mac_addr(&self) -> [u8; 6] {
+        (**self).get_mac_addr()
+    }
+
+    fn set_mac_addr(&self, addr: [u8; 6]) {
+        (**self).set_mac_addr(addr)
+    }
+
     fn rx_batch(
         &mut self,
         queue_id: u32,
@@ -282,13 +290,5 @@ impl IxyDevice for Box<dyn IxyDevice> {
 
     fn get_link_speed(&self) -> u16 {
         (**self).get_link_speed()
-    }
-
-    fn get_mac_addr(&self) -> [u8; 6] {
-        (**self).get_mac_addr()
-    }
-
-    fn set_mac_addr(&self, addr: [u8; 6]) {
-        (**self).set_mac_addr(addr)
     }
 }

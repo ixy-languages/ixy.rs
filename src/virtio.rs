@@ -450,10 +450,7 @@ impl VirtioDevice {
             "used ctrl buffer @ {:p} id {} len {}",
             &used, used.id, used.len
         );
-        assert!(
-            used.id == idx,
-            "used buffer has different index than the one sent"
-        );
+        assert_eq!(used.id, idx, "used buffer has different index than the one sent");
 
         // ensure that the command was correctly acknowledged
         let ack = unsafe { (*(buf.get_virt_addr() as *const VirtioNetCtrl<C>)).ack };

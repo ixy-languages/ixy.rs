@@ -114,7 +114,7 @@ pub fn main() {
 
 /// Calculates IPv4 header checksum
 fn calc_ipv4_checksum(ipv4_header: &[u8]) -> u16 {
-    assert!(ipv4_header.len() % 2 == 0);
+    assert_eq!(ipv4_header.len() % 2, 0);
     let mut checksum = 0;
     for i in 0..ipv4_header.len() / 2 {
         if i == 5 {
