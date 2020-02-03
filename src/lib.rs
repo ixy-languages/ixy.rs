@@ -72,7 +72,7 @@ pub trait IxyDevice {
     /// use ixy::memory::Packet;
     /// use std::collections::VecDeque;
     ///
-    /// let mut dev = ixy_init("0000:01:00.0", 1, 1).unwrap();
+    /// let mut dev = ixy_init("0000:01:00.0", 1, 1, 0).unwrap();
     /// let mut buf: VecDeque<Packet> = VecDeque::new();
     ///
     /// dev.rx_batch(0, &mut buf, 32);
@@ -94,7 +94,7 @@ pub trait IxyDevice {
     /// use ixy::memory::Packet;
     /// use std::collections::VecDeque;
     ///
-    /// let mut dev = ixy_init("0000:01:00.0", 1, 1).unwrap();
+    /// let mut dev = ixy_init("0000:01:00.0", 1, 1, 0).unwrap();
     /// let mut buf: VecDeque<Packet> = VecDeque::new();
     ///
     /// assert_eq!(dev.tx_batch(0, &mut buf), 0);
@@ -108,7 +108,7 @@ pub trait IxyDevice {
     /// ```rust,no_run
     /// use ixy::*;
     ///
-    /// let mut dev = ixy_init("0000:01:00.0", 1, 1).unwrap();
+    /// let mut dev = ixy_init("0000:01:00.0", 1, 1, 0).unwrap();
     /// let mut stats: DeviceStats = Default::default();
     ///
     /// dev.read_stats(&mut stats);
@@ -122,7 +122,7 @@ pub trait IxyDevice {
     /// ```rust,no_run
     /// use ixy::*;
     ///
-    /// let mut dev = ixy_init("0000:01:00.0", 1, 1).unwrap();
+    /// let mut dev = ixy_init("0000:01:00.0", 1, 1, 0).unwrap();
     /// dev.reset_stats();
     /// ```
     fn reset_stats(&mut self);
@@ -134,7 +134,7 @@ pub trait IxyDevice {
     /// ```rust,no_run
     /// use ixy::*;
     ///
-    /// let mut dev = ixy_init("0000:01:00.0", 1, 1).unwrap();
+    /// let mut dev = ixy_init("0000:01:00.0", 1, 1, 0).unwrap();
     /// println!("Link speed is {} Mbit/s", dev.get_link_speed());
     /// ```
     fn get_link_speed(&self) -> u16;
@@ -204,7 +204,8 @@ impl DeviceStats {
 
 /// Initializes the network card at `pci_addr`.
 ///
-/// `rx_queues` and `tx_queues` specify the number of queues that will be initialized and used.
+/// `rx_queues` and `tx_queues` specify the number of queues that will be initialized and used
+/// while `interrupt_timeout` enables interrupts if greater or less than zero.
 pub fn ixy_init(
     pci_addr: &str,
     rx_queues: u16,
