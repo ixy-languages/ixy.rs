@@ -9,6 +9,7 @@ Check out [my thesis](https://www.net.in.tum.de/fileadmin/bibtex/publications/th
 ## Features
 
 * driver for Intel NICs in the `ixgbe` family, i.e. the 82599ES family (aka Intel X520)
+* driver for paravirtualized virtio NICs
 * super fast, can forward > 26 million packets per second on a single 3.3 GHz CPU core
 * less than 2000 lines of Rust code for the driver and a packet forwarder
 * no kernel modules needed (except `vfio-pci` for the IOMMU)
