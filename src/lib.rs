@@ -191,9 +191,9 @@ impl DeviceStats {
         pkts_old: u64,
         nanos: u64,
     ) -> f64 {
-        (((bytes_new - bytes_old) as f64 / 1_000_000.0 / (nanos as f64 / 1_000_000_000.0))
+        ((bytes_new - bytes_old) as f64 / 1_000_000.0 / (nanos as f64 / 1_000_000_000.0))
             * f64::from(8)
-            + self.diff_mpps(pkts_new, pkts_old, nanos) * f64::from(20) * f64::from(8))
+            + self.diff_mpps(pkts_new, pkts_old, nanos) * f64::from(20) * f64::from(8)
     }
 
     /// Returns Mpps between two points in time.
