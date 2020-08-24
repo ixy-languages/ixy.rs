@@ -297,9 +297,9 @@ impl InterruptsQueue {
         Ok(())
     }
 
-    /// Calculate packets per microsecond based on the received number of packets and the
+    /// Calculate packets per millisecond based on the received number of packets and the
     /// elapsed time in `nanos` since the last calculation.
-    /// Returns the number of packets per microsecond.
+    /// Returns the number of packets per millisecond.
     pub fn ppms(&self, nanos: u64) -> u64 {
         self.rx_pkts / (nanos / 1_000_000)
     }
