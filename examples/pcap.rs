@@ -7,11 +7,12 @@ use std::{env, process};
 use byteorder::{WriteBytesExt, LE};
 use ixy::memory::Packet;
 use ixy::*;
+use simple_logger::SimpleLogger;
 
 const BATCH_SIZE: usize = 32;
 
 pub fn main() -> Result<(), io::Error> {
-    simple_logger::init().unwrap();
+    SimpleLogger::new().init().unwrap();
 
     let mut args = env::args().skip(1);
 

@@ -6,6 +6,7 @@ use std::time::Instant;
 use byteorder::{ByteOrder, LittleEndian};
 use ixy::memory::{alloc_pkt_batch, Mempool, Packet};
 use ixy::*;
+use simple_logger::SimpleLogger;
 
 // number of packets sent simultaneously by our driver
 const BATCH_SIZE: usize = 32;
@@ -15,7 +16,7 @@ const NUM_PACKETS: usize = 2048;
 const PACKET_SIZE: usize = 60;
 
 pub fn main() {
-    simple_logger::init().unwrap();
+    SimpleLogger::new().init().unwrap();
 
     let mut args = env::args();
     args.next();
