@@ -37,6 +37,10 @@ pub const VFIO_PCI_MSI_IRQ_INDEX: u64 = 1;
 pub const VFIO_PCI_MSIX_IRQ_INDEX: u64 = 2;
 pub const VFIO_IRQ_INFO_EVENTFD: u32 = 1;
 
+// constants to determine IOMMU (guest) address width
+const VTD_CAP_MGAW_SHIFT: u8 = 16;
+const VTD_CAP_MGAW_MASK: u64 = 0x3f << VTD_CAP_MGAW_SHIFT;
+
 /// struct vfio_iommu_type1_dma_map, grabbed from linux/vfio.h
 #[allow(non_camel_case_types)]
 #[repr(C)]
@@ -107,6 +111,18 @@ pub fn vfio_init(pci_addr: &str) -> Result<RawFd, Box<dyn Error>> {
     let dfd: RawFd;
     let group_file: File;
     let gfd: RawFd;
+
+    // check supported address width
+    let gaw = vfio_get_iommu_gaw(pci_addr);
+
+    if gaw < 47 {
+        // Virtual addresses on x86 have at least 47 bits, see
+        // https://www.kernel.org/doc/Documentation/x86/x86_64/mm.txt
+        return Err(
+            "IOMMU address width not sufficient for VA as IOVA mode (i.e. less than 47 bits)"
+                .into(),
+        );
+    }
 
     // we also have to build this vfio struct...
     let mut group_status: vfio_group_status = vfio_group_status {
@@ -329,4 +345,19 @@ pub fn vfio_map_dma(ptr: usize, size: usize) -> Result<usize, Box<dyn Error>> {
     } else {
         Err("failed to map the DMA memory - ulimit set for this user?".into())
     }
+}
+
+/// Returns the IOMMU's guest address width.
+pub fn vfio_get_iommu_gaw(pci_addr: &str) -> u8 {
+    let iommu_cap = fs::read_to_string(format!(
+        "/sys/bus/pci/devices/{}/iommu/intel-iommu/cap",
+        pci_addr
+    )).expect("failed to read IOMMU capabilities");
+
+    let iommu_cap = u64::from_str_radix(&iommu_cap.trim(), 16)
+        .expect("failed to convert IOMMU capabilities hex string to u64");
+
+    let mgaw = ((iommu_cap & VTD_CAP_MGAW_MASK) >> VTD_CAP_MGAW_SHIFT) + 1;
+
+    mgaw as u8
 }
