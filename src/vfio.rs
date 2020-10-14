@@ -176,12 +176,11 @@ pub fn vfio_init(pci_addr: &str) -> Result<RawFd, Box<dyn Error>> {
 
     // Test the group is viable and available
     if unsafe { libc::ioctl(gfd, VFIO_GROUP_GET_STATUS, &mut group_status) } == -1 {
-        return Err(
-            format!("failed to VFIO_GROUP_GET_STATUS. Errno: {}", unsafe {
-                *libc::__errno_location()
-            })
-            .into(),
-        );
+        return Err(format!(
+            "failed to VFIO_GROUP_GET_STATUS. Errno: {}",
+            std::io::Error::last_os_error()
+        )
+        .into());
     }
     if (group_status.flags & VFIO_GROUP_FLAGS_VIABLE) != 1 {
         return Err(
@@ -297,12 +296,11 @@ pub fn vfio_map_region(fd: RawFd, index: u32) -> Result<(*mut u8, usize), Box<dy
         offset: 0,
     };
     if unsafe { libc::ioctl(fd, VFIO_DEVICE_GET_REGION_INFO, &mut region_info) } == -1 {
-        return Err(
-            format!("failed to VFIO_DEVICE_GET_REGION_INFO. Errno: {}", unsafe {
-                *libc::__errno_location()
-            })
-            .into(),
-        );
+        return Err(format!(
+            "failed to VFIO_DEVICE_GET_REGION_INFO. Errno: {}",
+            std::io::Error::last_os_error()
+        )
+        .into());
     }
 
     let len = region_info.size as usize;
