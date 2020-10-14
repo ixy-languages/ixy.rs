@@ -343,7 +343,11 @@ pub fn vfio_map_dma(ptr: usize, size: usize) -> Result<usize, Box<dyn Error>> {
     if ioctl_result != -1 {
         Ok(iommu_dma_map.iova as usize)
     } else {
-        Err("failed to map the DMA memory - ulimit set for this user?".into())
+        Err(format!(
+            "failed to map the DMA memory (ulimit set?). Errno: {}",
+            std::io::Error::last_os_error()
+        )
+        .into())
     }
 }
 
