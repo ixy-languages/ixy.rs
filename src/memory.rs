@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::error::Error;
 use std::fmt::{self, Debug};
 use std::io::{self, Read, Seek};
@@ -7,9 +7,12 @@ use std::ops::{Deref, DerefMut};
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Mutex;
 use std::{fs, mem, process, ptr, slice};
 
 use crate::vfio::vfio_map_dma;
+
+use lazy_static::lazy_static;
 
 const HUGE_PAGE_BITS: u32 = 21;
 const HUGE_PAGE_SIZE: usize = 1 << HUGE_PAGE_BITS;
@@ -24,6 +27,11 @@ static HUGEPAGE_ID: AtomicUsize = AtomicUsize::new(0);
 // other NICs memory, especially the mempool. When not using the IOMMU / VFIO,
 // this variable is unused.
 pub(crate) static mut VFIO_CONTAINER_FILE_DESCRIPTOR: RawFd = -1;
+
+lazy_static! {
+    pub(crate) static ref VFIO_GROUP_FILE_DESCRIPTORS: Mutex<HashMap<i32, RawFd>> =
+        Mutex::new(HashMap::new());
+}
 
 pub struct Dma<T> {
     pub virt: *mut T,
@@ -44,12 +52,18 @@ impl<T> Dma<T> {
         if get_vfio_container() != -1 {
             debug!("allocating dma memory via VFIO");
 
+            let id = HUGEPAGE_ID.fetch_add(size, Ordering::SeqCst);
+
             let ptr = unsafe {
                 libc::mmap(
-                    ptr::null_mut(),
+                    id as *mut libc::c_void,
                     size,
                     libc::PROT_READ | libc::PROT_WRITE,
-                    libc::MAP_SHARED | libc::MAP_ANONYMOUS | libc::MAP_HUGETLB | MAP_HUGE_2MB,
+                    libc::MAP_SHARED
+                        | libc::MAP_ANONYMOUS
+                        | libc::MAP_HUGETLB
+                        | MAP_HUGE_2MB
+                        | libc::MAP_FIXED,
                     -1,
                     0,
                 )

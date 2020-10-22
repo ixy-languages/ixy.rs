@@ -1,11 +1,13 @@
+#![allow(dead_code)]
+
 use std::error::Error;
 use std::fs;
 use std::fs::{File, OpenOptions};
 use std::mem;
-use std::os::unix::io::{AsRawFd, IntoRawFd, RawFd};
+use std::os::unix::io::{IntoRawFd, RawFd};
 use std::ptr;
 
-use crate::memory::{get_vfio_container, set_vfio_container};
+use crate::memory::{get_vfio_container, set_vfio_container, VFIO_GROUP_FILE_DESCRIPTORS};
 use crate::pci::{BUS_MASTER_ENABLE_BIT, COMMAND_REGISTER_OFFSET};
 
 // constants needed for IOMMU. Grabbed from linux/vfio.h
@@ -112,6 +114,7 @@ pub fn vfio_init(pci_addr: &str) -> Result<RawFd, Box<dyn Error>> {
     let group_file: File;
     let gfd: RawFd;
 
+    /*
     // check supported address width
     let gaw = vfio_get_iommu_gaw(pci_addr);
 
@@ -123,6 +126,7 @@ pub fn vfio_init(pci_addr: &str) -> Result<RawFd, Box<dyn Error>> {
                 .into(),
         );
     }
+    */
 
     // we also have to build this vfio struct...
     let mut group_status: vfio_group_status = vfio_group_status {
@@ -166,35 +170,43 @@ pub fn vfio_init(pci_addr: &str) -> Result<RawFd, Box<dyn Error>> {
         .parse::<i32>()
         .unwrap();
 
-    // open the devices' group
-    group_file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .open(format!("/dev/vfio/{}", group))
-        .unwrap();
-    gfd = group_file.as_raw_fd();
+    let mut vfio_gfds = VFIO_GROUP_FILE_DESCRIPTORS.lock().unwrap();
 
-    // Test the group is viable and available
-    if unsafe { libc::ioctl(gfd, VFIO_GROUP_GET_STATUS, &mut group_status) } == -1 {
-        return Err(format!(
-            "failed to VFIO_GROUP_GET_STATUS. Errno: {}",
-            std::io::Error::last_os_error()
-        )
-        .into());
-    }
-    if (group_status.flags & VFIO_GROUP_FLAGS_VIABLE) != 1 {
-        return Err(
-            "group is not viable (ie, not all devices in this group are bound to vfio)".into(),
-        );
-    }
+    if !vfio_gfds.contains_key(&group) {
+        // open the devices' group
+        group_file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(format!("/dev/vfio/{}", group))
+            .unwrap();
+        gfd = group_file.into_raw_fd();
 
-    // Add the group to the container
-    if unsafe { libc::ioctl(gfd, VFIO_GROUP_SET_CONTAINER, &cfd) } == -1 {
-        return Err(format!(
-            "failed to VFIO_GROUP_SET_CONTAINER. Errno: {}",
-            std::io::Error::last_os_error()
-        )
-        .into());
+        // Test the group is viable and available
+        if unsafe { libc::ioctl(gfd, VFIO_GROUP_GET_STATUS, &mut group_status) } == -1 {
+            return Err(format!(
+                "failed to VFIO_GROUP_GET_STATUS. Errno: {}",
+                std::io::Error::last_os_error()
+            )
+            .into());
+        }
+        if (group_status.flags & VFIO_GROUP_FLAGS_VIABLE) != 1 {
+            return Err(
+                "group is not viable (ie, not all devices in this group are bound to vfio)".into(),
+            );
+        }
+
+        // Add the group to the container
+        if unsafe { libc::ioctl(gfd, VFIO_GROUP_SET_CONTAINER, &cfd) } == -1 {
+            return Err(format!(
+                "failed to VFIO_GROUP_SET_CONTAINER. Errno: {}",
+                std::io::Error::last_os_error()
+            )
+            .into());
+        }
+
+        vfio_gfds.insert(group, gfd);
+    } else {
+        gfd = *vfio_gfds.get(&group).unwrap();
     }
 
     if first_time_setup {
