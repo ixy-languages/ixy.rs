@@ -66,13 +66,13 @@ impl<T> Dma<T> {
                 )
             };
 
-            // We calculate the 2MB-aligned address by rounding up
+            // calculate the 2MB-aligned address by rounding up
             let aligned_addr = ((addr as isize + HUGE_PAGE_SIZE as isize - 1)
                 & -(HUGE_PAGE_SIZE as isize)) as *mut libc::c_void;
 
-            // We free unneeded pages (i.e. the additionally mapped 2MB)
             let free_chunk_size = aligned_addr as usize - addr as usize;
 
+            // free unneeded pages (i.e. the additionally mapped 2MB)
             unsafe {
                 libc::munmap(
                     aligned_addr.offset(-(free_chunk_size as isize)),
@@ -81,6 +81,7 @@ impl<T> Dma<T> {
                 libc::munmap(aligned_addr.add(size), HUGE_PAGE_SIZE - free_chunk_size);
             }
 
+            // finally map huge pages at the 2MB-aligned 32-bit address
             let ptr = unsafe {
                 libc::mmap(
                     aligned_addr as *mut libc::c_void,
@@ -99,7 +100,7 @@ impl<T> Dma<T> {
             // This is the main IOMMU work: IOMMU DMA MAP the memory...
             if ptr == libc::MAP_FAILED {
                 Err(format!(
-                    "failed to memory map. Errno: {}",
+                    "failed to memory map DMA-memory. Errno: {}",
                     std::io::Error::last_os_error()
                 )
                 .into())
