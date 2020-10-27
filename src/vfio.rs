@@ -7,7 +7,9 @@ use std::mem;
 use std::os::unix::io::{IntoRawFd, RawFd};
 use std::ptr;
 
-use crate::memory::{get_vfio_container, set_vfio_container, VFIO_GROUP_FILE_DESCRIPTORS};
+use crate::memory::{
+    get_vfio_container, set_vfio_container, IOVA_WIDTH, VFIO_GROUP_FILE_DESCRIPTORS,
+};
 use crate::pci::{BUS_MASTER_ENABLE_BIT, COMMAND_REGISTER_OFFSET};
 
 // constants needed for IOMMU. Grabbed from linux/vfio.h
@@ -114,19 +116,11 @@ pub fn vfio_init(pci_addr: &str) -> Result<RawFd, Box<dyn Error>> {
     let group_file: File;
     let gfd: RawFd;
 
-    /*
-    // check supported address width
     let gaw = vfio_get_iommu_gaw(pci_addr);
 
-    if gaw < 47 {
-        // Virtual addresses on x86 have at least 47 bits, see
-        // https://www.kernel.org/doc/Documentation/x86/x86_64/mm.txt
-        return Err(
-            "IOMMU address width not sufficient for VA as IOVA mode (i.e. less than 47 bits)"
-                .into(),
-        );
+    if IOVA_WIDTH < gaw {
+        warn!("IOMMU supports only {} wide IOVAs, change IOVA_WIDTH in src/memory.rs if DMA mapping fails", gaw);
     }
-    */
 
     // we also have to build this vfio struct...
     let mut group_status: vfio_group_status = vfio_group_status {
