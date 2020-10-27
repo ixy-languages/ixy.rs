@@ -119,7 +119,7 @@ pub fn vfio_init(pci_addr: &str) -> Result<RawFd, Box<dyn Error>> {
     let gaw = vfio_get_iommu_gaw(pci_addr);
 
     if gaw < IOVA_WIDTH {
-        warn!("IOMMU supports only {} bit wide IOVAs, change IOVA_WIDTH in src/memory.rs if DMA mapping fails!", gaw);
+        warn!("IOMMU supports only {} bit wide IOVAs, change IOVA_WIDTH in src/memory.rs if DMA mappings fail!", gaw);
     }
 
     // we also have to build this vfio struct...
@@ -360,7 +360,8 @@ pub fn vfio_get_iommu_gaw(pci_addr: &str) -> u8 {
     let iommu_cap = fs::read_to_string(format!(
         "/sys/bus/pci/devices/{}/iommu/intel-iommu/cap",
         pci_addr
-    )).expect("failed to read IOMMU capabilities");
+    ))
+    .expect("failed to read IOMMU capabilities");
 
     let iommu_cap = u64::from_str_radix(&iommu_cap.trim(), 16)
         .expect("failed to convert IOMMU capabilities hex string to u64");
