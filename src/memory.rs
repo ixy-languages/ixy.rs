@@ -52,11 +52,38 @@ impl<T> Dma<T> {
         if get_vfio_container() != -1 {
             debug!("allocating dma memory via VFIO");
 
-            let id = HUGEPAGE_ID.fetch_add(size, Ordering::SeqCst);
+            // We need a 2MB-aligned 32-bit address for our huge page mmap() call.
+            // First we map the needed size + 2MB to get a mapping containing the
+            // 2MB-aligned address.
+            let addr = unsafe {
+                libc::mmap(
+                    ptr::null_mut(),
+                    size + HUGE_PAGE_SIZE,
+                    libc::PROT_READ | libc::PROT_WRITE,
+                    libc::MAP_PRIVATE | libc::MAP_ANONYMOUS | libc::MAP_32BIT,
+                    -1,
+                    0,
+                )
+            };
+
+            // We calculate the 2MB-aligned address by rounding up
+            let aligned_addr = ((addr as isize + HUGE_PAGE_SIZE as isize - 1)
+                & -(HUGE_PAGE_SIZE as isize)) as *mut libc::c_void;
+
+            // We free unneeded pages (i.e. the additionally mapped 2MB)
+            let free_chunk_size = aligned_addr as usize - addr as usize;
+
+            unsafe {
+                libc::munmap(
+                    aligned_addr.offset(-(free_chunk_size as isize)),
+                    free_chunk_size,
+                );
+                libc::munmap(aligned_addr.add(size), HUGE_PAGE_SIZE - free_chunk_size);
+            }
 
             let ptr = unsafe {
                 libc::mmap(
-                    id as *mut libc::c_void,
+                    aligned_addr as *mut libc::c_void,
                     size,
                     libc::PROT_READ | libc::PROT_WRITE,
                     libc::MAP_SHARED
@@ -71,7 +98,11 @@ impl<T> Dma<T> {
 
             // This is the main IOMMU work: IOMMU DMA MAP the memory...
             if ptr == libc::MAP_FAILED {
-                Err("failed to memory map ".into())
+                Err(format!(
+                    "failed to memory map. Errno: {}",
+                    std::io::Error::last_os_error()
+                )
+                .into())
             } else {
                 let iova = vfio_map_dma(ptr as usize, size)?;
 
