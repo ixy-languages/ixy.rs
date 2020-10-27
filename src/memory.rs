@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::error::Error;
 use std::fmt::{self, Debug};
 use std::io::{self, Read, Seek};
@@ -7,12 +7,20 @@ use std::ops::{Deref, DerefMut};
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Mutex;
 use std::{fs, mem, process, ptr, slice};
 
 use crate::vfio::vfio_map_dma;
 
+use lazy_static::lazy_static;
+
+// from https://www.kernel.org/doc/Documentation/x86/x86_64/mm.txt
+const X86_VA_WIDTH: u8 = 47;
+
 const HUGE_PAGE_BITS: u32 = 21;
 const HUGE_PAGE_SIZE: usize = 1 << HUGE_PAGE_BITS;
+
+pub const IOVA_WIDTH: u8 = X86_VA_WIDTH;
 
 // this differs from upstream ixy as our packet metadata is stored outside of the actual packet data
 // which results in a different alignment requirement
@@ -24,6 +32,11 @@ static HUGEPAGE_ID: AtomicUsize = AtomicUsize::new(0);
 // other NICs memory, especially the mempool. When not using the IOMMU / VFIO,
 // this variable is unused.
 pub(crate) static mut VFIO_CONTAINER_FILE_DESCRIPTOR: RawFd = -1;
+
+lazy_static! {
+    pub(crate) static ref VFIO_GROUP_FILE_DESCRIPTORS: Mutex<HashMap<i32, RawFd>> =
+        Mutex::new(HashMap::new());
+}
 
 pub struct Dma<T> {
     pub virt: *mut T,
@@ -44,20 +57,73 @@ impl<T> Dma<T> {
         if get_vfio_container() != -1 {
             debug!("allocating dma memory via VFIO");
 
-            let ptr = unsafe {
-                libc::mmap(
-                    ptr::null_mut(),
-                    size,
-                    libc::PROT_READ | libc::PROT_WRITE,
-                    libc::MAP_SHARED | libc::MAP_ANONYMOUS | libc::MAP_HUGETLB | MAP_HUGE_2MB,
-                    -1,
-                    0,
-                )
+            let ptr = if IOVA_WIDTH < X86_VA_WIDTH {
+                // To support IOMMUs capable of 39 bit wide IOVAs only, we use
+                // 32 bit addresses. Since mmap() ignores libc::MAP_32BIT when
+                // using libc::MAP_HUGETLB, we create a 32 bit address with the
+                // right alignment (huge page size, e.g. 2 MB) on our own.
+
+                // first allocate memory of size (needed size + 1 huge page) to
+                // get a mapping containing the huge page size aligned address
+                let addr = unsafe {
+                    libc::mmap(
+                        ptr::null_mut(),
+                        size + HUGE_PAGE_SIZE,
+                        libc::PROT_READ | libc::PROT_WRITE,
+                        libc::MAP_PRIVATE | libc::MAP_ANONYMOUS | libc::MAP_32BIT,
+                        -1,
+                        0,
+                    )
+                };
+
+                // calculate the huge page size aligned address by rounding up
+                let aligned_addr = ((addr as isize + HUGE_PAGE_SIZE as isize - 1)
+                    & -(HUGE_PAGE_SIZE as isize))
+                    as *mut libc::c_void;
+
+                let free_chunk_size = aligned_addr as usize - addr as usize;
+
+                // free unneeded pages (i.e. all chunks of the additionally mapped huge page)
+                unsafe {
+                    libc::munmap(addr, free_chunk_size);
+                    libc::munmap(aligned_addr.add(size), HUGE_PAGE_SIZE - free_chunk_size);
+                }
+
+                // finally map huge pages at the huge page size aligned 32 bit address
+                unsafe {
+                    libc::mmap(
+                        aligned_addr as *mut libc::c_void,
+                        size,
+                        libc::PROT_READ | libc::PROT_WRITE,
+                        libc::MAP_SHARED
+                            | libc::MAP_ANONYMOUS
+                            | libc::MAP_HUGETLB
+                            | MAP_HUGE_2MB
+                            | libc::MAP_FIXED,
+                        -1,
+                        0,
+                    )
+                }
+            } else {
+                unsafe {
+                    libc::mmap(
+                        ptr::null_mut(),
+                        size,
+                        libc::PROT_READ | libc::PROT_WRITE,
+                        libc::MAP_SHARED | libc::MAP_ANONYMOUS | libc::MAP_HUGETLB | MAP_HUGE_2MB,
+                        -1,
+                        0,
+                    )
+                }
             };
 
             // This is the main IOMMU work: IOMMU DMA MAP the memory...
             if ptr == libc::MAP_FAILED {
-                Err("failed to memory map ".into())
+                Err(format!(
+                    "failed to memory map DMA-memory. Errno: {}",
+                    std::io::Error::last_os_error()
+                )
+                .into())
             } else {
                 let iova = vfio_map_dma(ptr as usize, size)?;
 
