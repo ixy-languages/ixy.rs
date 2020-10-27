@@ -74,10 +74,7 @@ impl<T> Dma<T> {
 
             // free unneeded pages (i.e. the additionally mapped 2MB)
             unsafe {
-                libc::munmap(
-                    aligned_addr.offset(-(free_chunk_size as isize)),
-                    free_chunk_size,
-                );
+                libc::munmap(addr, free_chunk_size);
                 libc::munmap(aligned_addr.add(size), HUGE_PAGE_SIZE - free_chunk_size);
             }
 
