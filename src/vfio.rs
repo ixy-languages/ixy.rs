@@ -118,8 +118,8 @@ pub fn vfio_init(pci_addr: &str) -> Result<RawFd, Box<dyn Error>> {
 
     let gaw = vfio_get_iommu_gaw(pci_addr);
 
-    if IOVA_WIDTH < gaw {
-        warn!("IOMMU supports only {} wide IOVAs, change IOVA_WIDTH in src/memory.rs if DMA mapping fails", gaw);
+    if gaw < IOVA_WIDTH {
+        warn!("IOMMU supports only {} bit wide IOVAs, change IOVA_WIDTH in src/memory.rs if DMA mapping fails!", gaw);
     }
 
     // we also have to build this vfio struct...
