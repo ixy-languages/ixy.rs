@@ -52,9 +52,13 @@ impl<T> Dma<T> {
         if get_vfio_container() != -1 {
             debug!("allocating dma memory via VFIO");
 
-            // We need a 2MB-aligned 32-bit address for our huge page mmap() call.
-            // First we map the needed size + 2MB to get a mapping containing the
-            // 2MB-aligned address.
+            // To support IOMMUs capable of 39 bit wide IOVAs only, we use
+            // 32 bit addresses. Since mmap() ignores libc::MAP_32BIT when
+            // using libc::MAP_HUGETLB, we create a 32 bit address with the
+            // right alignment (huge page size, e.g. 2 MB) on our own.
+
+            // first allocate memory of size (needed size + 1 huge page) to
+            // get a mapping containing the huge page size aligned address
             let addr = unsafe {
                 libc::mmap(
                     ptr::null_mut(),
@@ -66,19 +70,19 @@ impl<T> Dma<T> {
                 )
             };
 
-            // calculate the 2MB-aligned address by rounding up
+            // calculate the huge page size aligned address by rounding up
             let aligned_addr = ((addr as isize + HUGE_PAGE_SIZE as isize - 1)
                 & -(HUGE_PAGE_SIZE as isize)) as *mut libc::c_void;
 
             let free_chunk_size = aligned_addr as usize - addr as usize;
 
-            // free unneeded pages (i.e. the additionally mapped 2MB)
+            // free unneeded pages (i.e. all chunks of the additionally mapped huge page)
             unsafe {
                 libc::munmap(addr, free_chunk_size);
                 libc::munmap(aligned_addr.add(size), HUGE_PAGE_SIZE - free_chunk_size);
             }
 
-            // finally map huge pages at the 2MB-aligned 32-bit address
+            // finally map huge pages at the huge page size aligned 32 bit address
             let ptr = unsafe {
                 libc::mmap(
                     aligned_addr as *mut libc::c_void,
