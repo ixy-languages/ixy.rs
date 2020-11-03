@@ -5,6 +5,7 @@ use std::fs;
 use std::fs::{File, OpenOptions};
 use std::mem;
 use std::os::unix::io::{IntoRawFd, RawFd};
+use std::path::Path;
 use std::ptr;
 
 use crate::memory::{
@@ -116,10 +117,14 @@ pub fn vfio_init(pci_addr: &str) -> Result<RawFd, Box<dyn Error>> {
     let group_file: File;
     let gfd: RawFd;
 
-    let gaw = vfio_get_iommu_gaw(pci_addr);
+    if vfio_is_intel_iommu(pci_addr) {
+        let mgaw = vfio_get_intel_iommu_gaw(pci_addr);
 
-    if gaw < IOVA_WIDTH {
-        warn!("IOMMU supports only {} bit wide IOVAs, change IOVA_WIDTH in src/memory.rs if DMA mappings fail!", gaw);
+        if mgaw < IOVA_WIDTH {
+            warn!("IOMMU supports only {} bit wide IOVAs, reduce IOVA_WIDTH in src/memory.rs if DMA mappings fail!", mgaw);
+        }
+    } else {
+        info!("Cannot determine IOVA width on non-Intel IOMMU, reduce IOVA_WIDTH in src/memory.rs if DMA mappings fail!");
     }
 
     // we also have to build this vfio struct...
@@ -355,8 +360,17 @@ pub fn vfio_map_dma(ptr: usize, size: usize) -> Result<usize, Box<dyn Error>> {
     }
 }
 
+/// Checks if the IOMMU is from Intel.
+pub fn vfio_is_intel_iommu(pci_addr: &str) -> bool {
+    Path::new(&format!(
+        "/sys/bus/pci/devices/{}/iommu/intel-iommu",
+        pci_addr
+    ))
+    .exists()
+}
+
 /// Returns the IOMMU's guest address width.
-pub fn vfio_get_iommu_gaw(pci_addr: &str) -> u8 {
+pub fn vfio_get_intel_iommu_gaw(pci_addr: &str) -> u8 {
     let iommu_cap = fs::read_to_string(format!(
         "/sys/bus/pci/devices/{}/iommu/intel-iommu/cap",
         pci_addr
