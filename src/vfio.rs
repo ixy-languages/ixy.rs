@@ -11,7 +11,7 @@ use std::ptr;
 use crate::memory::{
     get_vfio_container, set_vfio_container, IOVA_WIDTH, VFIO_GROUP_FILE_DESCRIPTORS,
 };
-use crate::pci::{BUS_MASTER_ENABLE_BIT, COMMAND_REGISTER_OFFSET};
+use crate::pci::{pci_open_resource_ro, read_hex, BUS_MASTER_ENABLE_BIT, COMMAND_REGISTER_OFFSET};
 
 // constants needed for IOMMU. Grabbed from linux/vfio.h
 pub const VFIO_GET_API_VERSION: u64 = 15204;
@@ -371,13 +371,10 @@ pub fn vfio_is_intel_iommu(pci_addr: &str) -> bool {
 
 /// Returns the IOMMU's guest address width.
 pub fn vfio_get_intel_iommu_gaw(pci_addr: &str) -> u8 {
-    let iommu_cap = fs::read_to_string(format!(
-        "/sys/bus/pci/devices/{}/iommu/intel-iommu/cap",
-        pci_addr
-    ))
-    .expect("failed to read IOMMU capabilities");
+    let mut iommu_cap_file = pci_open_resource_ro(pci_addr, "iommu/intel-iommu/cap")
+        .expect("failed to read IOMMU capabilities");
 
-    let iommu_cap = u64::from_str_radix(&iommu_cap.trim(), 16)
+    let iommu_cap = read_hex(&mut iommu_cap_file)
         .expect("failed to convert IOMMU capabilities hex string to u64");
 
     let mgaw = ((iommu_cap & VTD_CAP_MGAW_MASK) >> VTD_CAP_MGAW_SHIFT) + 1;

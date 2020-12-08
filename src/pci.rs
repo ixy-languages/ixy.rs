@@ -1,6 +1,6 @@
 use std::error::Error;
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, Seek, SeekFrom, Write};
+use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::os::unix::prelude::AsRawFd;
 use std::ptr;
 
@@ -71,6 +71,12 @@ pub fn pci_open_resource(pci_addr: &str, resource: &str) -> Result<File, Box<dyn
     Ok(OpenOptions::new().read(true).write(true).open(path)?)
 }
 
+/// Opens a pci resource file at the given address in read-only mode.
+pub fn pci_open_resource_ro(pci_addr: &str, resource: &str) -> Result<File, Box<dyn Error>> {
+    let path = format!("/sys/bus/pci/devices/{}/{}", pci_addr, resource);
+    Ok(OpenOptions::new().read(true).write(false).open(path)?)
+}
+
 /// Reads and returns an u8 at `offset` in `file`.
 pub fn read_io8(file: &mut File, offset: u64) -> Result<u8, io::Error> {
     file.seek(SeekFrom::Start(offset))?;
@@ -105,4 +111,15 @@ pub fn write_io16(file: &mut File, value: u16, offset: u64) -> Result<(), io::Er
 pub fn write_io32(file: &mut File, value: u32, offset: u64) -> Result<(), io::Error> {
     file.seek(SeekFrom::Start(offset))?;
     file.write_u32::<NativeEndian>(value)
+}
+
+/// Reads a hex string from `file` and returns it as `u64`.
+pub fn read_hex(file: &mut File) -> Result<u64, Box<dyn Error>> {
+    let mut buffer = String::new();
+    file.read_to_string(&mut buffer)?;
+
+    Ok(u64::from_str_radix(
+        &buffer.trim().trim_start_matches("0x"),
+        16,
+    )?)
 }
