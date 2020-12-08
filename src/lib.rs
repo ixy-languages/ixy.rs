@@ -212,10 +212,12 @@ pub fn ixy_init(
     tx_queues: u16,
     interrupt_timeout: i16,
 ) -> Result<Box<dyn IxyDevice>, Box<dyn Error>> {
-    let mut config_file = pci_open_resource(pci_addr, "config").expect("wrong pci address");
+    let mut vendor_file = pci_open_resource_ro(pci_addr, "vendor").expect("wrong pci address");
+    let mut device_file = pci_open_resource_ro(pci_addr, "device").expect("wrong pci address");
+    let mut config_file = pci_open_resource_ro(pci_addr, "config").expect("wrong pci address");
 
-    let vendor_id = read_io16(&mut config_file, 0)?;
-    let device_id = read_io16(&mut config_file, 2)?;
+    let vendor_id = read_hex(&mut vendor_file)?;
+    let device_id = read_hex(&mut device_file)?;
     let class_id = read_io32(&mut config_file, 8)? >> 24;
 
     if class_id != 2 {
