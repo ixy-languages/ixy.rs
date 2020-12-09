@@ -4,11 +4,11 @@
 #![allow(non_upper_case_globals)]
 #![allow(clippy::all)]
 // list of all NIC registers and some structs
-// copied and changed from the ixy C driver
+// copied and changed from the ixy C driver and DPDK
 
 /*******************************************************************************
 
-Copyright (c) 2001-2015, Intel Corporation
+Copyright (c) 2001-2020, Intel Corporation
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -4185,3 +4185,206 @@ pub const IXGBE_NW_MNG_IF_SEL_SGMII_ENABLE: u32                        = 1 << 25
 pub const IXGBE_NW_MNG_IF_SEL_INT_PHY_MODE: u32                        = 1 << 24; /* X552 reg field only */
 pub const IXGBE_NW_MNG_IF_SEL_MDIO_PHY_ADD_SHIFT: u32                  = 3;
 pub const IXGBE_NW_MNG_IF_SEL_MDIO_PHY_ADD: u32                        = 0x1F << IXGBE_NW_MNG_IF_SEL_MDIO_PHY_ADD_SHIFT;
+
+// Constants and functions for ixgbevf
+
+pub const IXGBE_VF_IRQ_CLEAR_MASK: u32                                 = 7;
+pub const IXGBE_VF_MAX_TX_QUEUES: u32                                  = 8;
+pub const IXGBE_VF_MAX_RX_QUEUES: u32                                  = 8;
+
+/* DCB define */
+pub const IXGBE_VF_MAX_TRAFFIC_CLASS: u32                              = 8;
+
+pub const IXGBE_VFCTRL: u32                                            = 0x00000;
+pub const IXGBE_VFSTATUS: u32                                          = 0x00008;
+pub const IXGBE_VFLINKS: u32                                           = 0x00010;
+pub const IXGBE_VFFRTIMER: u32                                         = 0x00048;
+pub const IXGBE_VFRXMEMWRAP: u32                                       = 0x03190;
+pub const IXGBE_VTEICR: u32                                            = 0x00100;
+pub const IXGBE_VTEICS: u32                                            = 0x00104;
+pub const IXGBE_VTEIMS: u32                                            = 0x00108;
+pub const IXGBE_VTEIMC: u32                                            = 0x0010C;
+pub const IXGBE_VTEIAC: u32                                            = 0x00110;
+pub const IXGBE_VTEIAM: u32                                            = 0x00114;
+
+pub fn IXGBE_VTEITR(x: u32) -> u32 { 0x00820 + 4 * x }
+pub fn IXGBE_VTIVAR(x: u32) -> u32 { 0x00120 + 4 * x }
+pub const IXGBE_VTIVAR_MISC: u32                                       = 0x00140;
+pub fn IXGBE_VTRSCINT(x: u32) -> u32 { 0x00180 + 4 * x }
+/* define IXGBE_VFPBACL  still says TBD in EAS */
+pub fn IXGBE_VFRDBAL(x: u32) -> u32 { 0x01000 + 0x40 * x }
+pub fn IXGBE_VFRDBAH(x: u32) -> u32 { 0x01004 + 0x40 * x }
+pub fn IXGBE_VFRDLEN(x: u32) -> u32 { 0x01008 + 0x40 * x }
+pub fn IXGBE_VFRDH(x: u32) -> u32 { 0x01010 + 0x40 * x }
+pub fn IXGBE_VFRDT(x: u32) -> u32 { 0x01018 + 0x40 * x }
+pub fn IXGBE_VFRXDCTL(x: u32) -> u32 { 0x01028 + 0x40 * x }
+pub fn IXGBE_VFSRRCTL(x: u32) -> u32 { 0x01014 + 0x40 * x }
+pub fn IXGBE_VFRSCCTL(x: u32) -> u32 { 0x0102C + 0x40 * x }
+pub const IXGBE_VFPSRTYPE: u32                                         = 0x00300;
+pub fn IXGBE_VFTDBAL(x: u32) -> u32 { 0x02000 + 0x40 * x }
+pub fn IXGBE_VFTDBAH(x: u32) -> u32 { 0x02004 + 0x40 * x }
+pub fn IXGBE_VFTDLEN(x: u32) -> u32 { 0x02008 + 0x40 * x }
+pub fn IXGBE_VFTDH(x: u32) -> u32 { 0x02010 + 0x40 * x }
+pub fn IXGBE_VFTDT(x: u32) -> u32 { 0x02018 + 0x40 * x }
+pub fn IXGBE_VFTXDCTL(x: u32) -> u32 { 0x02028 + 0x40 * x }
+pub fn IXGBE_VFTDWBAL(x: u32) -> u32 { 0x02038 + 0x40 * x }
+pub fn IXGBE_VFTDWBAH(x: u32) -> u32 { 0x0203C + 0x40 * x }
+pub fn IXGBE_VFDCA_RXCTRL(x: u32) -> u32 { 0x0100C + 0x40 * x }
+pub fn IXGBE_VFDCA_TXCTRL(x: u32) -> u32 { 0x0200c + 0x40 * x }
+pub const IXGBE_VFGPRC: u32                                            = 0x0101C;
+pub const IXGBE_VFGPTC: u32                                            = 0x0201C;
+pub const IXGBE_VFGORC_LSB: u32                                        = 0x01020;
+pub const IXGBE_VFGORC_MSB: u32                                        = 0x01024;
+pub const IXGBE_VFGOTC_LSB: u32                                        = 0x02020;
+pub const IXGBE_VFGOTC_MSB: u32                                        = 0x02024;
+pub const IXGBE_VFMPRC: u32                                            = 0x01034;
+pub const IXGBE_VFMRQC: u32                                            = 0x3000;
+pub fn IXGBE_VFRSSRK(x: u32) -> u32 { 0x3100 + x * 4 }
+pub fn IXGBE_VFRETA(x: u32) -> u32 { 0x3200 + x * 4 }
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct ixgbevf_hw_stats {
+    pub base_vfgprc: u64,
+    pub base_vfgptc: u64,
+    pub base_vfgorc: u64,
+    pub base_vfgotc: u64,
+    pub base_vfmprc: u64,
+
+    pub last_vfgprc: u64,
+    pub last_vfgptc: u64,
+    pub last_vfgorc: u64,
+    pub last_vfgotc: u64,
+    pub last_vfmprc: u64,
+
+    pub vfgprc: u64,
+    pub vfgptc: u64,
+    pub vfgorc: u64,
+    pub vfgotc: u64,
+    pub vfmprc: u64,
+
+    pub saved_reset_vfgprc: u64,
+    pub saved_reset_vfgptc: u64,
+    pub saved_reset_vfgorc: u64,
+    pub saved_reset_vfgotc: u64,
+    pub saved_reset_vfmprc: u64,
+}
+
+// Constants and functions for ixgbevf mailbox communication
+
+pub const IXGBE_VFMAILBOX_SIZE: u16                     = 16; /* 16 32 bit words - 64 bytes */
+pub const IXGBE_ERR_MBX: i32                            = -100;
+
+pub const IXGBE_VFMAILBOX: u32                          = 0x002FC;
+pub const IXGBE_VFMBMEM: u32                            = 0x00200;
+
+/* Define mailbox register bits */
+pub const IXGBE_VFMAILBOX_REQ: u32                      = 0x00000001; /* Request for PF Ready bit */
+pub const IXGBE_VFMAILBOX_ACK: u32                      = 0x00000002; /* Ack PF message received */
+pub const IXGBE_VFMAILBOX_VFU: u32                      = 0x00000004; /* VF owns the mailbox buffer */
+pub const IXGBE_VFMAILBOX_PFU: u32                      = 0x00000008; /* PF owns the mailbox buffer */
+pub const IXGBE_VFMAILBOX_PFSTS: u32                    = 0x00000010; /* PF wrote a message in the MB */
+pub const IXGBE_VFMAILBOX_PFACK: u32                    = 0x00000020; /* PF ack the previous VF msg */
+pub const IXGBE_VFMAILBOX_RSTI: u32                     = 0x00000040; /* PF has reset indication */
+pub const IXGBE_VFMAILBOX_RSTD: u32                     = 0x00000080; /* PF has indicated reset done */
+pub const IXGBE_VFMAILBOX_R2C_BITS: u32                 = 0x000000B0; /* All read to clear bits */
+
+pub const IXGBE_PFMAILBOX_STS: u32                      = 0x00000001; /* Initiate message send to VF */
+pub const IXGBE_PFMAILBOX_ACK: u32                      = 0x00000002; /* Ack message recv'd from VF */
+pub const IXGBE_PFMAILBOX_VFU: u32                      = 0x00000004; /* VF owns the mailbox buffer */
+pub const IXGBE_PFMAILBOX_PFU: u32                      = 0x00000008; /* PF owns the mailbox buffer */
+pub const IXGBE_PFMAILBOX_RVFU: u32                     = 0x00000010; /* Reset VFU - used when VF stuck */
+
+pub const IXGBE_MBVFICR_VFREQ_MASK: u32                 = 0x0000FFFF; /* bits for VF messages */
+pub const IXGBE_MBVFICR_VFREQ_VF1: u32                  = 0x00000001; /* bit for VF 1 message */
+pub const IXGBE_MBVFICR_VFACK_MASK: u32                 = 0xFFFF0000; /* bits for VF acks */
+pub const IXGBE_MBVFICR_VFACK_VF1: u32                  = 0x00010000; /* bit for VF 1 ack */
+
+
+/* If it's a IXGBE_VF_* msg then it originates in the VF and is sent to the
+ * PF.  The reverse is true if it is IXGBE_PF_*.
+ * Message ACK's are the value or'd with 0xF0000000
+ */
+pub const IXGBE_VT_MSGTYPE_ACK: u32                     = 0x80000000; /* Messages below or'd with this are the ACK */
+pub const IXGBE_VT_MSGTYPE_NACK: u32                    = 0x40000000; /* Messages below or'd with this are the NACK */
+pub const IXGBE_VT_MSGTYPE_CTS: u32                     = 0x20000000; /* Indicates that VF is still clear to send requests */
+pub const IXGBE_VT_MSGINFO_SHIFT: u32                   = 16;
+/* bits 23:16 are used for extra info for certain messages */
+pub const IXGBE_VT_MSGINFO_MASK: u32                    = 0xFF << IXGBE_VT_MSGINFO_SHIFT;
+
+/* definitions to support mailbox API version negotiation */
+
+/*
+ * each element denotes a version of the API; existing numbers may not
+ * change; any additions must go at the end
+ */
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub enum ixgbe_pfvf_api_rev {
+    ixgbe_mbox_api_10,	/* API version 1.0, linux/freebsd VF driver */
+    ixgbe_mbox_api_20,	/* API version 2.0, solaris Phase1 VF driver */
+    ixgbe_mbox_api_11,	/* API version 1.1, linux/freebsd VF driver */
+    ixgbe_mbox_api_12,	/* API version 1.2, linux/freebsd VF driver */
+    ixgbe_mbox_api_13,	/* API version 1.3, linux/freebsd VF driver */
+    /* This value should always be last */
+    ixgbe_mbox_api_unknown,	/* indicates that API version is not known */
+}
+
+/* mailbox API, legacy requests */
+pub const IXGBE_VF_RESET: u32                           = 0x01; /* VF requests reset */
+pub const IXGBE_VF_SET_MAC_ADDR: u32                    = 0x02; /* VF requests PF to set MAC addr */
+pub const IXGBE_VF_SET_MULTICAST: u32                   = 0x03; /* VF requests PF to set MC addr */
+pub const IXGBE_VF_SET_VLAN: u32                        = 0x04; /* VF requests PF to set VLAN */
+
+/* mailbox API, version 1.0 VF requests */
+pub const IXGBE_VF_SET_LPE: u32                         = 0x05; /* VF requests PF to set VMOLR.LPE */
+pub const IXGBE_VF_SET_MACVLAN: u32                     = 0x06; /* VF requests PF for unicast filter */
+pub const IXGBE_VF_API_NEGOTIATE: u32                   = 0x08; /* negotiate API version */
+
+/* mailbox API, version 1.1 VF requests */
+pub const IXGBE_VF_GET_QUEUES: u32                      = 0x09; /* get queue configuration */
+
+/* mailbox API, version 1.2 VF requests */
+pub const IXGBE_VF_GET_RETA: u32                        = 0x0a;    /* VF request for RETA */
+pub const IXGBE_VF_GET_RSS_KEY: u32                     = 0x0b;    /* get RSS key */
+pub const IXGBE_VF_UPDATE_XCAST_MODE: u32               = 0x0c;
+
+/* mode choices for IXGBE_VF_UPDATE_XCAST_MODE */
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub enum ixgbevf_xcast_modes {
+    IXGBEVF_XCAST_MODE_NONE = 0,
+    IXGBEVF_XCAST_MODE_MULTI,
+    IXGBEVF_XCAST_MODE_ALLMULTI,
+    IXGBEVF_XCAST_MODE_PROMISC,
+}
+
+/* GET_QUEUES return data indices within the mailbox */
+pub const IXGBE_VF_TX_QUEUES: u32                       = 1; /* number of Tx queues supported */
+pub const IXGBE_VF_RX_QUEUES: u32                       = 2; /* number of Rx queues supported */
+pub const IXGBE_VF_TRANS_VLAN: u32                      = 3; /* Indication of port vlan */
+pub const IXGBE_VF_DEF_QUEUE: u32                       = 4; /* Default queue offset */
+
+/* length of permanent address message returned from PF */
+pub const IXGBE_VF_PERMADDR_MSG_LEN: u32                = 4;
+/* word in permanent address message with the current multicast type */
+pub const IXGBE_VF_MC_TYPE_WORD: u32                    = 3;
+
+pub const IXGBE_PF_CONTROL_MSG: u32                     = 0x0100; /* PF control message */
+
+/* mailbox API, version 2.0 VF requests */
+/* the following two constants were already defined earlier */
+// pub const IXGBE_VF_API_NEGOTIATE: u32                = 0x08; /* negotiate API version */
+// pub const IXGBE_VF_GET_QUEUES: u32                   = 0x09; /* get queue configuration */
+pub const IXGBE_VF_ENABLE_MACADDR: u32                  = 0x0A; /* enable MAC address */
+pub const IXGBE_VF_DISABLE_MACADDR: u32                 = 0x0B; /* disable MAC address */
+pub const IXGBE_VF_GET_MACADDRS: u32                    = 0x0C; /* get all configured MAC addrs */
+pub const IXGBE_VF_SET_MCAST_PROMISC: u32               = 0x0D; /* enable multicast promiscuous */
+pub const IXGBE_VF_GET_MTU: u32                         = 0x0E; /* get bounds on MTU */
+pub const IXGBE_VF_SET_MTU: u32                         = 0x0F; /* set a specific MTU */
+
+/* mailbox API, version 2.0 PF requests */
+pub const IXGBE_PF_TRANSPARENT_VLAN: u32                = 0x0101; /* enable transparent vlan */
+
+pub const IXGBE_VF_MBX_INIT_TIMEOUT: u32                = 2000; /* number of retries on mailbox */
+pub const IXGBE_VF_MBX_INIT_DELAY: u32                  = 500;  /* microseconds between retries */
