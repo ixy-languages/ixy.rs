@@ -30,8 +30,6 @@ use std::collections::VecDeque;
 use std::error::Error;
 use std::os::unix::io::RawFd;
 
-const MAX_QUEUES: u16 = 64;
-
 /// Used for implementing an ixy device driver like ixgbe or virtio.
 pub trait IxyDevice {
     /// Initializes an intel 82599 network card.
