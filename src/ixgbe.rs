@@ -18,9 +18,10 @@ use crate::vfio::VFIO_PCI_BAR0_REGION_INDEX;
 use crate::DeviceStats;
 use crate::Interrupts;
 use crate::IxyDevice;
-use crate::MAX_QUEUES;
 
 const DRIVER_NAME: &str = "ixy-ixgbe";
+
+const MAX_QUEUES: u16 = 64;
 
 const PKT_BUF_ENTRY_SIZE: usize = 2048;
 const MIN_MEMPOOL_SIZE: usize = 4096;

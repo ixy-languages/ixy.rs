@@ -16,10 +16,11 @@ use crate::memory::*;
 use crate::pci::pci_map_resource;
 use crate::DeviceStats;
 use crate::IxyDevice;
-use crate::MAX_QUEUES;
 use std::cmp::min;
 
 const DRIVER_NAME: &str = "ixy-ixgbevf";
+
+const MAX_QUEUES: u16 = 8;
 
 const PKT_BUF_ENTRY_SIZE: usize = 2048;
 const MIN_MEMPOOL_SIZE: usize = 4096;
@@ -113,7 +114,6 @@ impl IxyDevice for IxgbeVFDevice {
             warn!("not running as root, this will probably fail");
         }
 
-        // FIXME: what is the maximum number of queues for VFs?
         assert!(
             num_rx_queues <= MAX_QUEUES,
             "cannot configure {} rx queues: limit is {}",
@@ -470,7 +470,7 @@ impl IxgbeVFDevice {
 
         self.set_reg32(IXGBE_VFPSRTYPE, 0);
 
-        for i in 0..7 {
+        for i in 0..(MAX_QUEUES as u32) {
             self.set_reg32(IXGBE_VFRDH(i), 0);
             self.set_reg32(IXGBE_VFRDT(i), 0);
             self.set_reg32(IXGBE_VFRXDCTL(i), 0);
