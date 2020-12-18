@@ -89,7 +89,9 @@ fn forward(
     if num_rx > 0 {
         // touch all packets for a realistic workload
         for p in buffer.iter_mut() {
-            p[48] += 1;
+            // we change a byte of the destination MAC address to ensure
+            // that all packets are put back on the link (vital for VFs)
+            p[3] += 1;
         }
 
         tx_dev.tx_batch(tx_queue, buffer);

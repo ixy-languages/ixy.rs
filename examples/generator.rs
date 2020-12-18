@@ -32,7 +32,7 @@ pub fn main() {
     let mut dev = ixy_init(&pci_addr, 1, 1, 0).unwrap();
 
     #[rustfmt::skip]
-    let pkt_data = [
+    let mut pkt_data = [
         0x01, 0x02, 0x03, 0x04, 0x05, 0x06,         // dst MAC
         0x10, 0x10, 0x10, 0x10, 0x10, 0x10,         // src MAC
         0x08, 0x00,                                 // ether type: IPv4
@@ -50,6 +50,9 @@ pub fn main() {
         b'i', b'x', b'y'                            // payload
         // rest of the payload is zero-filled because mempools guarantee empty bufs
     ];
+
+    // VFs: src MAC must be MAC of the device (spoof check of PF)
+    pkt_data[6..12].clone_from_slice(&dev.get_mac_addr());
 
     let pool = Mempool::allocate(NUM_PACKETS, 0).unwrap();
 
