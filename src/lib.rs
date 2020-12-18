@@ -13,6 +13,7 @@ extern crate log;
 mod constants;
 mod interrupts;
 mod ixgbe;
+mod ixgbevf;
 pub mod memory;
 mod pci;
 mod vfio;
@@ -22,6 +23,7 @@ mod virtio_constants;
 
 use self::interrupts::*;
 use self::ixgbe::*;
+use self::ixgbevf::*;
 use self::memory::*;
 use self::pci::*;
 use self::virtio::VirtioDevice;
@@ -225,6 +227,12 @@ pub fn ixy_init(
     if vendor_id == 0x1af4 && device_id == 0x1000 {
         // `device_id == 0x1041` would be for non-transitional devices which we don't support atm
         let device = VirtioDevice::init(pci_addr, rx_queues, tx_queues, interrupt_timeout)?;
+        Ok(Box::new(device))
+    } else if vendor_id == 0x8086
+        && (device_id == 0x10ed || device_id == 0x1515 || device_id == 0x1565)
+    {
+        // looks like a virtual function
+        let device = IxgbeVFDevice::init(pci_addr, rx_queues, tx_queues, interrupt_timeout)?;
         Ok(Box::new(device))
     } else {
         // let's give it a try with ixgbe
