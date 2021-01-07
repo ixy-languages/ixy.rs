@@ -53,117 +53,6 @@ pub struct VirtioDevice {
 }
 
 impl IxyDevice for VirtioDevice {
-    fn init(
-        pci_addr: &str,
-        num_rx_queues: u16,
-        num_tx_queues: u16,
-        _interrupt_timeout: i16,
-    ) -> Result<Self, Box<dyn Error>> {
-        // `getuid()` can't fail according to the man page
-        if unsafe { libc::getuid() } != 0 {
-            warn!("not running as root, this will probably fail");
-        }
-
-        // we don't support multiqueue (VIRTIO_NET_F_MQ)
-        assert!(
-            num_rx_queues <= 1,
-            "cannot configure {} rx queues: limit is {}",
-            num_rx_queues,
-            1
-        );
-        assert!(
-            num_rx_queues <= 1,
-            "cannot configure {} tx queues: limit is {}",
-            num_tx_queues,
-            1
-        );
-
-        pci::unbind_driver(pci_addr)?;
-        pci::enable_dma(pci_addr)?;
-
-        // 3.1: device initialization
-        let mut bar0 = pci::pci_open_resource(pci_addr, "resource0")?;
-        debug!("configuring bar0");
-
-        // 1) Reset the device
-        write_io8(&mut bar0, VIRTIO_CONFIG_STATUS_RESET, VIRTIO_PCI_STATUS)?;
-        while read_io8(&mut bar0, VIRTIO_PCI_STATUS)? != VIRTIO_CONFIG_STATUS_RESET {
-            thread::sleep(Duration::from_micros(100));
-        }
-
-        // 2) Set ACKNOWLEDGE status bit; OS noticed the device
-        write_io8(&mut bar0, VIRTIO_CONFIG_STATUS_ACK, VIRTIO_PCI_STATUS)?;
-
-        // 3) Set DRIVER status bit; OS can drive the device
-        write_io8(&mut bar0, VIRTIO_CONFIG_STATUS_DRIVER, VIRTIO_PCI_STATUS)?;
-
-        // 4) Negotiate features
-        let host_features = read_io32(&mut bar0, VIRTIO_PCI_HOST_FEATURES)?;
-        debug!("device features: {:b}", host_features);
-        let required_features = (1 << VIRTIO_NET_F_CSUM) // we may offload checksumming to the device
-            | (1 << VIRTIO_NET_F_GUEST_CSUM) // we can handle packets with invalid checksums
-            | (1 << VIRTIO_NET_F_CTRL_VQ) // enable the control queue
-            | (1 << VIRTIO_NET_F_CTRL_RX) // required to enable promiscuous mode
-            | (1 << VIRTIO_NET_F_MAC) // required to read MAC address
-            | (1 << VIRTIO_F_ANY_LAYOUT); // we don't make assumptions about message framing
-        if (host_features & required_features) != required_features {
-            debug!("device features:   {:032b}", host_features);
-            debug!("required features: {:032b}", required_features);
-            panic!("device does not support all required features");
-        }
-        debug!(
-            "guest features before negotiation: {:032b}",
-            read_io32(&mut bar0, VIRTIO_PCI_GUEST_FEATURES)?
-        );
-        write_io32(&mut bar0, required_features, VIRTIO_PCI_GUEST_FEATURES)?;
-        debug!(
-            "guest features after negotiation:  {:032b}",
-            read_io32(&mut bar0, VIRTIO_PCI_GUEST_FEATURES)?
-        );
-
-        // 5) Skipped due to legacy interface
-        // 6) Skipped due to legacy interface
-
-        // 7) Perform network device specific initialization
-        let rx_queue = Self::setup_virtqueue(&mut bar0, VirtqueueType::Receive, 0)?;
-        let tx_queue = Self::setup_virtqueue(&mut bar0, VirtqueueType::Transmit, 1)?;
-        let ctrl_queue = Self::setup_virtqueue(&mut bar0, VirtqueueType::Control, 2)?;
-
-        // 2.6.13: allocate buffers to send to the device
-        // we allocate more bufs than what would fit in the rx queue, because we don't want to
-        // stall rx if users hold buffers for longer
-        let rx_mempool = Mempool::allocate(rx_queue.size as usize * 4, 2048)?;
-        let ctrl_mempool = Mempool::allocate(ctrl_queue.size as usize, 2048)?;
-
-        mfence();
-
-        // 8) Signal OK
-        write_io8(&mut bar0, VIRTIO_CONFIG_STATUS_DRIVER_OK, VIRTIO_PCI_STATUS)?;
-        info!("initialization complete");
-
-        let mut device = VirtioDevice {
-            pci_addr: pci_addr.to_owned(),
-            bar0,
-            rx_inflight: VecDeque::with_capacity(rx_queue.size as usize),
-            tx_inflight: VecDeque::with_capacity(tx_queue.size as usize),
-            rx_queue,
-            tx_queue,
-            ctrl_queue,
-            rx_mempool,
-            ctrl_mempool,
-            rx_pkts: 0,
-            tx_pkts: 0,
-            rx_bytes: 0,
-            tx_bytes: 0,
-        };
-
-        // recheck status
-        device.check_pci_config_status()?;
-        device.set_promiscuous(true)?;
-
-        Ok(device)
-    }
-
     fn get_driver_name(&self) -> &str {
         "ixy-virtio"
     }
@@ -358,6 +247,99 @@ impl IxyDevice for VirtioDevice {
 }
 
 impl VirtioDevice {
+    /// Returns an initialized `VirtioDevice` on success.
+    pub fn init(pci_addr: &str) -> Result<Self, Box<dyn Error>> {
+        // `getuid()` can't fail according to the man page
+        if unsafe { libc::getuid() } != 0 {
+            warn!("not running as root, this will probably fail");
+        }
+
+        pci::unbind_driver(pci_addr)?;
+        pci::enable_dma(pci_addr)?;
+
+        // 3.1: device initialization
+        let mut bar0 = pci::pci_open_resource(pci_addr, "resource0")?;
+        debug!("configuring bar0");
+
+        // 1) Reset the device
+        write_io8(&mut bar0, VIRTIO_CONFIG_STATUS_RESET, VIRTIO_PCI_STATUS)?;
+        while read_io8(&mut bar0, VIRTIO_PCI_STATUS)? != VIRTIO_CONFIG_STATUS_RESET {
+            thread::sleep(Duration::from_micros(100));
+        }
+
+        // 2) Set ACKNOWLEDGE status bit; OS noticed the device
+        write_io8(&mut bar0, VIRTIO_CONFIG_STATUS_ACK, VIRTIO_PCI_STATUS)?;
+
+        // 3) Set DRIVER status bit; OS can drive the device
+        write_io8(&mut bar0, VIRTIO_CONFIG_STATUS_DRIVER, VIRTIO_PCI_STATUS)?;
+
+        // 4) Negotiate features
+        let host_features = read_io32(&mut bar0, VIRTIO_PCI_HOST_FEATURES)?;
+        debug!("device features: {:b}", host_features);
+        let required_features = (1 << VIRTIO_NET_F_CSUM) // we may offload checksumming to the device
+            | (1 << VIRTIO_NET_F_GUEST_CSUM) // we can handle packets with invalid checksums
+            | (1 << VIRTIO_NET_F_CTRL_VQ) // enable the control queue
+            | (1 << VIRTIO_NET_F_CTRL_RX) // required to enable promiscuous mode
+            | (1 << VIRTIO_NET_F_MAC) // required to read MAC address
+            | (1 << VIRTIO_F_ANY_LAYOUT); // we don't make assumptions about message framing
+        if (host_features & required_features) != required_features {
+            debug!("device features:   {:032b}", host_features);
+            debug!("required features: {:032b}", required_features);
+            panic!("device does not support all required features");
+        }
+        debug!(
+            "guest features before negotiation: {:032b}",
+            read_io32(&mut bar0, VIRTIO_PCI_GUEST_FEATURES)?
+        );
+        write_io32(&mut bar0, required_features, VIRTIO_PCI_GUEST_FEATURES)?;
+        debug!(
+            "guest features after negotiation:  {:032b}",
+            read_io32(&mut bar0, VIRTIO_PCI_GUEST_FEATURES)?
+        );
+
+        // 5) Skipped due to legacy interface
+        // 6) Skipped due to legacy interface
+
+        // 7) Perform network device specific initialization
+        let rx_queue = Self::setup_virtqueue(&mut bar0, VirtqueueType::Receive, 0)?;
+        let tx_queue = Self::setup_virtqueue(&mut bar0, VirtqueueType::Transmit, 1)?;
+        let ctrl_queue = Self::setup_virtqueue(&mut bar0, VirtqueueType::Control, 2)?;
+
+        // 2.6.13: allocate buffers to send to the device
+        // we allocate more bufs than what would fit in the rx queue, because we don't want to
+        // stall rx if users hold buffers for longer
+        let rx_mempool = Mempool::allocate(rx_queue.size as usize * 4, 2048)?;
+        let ctrl_mempool = Mempool::allocate(ctrl_queue.size as usize, 2048)?;
+
+        mfence();
+
+        // 8) Signal OK
+        write_io8(&mut bar0, VIRTIO_CONFIG_STATUS_DRIVER_OK, VIRTIO_PCI_STATUS)?;
+        info!("initialization complete");
+
+        let mut device = VirtioDevice {
+            pci_addr: pci_addr.to_owned(),
+            bar0,
+            rx_inflight: VecDeque::with_capacity(rx_queue.size as usize),
+            tx_inflight: VecDeque::with_capacity(tx_queue.size as usize),
+            rx_queue,
+            tx_queue,
+            ctrl_queue,
+            rx_mempool,
+            ctrl_mempool,
+            rx_pkts: 0,
+            tx_pkts: 0,
+            rx_bytes: 0,
+            tx_bytes: 0,
+        };
+
+        // recheck status
+        device.check_pci_config_status()?;
+        device.set_promiscuous(true)?;
+
+        Ok(device)
+    }
+
     fn notify_queue(&mut self, queue_idx: u16) -> Result<(), io::Error> {
         write_io16(&mut self.bar0, queue_idx, VIRTIO_PCI_QUEUE_NOTIFY)
     }
@@ -450,7 +432,10 @@ impl VirtioDevice {
             "used ctrl buffer @ {:p} id {} len {}",
             &used, used.id, used.len
         );
-        assert_eq!(used.id, idx, "used buffer has different index than the one sent");
+        assert_eq!(
+            used.id, idx,
+            "used buffer has different index than the one sent"
+        );
 
         // ensure that the command was correctly acknowledged
         let ack = unsafe { (*(buf.get_virt_addr() as *const VirtioNetCtrl<C>)).ack };

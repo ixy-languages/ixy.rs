@@ -34,16 +34,6 @@ use std::os::unix::io::RawFd;
 
 /// Used for implementing an ixy device driver like ixgbe or virtio.
 pub trait IxyDevice {
-    /// Initializes an intel 82599 network card.
-    fn init(
-        pci_addr: &str,
-        num_rx_queues: u16,
-        num_tx_queues: u16,
-        interrupt_timeout: i16,
-    ) -> Result<Self, Box<dyn Error>>
-    where
-        Self: Sized;
-
     /// Returns the driver's name.
     fn get_driver_name(&self) -> &str;
 
@@ -226,13 +216,22 @@ pub fn ixy_init(
 
     if vendor_id == 0x1af4 && device_id == 0x1000 {
         // `device_id == 0x1041` would be for non-transitional devices which we don't support atm
-        let device = VirtioDevice::init(pci_addr, rx_queues, tx_queues, interrupt_timeout)?;
+        if rx_queues > 1 || tx_queues > 1 {
+            warn!("cannot configure multiple rx/tx queues: we don't support multiqueue (VIRTIO_NET_F_MQ)");
+        }
+        if interrupt_timeout >= 0 {
+            warn!("virtio does not support interrupts yet");
+        }
+        let device = VirtioDevice::init(pci_addr)?;
         Ok(Box::new(device))
     } else if vendor_id == 0x8086
         && (device_id == 0x10ed || device_id == 0x1515 || device_id == 0x1565)
     {
         // looks like a virtual function
-        let device = IxgbeVFDevice::init(pci_addr, rx_queues, tx_queues, interrupt_timeout)?;
+        if interrupt_timeout >= 0 {
+            warn!("ixgbevf does not support interrupts yet");
+        }
+        let device = IxgbeVFDevice::init(pci_addr, rx_queues, tx_queues)?;
         Ok(Box::new(device))
     } else {
         // let's give it a try with ixgbe
@@ -242,15 +241,6 @@ pub fn ixy_init(
 }
 
 impl IxyDevice for Box<dyn IxyDevice> {
-    fn init(
-        pci_addr: &str,
-        num_rx_queues: u16,
-        num_tx_queues: u16,
-        interrupt_timeout: i16,
-    ) -> Result<Self, Box<dyn Error>> {
-        ixy_init(pci_addr, num_rx_queues, num_tx_queues, interrupt_timeout)
-    }
-
     fn get_driver_name(&self) -> &str {
         (**self).get_driver_name()
     }

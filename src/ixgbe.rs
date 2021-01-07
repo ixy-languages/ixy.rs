@@ -66,81 +66,6 @@ struct IxgbeTxQueue {
 }
 
 impl IxyDevice for IxgbeDevice {
-    /// Returns an initialized `IxgbeDevice` on success.
-    ///
-    /// # Panics
-    /// Panics if `num_rx_queues` or `num_tx_queues` exceeds `MAX_QUEUES`.
-    fn init(
-        pci_addr: &str,
-        num_rx_queues: u16,
-        num_tx_queues: u16,
-        interrupt_timeout: i16,
-    ) -> Result<IxgbeDevice, Box<dyn Error>> {
-        if unsafe { libc::getuid() } != 0 {
-            warn!("not running as root, this will probably fail");
-        }
-
-        assert!(
-            num_rx_queues <= MAX_QUEUES,
-            "cannot configure {} rx queues: limit is {}",
-            num_rx_queues,
-            MAX_QUEUES
-        );
-        assert!(
-            num_tx_queues <= MAX_QUEUES,
-            "cannot configure {} tx queues: limit is {}",
-            num_tx_queues,
-            MAX_QUEUES
-        );
-
-        // Check if the NIC is IOMMU enabled...
-        let vfio = Path::new(&format!("/sys/bus/pci/devices/{}/iommu_group", pci_addr)).exists();
-
-        let device_fd: RawFd;
-        let (addr, len) = if vfio {
-            device_fd = vfio_init(pci_addr)?;
-            vfio_map_region(device_fd, VFIO_PCI_BAR0_REGION_INDEX)?
-        } else {
-            device_fd = -1;
-            pci_map_resource(pci_addr)?
-        };
-
-        // initialize RX and TX queue
-        let rx_queues = Vec::with_capacity(num_rx_queues as usize);
-        let tx_queues = Vec::with_capacity(num_tx_queues as usize);
-
-        // create the IxyDevice
-        let mut dev = IxgbeDevice {
-            pci_addr: pci_addr.to_string(),
-            addr,
-            len,
-            num_rx_queues,
-            num_tx_queues,
-            rx_queues,
-            tx_queues,
-            vfio,
-            vfio_fd: unsafe { VFIO_CONTAINER_FILE_DESCRIPTOR },
-            vfio_device_fd: device_fd,
-            interrupts: Default::default(),
-        };
-
-        if dev.vfio {
-            dev.interrupts.interrupts_enabled = interrupt_timeout != 0;
-            dev.interrupts.timeout_ms = interrupt_timeout;
-            dev.interrupts.itr_rate = 0x028;
-            dev.setup_interrupts()?;
-        }
-
-        if !dev.vfio && interrupt_timeout != 0 {
-            warn!("Interrupts requested but VFIO not available: Disabling Interrupts!");
-            dev.interrupts.interrupts_enabled = false;
-        }
-
-        dev.reset_and_init(pci_addr)?;
-
-        Ok(dev)
-    }
-
     /// Returns the driver's name of this device.
     fn get_driver_name(&self) -> &str {
         DRIVER_NAME
@@ -422,6 +347,81 @@ impl IxyDevice for IxgbeDevice {
 }
 
 impl IxgbeDevice {
+    /// Returns an initialized `IxgbeDevice` on success.
+    ///
+    /// # Panics
+    /// Panics if `num_rx_queues` or `num_tx_queues` exceeds `MAX_QUEUES`.
+    pub fn init(
+        pci_addr: &str,
+        num_rx_queues: u16,
+        num_tx_queues: u16,
+        interrupt_timeout: i16,
+    ) -> Result<IxgbeDevice, Box<dyn Error>> {
+        assert!(
+            num_rx_queues <= MAX_QUEUES,
+            "cannot configure {} rx queues: limit is {}",
+            num_rx_queues,
+            MAX_QUEUES
+        );
+        assert!(
+            num_tx_queues <= MAX_QUEUES,
+            "cannot configure {} tx queues: limit is {}",
+            num_tx_queues,
+            MAX_QUEUES
+        );
+
+        // Check if the NIC is IOMMU enabled...
+        let vfio = Path::new(&format!("/sys/bus/pci/devices/{}/iommu_group", pci_addr)).exists();
+
+        let device_fd: RawFd;
+        let (addr, len) = if vfio {
+            device_fd = vfio_init(pci_addr)?;
+            vfio_map_region(device_fd, VFIO_PCI_BAR0_REGION_INDEX)?
+        } else {
+            if unsafe { libc::getuid() } != 0 {
+                warn!("not running as root, this will probably fail");
+            }
+
+            device_fd = -1;
+            pci_map_resource(pci_addr)?
+        };
+
+        // initialize RX and TX queue
+        let rx_queues = Vec::with_capacity(num_rx_queues as usize);
+        let tx_queues = Vec::with_capacity(num_tx_queues as usize);
+
+        // create the IxyDevice
+        let mut dev = IxgbeDevice {
+            pci_addr: pci_addr.to_string(),
+            addr,
+            len,
+            num_rx_queues,
+            num_tx_queues,
+            rx_queues,
+            tx_queues,
+            vfio,
+            vfio_fd: unsafe { VFIO_CONTAINER_FILE_DESCRIPTOR },
+            vfio_device_fd: device_fd,
+            interrupts: Default::default(),
+        };
+
+        if dev.vfio {
+            dev.interrupts.interrupts_enabled = interrupt_timeout != 0;
+            dev.interrupts.timeout_ms = interrupt_timeout;
+            dev.interrupts.itr_rate = 0x028;
+            dev.setup_interrupts()?;
+        }
+
+        if !dev.vfio && interrupt_timeout != 0 {
+            warn!("Interrupts requested but VFIO not available: Disabling Interrupts!");
+            dev.interrupts.interrupts_enabled = false;
+        }
+
+        dev.reset_and_init(pci_addr)?;
+
+        Ok(dev)
+    }
+
     /// Resets and initializes this device.
     fn reset_and_init(&mut self, pci_addr: &str) -> Result<(), Box<dyn Error>> {
         info!("resetting device {}", pci_addr);

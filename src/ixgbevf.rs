@@ -100,62 +100,6 @@ struct IxgbeTxQueue {
 }
 
 impl IxyDevice for IxgbeVFDevice {
-    /// Returns an initialized `IxgbeDevice` on success.
-    ///
-    /// # Panics
-    /// Panics if `num_rx_queues` or `num_tx_queues` exceeds `MAX_QUEUES`.
-    fn init(
-        pci_addr: &str,
-        num_rx_queues: u16,
-        num_tx_queues: u16,
-        _interrupt_timeout: i16,
-    ) -> Result<IxgbeVFDevice, Box<dyn Error>> {
-        if unsafe { libc::getuid() } != 0 {
-            warn!("not running as root, this will probably fail");
-        }
-
-        assert!(
-            num_rx_queues <= MAX_QUEUES,
-            "cannot configure {} rx queues: limit is {}",
-            num_rx_queues,
-            MAX_QUEUES
-        );
-        assert!(
-            num_tx_queues <= MAX_QUEUES,
-            "cannot configure {} tx queues: limit is {}",
-            num_tx_queues,
-            MAX_QUEUES
-        );
-
-        let (addr, len) = pci_map_resource(pci_addr)?;
-
-        // initialize RX and TX queue
-        let rx_queues = Vec::with_capacity(num_rx_queues as usize);
-        let tx_queues = Vec::with_capacity(num_tx_queues as usize);
-
-        let mbx = RefCell::new(Mailbox::init());
-        let mac = RefCell::new([0; 6]);
-        let stats = RefCell::new(DeviceStats::default());
-
-        // create the IxyDevice
-        let mut dev = IxgbeVFDevice {
-            pci_addr: pci_addr.to_string(),
-            addr,
-            len,
-            num_rx_queues,
-            num_tx_queues,
-            rx_queues,
-            tx_queues,
-            mbx,
-            mac,
-            stats,
-        };
-
-        dev.reset_and_init(pci_addr)?;
-
-        Ok(dev)
-    }
-
     /// Returns the driver's name of this device.
     fn get_driver_name(&self) -> &str {
         DRIVER_NAME
@@ -407,6 +351,61 @@ impl IxyDevice for IxgbeVFDevice {
 }
 
 impl IxgbeVFDevice {
+    /// Returns an initialized `IxgbeVFDevice` on success.
+    ///
+    /// # Panics
+    /// Panics if `num_rx_queues` or `num_tx_queues` exceeds `MAX_QUEUES`.
+    pub fn init(
+        pci_addr: &str,
+        num_rx_queues: u16,
+        num_tx_queues: u16,
+    ) -> Result<IxgbeVFDevice, Box<dyn Error>> {
+        if unsafe { libc::getuid() } != 0 {
+            warn!("not running as root, this will probably fail");
+        }
+
+        assert!(
+            num_rx_queues <= MAX_QUEUES,
+            "cannot configure {} rx queues: limit is {}",
+            num_rx_queues,
+            MAX_QUEUES
+        );
+        assert!(
+            num_tx_queues <= MAX_QUEUES,
+            "cannot configure {} tx queues: limit is {}",
+            num_tx_queues,
+            MAX_QUEUES
+        );
+
+        let (addr, len) = pci_map_resource(pci_addr)?;
+
+        // initialize RX and TX queue
+        let rx_queues = Vec::with_capacity(num_rx_queues as usize);
+        let tx_queues = Vec::with_capacity(num_tx_queues as usize);
+
+        let mbx = RefCell::new(Mailbox::init());
+        let mac = RefCell::new([0; 6]);
+        let stats = RefCell::new(DeviceStats::default());
+
+        // create the IxyDevice
+        let mut dev = IxgbeVFDevice {
+            pci_addr: pci_addr.to_string(),
+            addr,
+            len,
+            num_rx_queues,
+            num_tx_queues,
+            rx_queues,
+            tx_queues,
+            mbx,
+            mac,
+            stats,
+        };
+
+        dev.reset_and_init(pci_addr)?;
+
+        Ok(dev)
+    }
+
     /// Resets and initializes this device.
     fn reset_and_init(&mut self, pci_addr: &str) -> Result<(), Box<dyn Error>> {
         info!("resetting device {}", pci_addr);
