@@ -9,6 +9,7 @@ Check out [my thesis](https://www.net.in.tum.de/fileadmin/bibtex/publications/th
 ## Features
 
 * driver for Intel NICs in the `ixgbe` family, i.e. the 82599ES family (aka Intel X520)
+* driver for `ixgbe` virtual functions, i.e. `ixgbevf` (SR-IOV)
 * driver for paravirtualized virtio NICs
 * super fast, can forward > 26 million packets per second on a single 3.3 GHz CPU core
 * less than 2000 lines of Rust code for the driver and a packet forwarder
@@ -63,23 +64,32 @@ To use it, you have to:
 	On most Intel machines, the BIOS entry is called `VT-d` and has to be enabled in addition to any other virtualization technique.
 
 1. Enable the IOMMU in the linux kernel.
-	Add `intel_iommu=on` to your cmdline (if you are running a grub, the file `/etc/default/grub.cfg` contains a `GRUB_CMDLINE_LINUX` where you can add it).
+	Add `intel_iommu=on` to your cmdline (if you are running grub, the file `/etc/default/grub.cfg` contains a `GRUB_CMDLINE_LINUX` where you can add it).
 
-2. Get the PCI address, vendor and device ID:
+2. Get PCI address, vendor and device ID of each device to be used:
 	`lspci -nn | grep Ether` returns something like `05:00.0 Ethernet controller [0200]: Intel Corporation Ethernet Controller 10-Gigabit X540-AT2 [8086:1528] (rev 01)`.
-	In this case, `0000:05:00.0` is our PCI Address, and `8086` and `1528` are the vendor and device id, respectively.
+	In this case, `0000:05:00.0` is the PCI Address, and `8086` and `1528` are the vendor and device id, respectively.
 
-3. Unbind the device from the `ixgbe` driver.
-	`sudo sh -c 'echo $PCI_ADDRESS > /sys/bus/pci/devices/$PCI_ADDRESS/driver/unbind'`
+3. Unbind all devices to be used from the current driver:
+	```
+	sudo sh -c 'echo $PCI_ADDRESS > /sys/bus/pci/devices/$PCI_ADDRESS/driver/unbind'
+	```
 
-4. Enable the `vfio-pci` driver.
-	`sudo modprobe vfio-pci`
+4. Enable the `vfio-pci` driver:
+	```
+	sudo modprobe vfio-pci
+	```
 
-5. Bind the device to the `vfio-pci` driver.
-	`sudo sh -c 'echo $VENDOR_ID $DEVICE_ID > /sys/bus/pci/drivers/vfio-pci/new_id'`
+5. Bind the devices to the `vfio-pci` driver:
+	```
+	sudo sh -c 'echo $VENDOR_ID $DEVICE_ID > /sys/bus/pci/drivers/vfio-pci/new_id'
+	```
 
-6. Chown the device to the user.
-	`sudo chown $USER:$GROUP /dev/vfio/*`
+6. For each device find its IOMMU group and chown the device group file to the user:
+	```
+	IOMMU_GROUP=$(readlink /sys/bus/pci/devices/$PCI_ADDRESS/iommu_group | awk -F '/' '{print $NF}')
+	sudo chown $USER:$GROUP /dev/vfio/$IOMMU_GROUP
+	```
 
 6. That's it!
 	Now you can compile and run ixy.rs as stated above!
