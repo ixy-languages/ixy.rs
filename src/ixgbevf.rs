@@ -762,10 +762,7 @@ impl IxgbeVFDevice {
     ///
     /// Panics if `self.addr` + `reg` does not belong to the mapped memory of the pci device.
     fn get_reg32(&self, reg: u32) -> u32 {
-        assert!(
-            reg as usize <= self.len - 4 as usize,
-            "memory access out of bounds"
-        );
+        assert!(reg as usize <= self.len - 4, "memory access out of bounds");
 
         unsafe { ptr::read_volatile((self.addr as usize + reg as usize) as *mut u32) }
     }
@@ -776,10 +773,7 @@ impl IxgbeVFDevice {
     ///
     /// Panics if `self.addr` + `reg` does not belong to the mapped memory of the pci device.
     fn set_reg32(&self, reg: u32, value: u32) {
-        assert!(
-            reg as usize <= self.len - 4 as usize,
-            "memory access out of bounds"
-        );
+        assert!(reg as usize <= self.len - 4, "memory access out of bounds");
 
         unsafe {
             ptr::write_volatile((self.addr as usize + reg as usize) as *mut u32, value);
@@ -827,10 +821,7 @@ impl IxgbeVFDevice {
     fn get_reg32_array(&self, reg: u32, index: u32) -> u32 {
         let idx = reg + (index << 2);
 
-        assert!(
-            idx as usize <= self.len - 4 as usize,
-            "memory access out of bounds"
-        );
+        assert!(idx as usize <= self.len - 4, "memory access out of bounds");
 
         unsafe { ptr::read_volatile((self.addr as usize + idx as usize) as *mut u32) }
     }
@@ -843,10 +834,7 @@ impl IxgbeVFDevice {
     fn set_reg32_array(&self, reg: u32, index: u32, value: u32) {
         let idx = reg + (index << 2);
 
-        assert!(
-            idx as usize <= self.len - 4 as usize,
-            "memory access out of bounds"
-        );
+        assert!(idx as usize <= self.len - 4, "memory access out of bounds");
 
         unsafe {
             ptr::write_volatile((self.addr as usize + idx as usize) as *mut u32, value);

@@ -206,7 +206,7 @@ impl IxyDevice for IxgbeDevice {
                 interrupt.rx_pkts += received_packets as u64;
 
                 interrupt.instr_counter += 1;
-                if (interrupt.instr_counter & 0xFFF as u64) == 0 {
+                if (interrupt.instr_counter & 0xFFF) == 0 {
                     interrupt.instr_counter = 0;
                     let elapsed = interrupt.last_time_checked.elapsed();
                     let diff =
@@ -765,10 +765,7 @@ impl IxgbeDevice {
     ///
     /// Panics if `self.addr` + `reg` does not belong to the mapped memory of the pci device.
     fn get_reg32(&self, reg: u32) -> u32 {
-        assert!(
-            reg as usize <= self.len - 4 as usize,
-            "memory access out of bounds"
-        );
+        assert!(reg as usize <= self.len - 4, "memory access out of bounds");
 
         unsafe { ptr::read_volatile((self.addr as usize + reg as usize) as *mut u32) }
     }
@@ -779,10 +776,7 @@ impl IxgbeDevice {
     ///
     /// Panics if `self.addr` + `reg` does not belong to the mapped memory of the pci device.
     fn set_reg32(&self, reg: u32, value: u32) {
-        assert!(
-            reg as usize <= self.len - 4 as usize,
-            "memory access out of bounds"
-        );
+        assert!(reg as usize <= self.len - 4, "memory access out of bounds");
 
         unsafe {
             ptr::write_volatile((self.addr as usize + reg as usize) as *mut u32, value);
