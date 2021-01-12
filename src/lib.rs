@@ -219,8 +219,8 @@ pub fn ixy_init(
         if rx_queues > 1 || tx_queues > 1 {
             warn!("cannot configure multiple rx/tx queues: we don't support multiqueue (VIRTIO_NET_F_MQ)");
         }
-        if interrupt_timeout >= 0 {
-            warn!("virtio does not support interrupts yet");
+        if interrupt_timeout != 0 {
+            warn!("interrupts requested but virtio does not support interrupts yet");
         }
         let device = VirtioDevice::init(pci_addr)?;
         Ok(Box::new(device))
@@ -228,8 +228,8 @@ pub fn ixy_init(
         && (device_id == 0x10ed || device_id == 0x1515 || device_id == 0x1565)
     {
         // looks like a virtual function
-        if interrupt_timeout >= 0 {
-            warn!("ixgbevf does not support interrupts yet");
+        if interrupt_timeout != 0 {
+            warn!("interrupts requested but ixgbevf does not support interrupts yet");
         }
         let device = IxgbeVFDevice::init(pci_addr, rx_queues, tx_queues)?;
         Ok(Box::new(device))
