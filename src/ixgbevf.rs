@@ -1,10 +1,12 @@
 use std::cell::RefCell;
+use std::cmp::min;
 use std::collections::VecDeque;
 use std::error::Error;
 use std::fs::File;
 use std::io::Read;
 use std::mem;
 use std::os::unix::io::RawFd;
+use std::path::Path;
 use std::ptr;
 use std::rc::Rc;
 use std::thread;
@@ -12,11 +14,12 @@ use std::time::Duration;
 
 use crate::constants::*;
 use crate::memory::*;
+use crate::vfio::*;
 
 use crate::pci::pci_map_resource;
+use crate::vfio::VFIO_PCI_BAR0_REGION_INDEX;
 use crate::DeviceStats;
 use crate::IxyDevice;
-use std::cmp::min;
 
 const DRIVER_NAME: &str = "ixy-ixgbevf";
 
@@ -80,6 +83,8 @@ pub struct IxgbeVFDevice {
     mbx: RefCell<Mailbox>,
     mac: RefCell<[u8; 6]>,
     stats: RefCell<DeviceStats>,
+    vfio: bool,
+    vfio_fd: RawFd,
 }
 
 struct IxgbeRxQueue {
@@ -107,12 +112,16 @@ impl IxyDevice for IxgbeVFDevice {
 
     /// Returns the card's iommu capability.
     fn is_card_iommu_capable(&self) -> bool {
-        false
+        self.vfio
     }
 
     /// Returns VFIO container file descriptor or [`None`] if IOMMU is not available.
     fn get_vfio_container(&self) -> Option<RawFd> {
-        None
+        if self.vfio {
+            Some(self.vfio_fd)
+        } else {
+            None
+        }
     }
 
     /// Returns the pci address of this device.
@@ -377,7 +386,19 @@ impl IxgbeVFDevice {
             MAX_QUEUES
         );
 
-        let (addr, len) = pci_map_resource(pci_addr)?;
+        // Check if the NIC is IOMMU enabled...
+        let vfio = Path::new(&format!("/sys/bus/pci/devices/{}/iommu_group", pci_addr)).exists();
+
+        let (addr, len) = if vfio {
+            let device_fd = vfio_init(pci_addr)?;
+            vfio_map_region(device_fd, VFIO_PCI_BAR0_REGION_INDEX)?
+        } else {
+            if unsafe { libc::getuid() } != 0 {
+                warn!("not running as root, this will probably fail");
+            }
+
+            pci_map_resource(pci_addr)?
+        };
 
         // initialize RX and TX queue
         let rx_queues = Vec::with_capacity(num_rx_queues as usize);
@@ -399,6 +420,8 @@ impl IxgbeVFDevice {
             mbx,
             mac,
             stats,
+            vfio,
+            vfio_fd: unsafe { VFIO_CONTAINER_FILE_DESCRIPTOR },
         };
 
         dev.reset_and_init(pci_addr)?;
