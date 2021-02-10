@@ -619,7 +619,7 @@ impl IxgbeDevice {
             let mut txdctl = self.get_reg32(IXGBE_TXDCTL(u32::from(i)));
             // there are no defines for this in constants.rs for some reason
             // pthresh: 6:0, hthresh: 14:8, wthresh: 22:16
-            txdctl &= !(0x3F | (0x3F << 8) | (0x3F << 16));
+            txdctl &= !(0x7F | (0x7F << 8) | (0x7F << 16));
             txdctl |= 36 | (8 << 8) | (4 << 16);
 
             self.set_reg32(IXGBE_TXDCTL(u32::from(i)), txdctl);
