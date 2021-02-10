@@ -89,7 +89,7 @@ impl IxyDevice for VirtioDevice {
 
     fn rx_batch(
         &mut self,
-        _queue_id: u32,
+        _queue_id: u16,
         buffer: &mut VecDeque<Packet>,
         num_packets: usize,
     ) -> usize {
@@ -161,7 +161,7 @@ impl IxyDevice for VirtioDevice {
         buffer.len()
     }
 
-    fn tx_batch(&mut self, _queue_id: u32, buffer: &mut VecDeque<Packet>) -> usize {
+    fn tx_batch(&mut self, _queue_id: u16, buffer: &mut VecDeque<Packet>) -> usize {
         // 2.6.13
 
         mfence();

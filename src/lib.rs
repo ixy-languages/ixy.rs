@@ -69,7 +69,7 @@ pub trait IxyDevice {
     /// ```
     fn rx_batch(
         &mut self,
-        queue_id: u32,
+        queue_id: u16,
         buffer: &mut VecDeque<Packet>,
         num_packets: usize,
     ) -> usize;
@@ -89,7 +89,7 @@ pub trait IxyDevice {
     ///
     /// assert_eq!(dev.tx_batch(0, &mut buf), 0);
     /// ```
-    fn tx_batch(&mut self, queue_id: u32, buffer: &mut VecDeque<Packet>) -> usize;
+    fn tx_batch(&mut self, queue_id: u16, buffer: &mut VecDeque<Packet>) -> usize;
 
     /// Reads the network card's stats registers into `stats`.
     ///
@@ -131,7 +131,7 @@ pub trait IxyDevice {
 
     /// Takes `Packet`s out of `buffer` to send out. This will busy wait until all packets from
     /// `buffer` are queued.
-    fn tx_batch_busy_wait(&mut self, queue_id: u32, buffer: &mut VecDeque<Packet>) {
+    fn tx_batch_busy_wait(&mut self, queue_id: u16, buffer: &mut VecDeque<Packet>) {
         while !buffer.is_empty() {
             self.tx_batch(queue_id, buffer);
         }
@@ -267,14 +267,14 @@ impl IxyDevice for Box<dyn IxyDevice> {
 
     fn rx_batch(
         &mut self,
-        queue_id: u32,
+        queue_id: u16,
         buffer: &mut VecDeque<Packet>,
         num_packets: usize,
     ) -> usize {
         (**self).rx_batch(queue_id, buffer, num_packets)
     }
 
-    fn tx_batch(&mut self, queue_id: u32, buffer: &mut VecDeque<Packet>) -> usize {
+    fn tx_batch(&mut self, queue_id: u16, buffer: &mut VecDeque<Packet>) -> usize {
         (**self).tx_batch(queue_id, buffer)
     }
 

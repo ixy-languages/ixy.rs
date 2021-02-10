@@ -156,7 +156,7 @@ impl IxyDevice for IxgbeVFDevice {
     /// Pushes up to `num_packets` received `Packet`s onto `buffer`.
     fn rx_batch(
         &mut self,
-        queue_id: u32,
+        queue_id: u16,
         buffer: &mut VecDeque<Packet>,
         num_packets: usize,
     ) -> usize {
@@ -230,7 +230,7 @@ impl IxyDevice for IxgbeVFDevice {
         }
 
         if rx_index != last_rx_index {
-            self.set_reg32(IXGBE_VFRDT(queue_id), last_rx_index as u32);
+            self.set_reg32(IXGBE_VFRDT(u32::from(queue_id)), last_rx_index as u32);
             self.rx_queues[queue_id as usize].rx_index = rx_index;
         }
 
@@ -238,7 +238,7 @@ impl IxyDevice for IxgbeVFDevice {
     }
 
     /// Pops as many packets as possible from `packets` to put them into the device`s tx queue.
-    fn tx_batch(&mut self, queue_id: u32, packets: &mut VecDeque<Packet>) -> usize {
+    fn tx_batch(&mut self, queue_id: u16, buffer: &mut VecDeque<Packet>) -> usize {
         let mut sent = 0;
 
         {
@@ -251,12 +251,12 @@ impl IxyDevice for IxgbeVFDevice {
             let clean_index = clean_tx_queue(&mut queue);
 
             if queue.pool.is_none() {
-                if let Some(packet) = packets.get(0) {
+                if let Some(packet) = buffer.get(0) {
                     queue.pool = Some(packet.pool.clone());
                 }
             }
 
-            while let Some(packet) = packets.pop_front() {
+            while let Some(packet) = buffer.pop_front() {
                 assert!(
                     Rc::ptr_eq(queue.pool.as_ref().unwrap(), &packet.pool),
                     "distinct memory pools for a single tx queue are not supported yet"
@@ -267,7 +267,7 @@ impl IxyDevice for IxgbeVFDevice {
                 if clean_index == next_index {
                     // tx queue of device is full, push packet back onto the
                     // queue of to-be-sent packets
-                    packets.push_front(packet);
+                    buffer.push_front(packet);
                     break;
                 }
 
@@ -302,7 +302,7 @@ impl IxyDevice for IxgbeVFDevice {
         }
 
         self.set_reg32(
-            IXGBE_VFTDT(queue_id),
+            IXGBE_VFTDT(u32::from(queue_id)),
             self.tx_queues[queue_id as usize].tx_index as u32,
         );
 
