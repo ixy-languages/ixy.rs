@@ -363,7 +363,7 @@ impl Mempool {
 
         for i in 0..entries {
             if get_vfio_container() != -1 {
-                phys_addresses.push(unsafe { dma.virt.add(i * entry_size) } as usize);
+                phys_addresses.push(dma.phys + (i * entry_size));
             } else {
                 phys_addresses
                     .push(unsafe { virt_to_phys(dma.virt.add(i * entry_size) as usize)? });
