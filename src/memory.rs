@@ -47,7 +47,7 @@ const MAP_HUGE_2MB: i32 = 0x5400_0000; // 21 << 26
 
 impl<T> Dma<T> {
     /// Allocates dma memory on a huge page.
-    pub fn allocate(size: usize, require_contigous: bool) -> Result<Dma<T>, Box<dyn Error>> {
+    pub fn allocate(size: usize, require_contiguous: bool) -> Result<Dma<T>, Box<dyn Error>> {
         let size = if size % HUGE_PAGE_SIZE != 0 {
             ((size >> HUGE_PAGE_BITS) + 1) << HUGE_PAGE_BITS
         } else {
@@ -137,7 +137,7 @@ impl<T> Dma<T> {
         } else {
             debug!("allocating dma memory via huge page");
 
-            if require_contigous && size > HUGE_PAGE_SIZE {
+            if require_contiguous && size > HUGE_PAGE_SIZE {
                 return Err("failed to map physically contiguous memory".into());
             }
 
