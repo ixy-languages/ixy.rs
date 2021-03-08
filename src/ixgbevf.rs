@@ -450,9 +450,14 @@ impl IxgbeVFDevice {
         self.wait_write_msg_to_mbx(&[IXGBE_VF_RESET])?;
         thread::sleep(Duration::from_millis(10));
 
-        info!("initializing device {}", pci_addr);
-
         self.init_mac_addr()?;
+
+        let mac = self.get_mac_addr();
+        info!("initializing device {}", pci_addr);
+        info!(
+            "mac address: {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}",
+            mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]
+        );
 
         self.negotiate_api()?;
 
