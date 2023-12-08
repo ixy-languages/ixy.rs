@@ -2061,7 +2061,7 @@ pub const IXGBE_FTQF_POOL_MASK_EN: u32                                 = 0x40000
 pub const IXGBE_FTQF_QUEUE_ENABLE: u32                                 = 0x80000000;
 
 /* Interrupt clear mask */
-pub const IXGBE_IRQ_CLEAR_MASK: u32                                    = 0xFFFFFFFF;
+pub const IXGBE_IRQ_CLEAR_MASK: u32                                    = 0x7FFFFFFF;
 
 /* Interrupt Vector Allocation Registers */
 pub const IXGBE_IVAR_REG_NUM: u32                                      = 25;

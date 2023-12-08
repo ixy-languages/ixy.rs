@@ -477,9 +477,6 @@ impl IxgbeDevice {
             self.enable_interrupt(queue)?;
         }
 
-        // enable promisc mode by default to make testing easier
-        self.set_promisc(true);
-
         // wait some time for the link to come up
         self.wait_for_link();
 
@@ -501,6 +498,13 @@ impl IxgbeDevice {
         // enable CRC offloading
         self.set_flags32(IXGBE_HLREG0, IXGBE_HLREG0_RXCRCSTRP);
         self.set_flags32(IXGBE_RDRXCTL, IXGBE_RDRXCTL_CRCSTRIP);
+
+        self.clear_flags32(IXGBE_RDRXCTL, IXGBE_RDRXCTL_RSCFRSTSIZE);
+
+        // RSCFRSTSIZE should be set to 0x0 as opposed to its hardware default
+        // RSCACKC and FCOE_WRFIX should be set to 0x1
+        let rdrxctl = self.get_reg32(IXGBE_RDRXCTL);
+        self.set_reg32(IXGBE_RDRXCTL, rdrxctl & !IXGBE_RDRXCTL_RSCFRSTSIZE | IXGBE_RDRXCTL_RSCACKC | IXGBE_RDRXCTL_FCOE_WRFIX);
 
         // accept broadcast packets
         self.set_flags32(IXGBE_FCTRL, IXGBE_FCTRL_BAM);
@@ -569,6 +573,9 @@ impl IxgbeDevice {
             self.clear_flags32(IXGBE_DCA_RXCTRL(u32::from(i)), 1 << 12);
         }
 
+        // enable promisc mode by default to make testing easier
+        self.set_promisc(true);
+
         // start rx
         self.set_flags32(IXGBE_RXCTRL, IXGBE_RXCTRL_RXEN);
 
@@ -588,7 +595,7 @@ impl IxgbeDevice {
         }
 
         // required when not using DCB/VTd
-        self.set_reg32(IXGBE_DTXMXSZRQ, 0xffff);
+        self.set_reg32(IXGBE_DTXMXSZRQ, 0xfff);
         self.clear_flags32(IXGBE_RTTDCS, IXGBE_RTTDCS_ARBDIS);
 
         // configure queues
