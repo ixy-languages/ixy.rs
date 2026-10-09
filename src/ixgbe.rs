@@ -644,7 +644,7 @@ impl IxgbeDevice {
         }
 
         // final step: enable DMA
-        self.set_reg32(IXGBE_DMATXCTL, IXGBE_DMATXCTL_TE);
+        self.set_reg32(IXGBE_DMATXCTL, IXGBE_DMATXCTL_TE | (IXGBE_DMATXCTL_VT_DEFAULT << IXGBE_DMATXCTL_VT_SHIFT));
 
         Ok(())
     }

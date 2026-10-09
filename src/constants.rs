@@ -541,6 +541,8 @@ pub const IXGBE_DMATXCTL_GDV: u32                                      = 0x8; /*
 pub const IXGBE_DMATXCTL_MDP_EN: u32                                   = 0x20; /* Bit 5 */
 pub const IXGBE_DMATXCTL_MBINTEN: u32                                  = 0x40; /* Bit 6 */
 pub const IXGBE_DMATXCTL_VT_SHIFT: u32                                 = 16;  /* VLAN EtherType */
+pub const IXGBE_DMATXCTL_VT_DEFAULT: u32                               = 0x8100;  /* Datasheet states: "For proper operation, software must not change the default setting of this field" */
+
 
 pub const IXGBE_PFDTXGSWC_VT_LBEN: u32                                 = 0x1; /* Local L2 VT switch enable */
 
